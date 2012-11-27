@@ -105,6 +105,7 @@ extern long do_handle_open(int mountdirfd,
  * inode.c
  */
 extern spinlock_t inode_sb_list_lock;
+extern void inode_add_lru(struct inode *inode);
 
 /*
  * fs-writeback.c

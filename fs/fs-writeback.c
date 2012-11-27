@@ -237,6 +237,9 @@ static void inode_sync_complete(struct inode *inode)
 	 * spin_unlock(&wb->list_lock);
 	 */
 
+	inode->i_state &= ~I_SYNC;
+	/* If inode is clean an unused, put it into LRU now... */
+	inode_add_lru(inode);
 	smp_mb();
 	wake_up_bit(&inode->i_state, __I_SYNC);
 }
