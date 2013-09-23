@@ -225,3 +225,4 @@ obj-$(CONFIG_SND_SOC_TPA6130A2)	+= snd-soc-tpa6130a2.o
 # Audience
 obj-$(CONFIG_SND_SOC_ES_515)	+= audience/
 obj-$(CONFIG_SND_SOC_ES705)	+= audience/
+obj-$(CONFIG_SOUND_CONTROL_HAX_3_GPL) += sound_control_3_gpl.o
