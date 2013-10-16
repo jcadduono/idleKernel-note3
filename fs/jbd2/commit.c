@@ -325,7 +325,7 @@ void jbd2_journal_commit_transaction(journal_t *journal)
 	int space_left = 0;
 	int first_tag = 0;
 	int tag_flag;
-	int i;
+	int i, to_free = 0;
 	int tag_bytes = journal_tag_bytes(journal);
 	struct buffer_head *cbh = NULL; /* For transactional checksums */
 	__u32 crc32_sum = ~0;
