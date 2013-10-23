@@ -41,6 +41,7 @@
 
 #define PP_CLK_CFG_OFF 0
 #define PP_CLK_CFG_ON 1
+extern bool cpufreq_screen_on;
 
 #ifdef CONFIG_FB_MSM_CAMERA_CSC
 u8 pre_csc_update = 0xFF;
@@ -2420,6 +2421,8 @@ static int mdss_mdp_overlay_on(struct msm_fb_data_type *mfd)
 
 	if (!mfd)
 		return -ENODEV;
+
+	cpufreq_screen_on = true;
 
 	if (mfd->key != MFD_KEY)
 		return -EINVAL;
