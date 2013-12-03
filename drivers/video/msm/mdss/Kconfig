@@ -71,6 +71,11 @@ config MDNIE_LITE_TUNING
 	bool "MDNIe lite panel tuning"
 	default n
 
+config MDNIE_LITE_CONTROL
+	bool "MDNIe lite control interface"
+	depends on MDNIE_LITE_TUNING
+	default n
+
 config MDNIE_TFT_MSM8X26
 	bool "MDNIe feature for 8x26 tft panels"
 	default n
