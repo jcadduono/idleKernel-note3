@@ -10,6 +10,7 @@ echo "1) panel temperature"
 echo "2) panel color"
 echo "3) set screen_off_maxfreq"
 echo "5) gpu governor"
+echo "6) restart mpdecision (to fix stuck cores)"
 echo
 echo -n "please enter a number (or press enter to exit): "
 
@@ -70,6 +71,12 @@ case $option in
 	echo $GOV > /data/data/leankernel/gpu_governor
 	echo $GOV > /sys/devices/fdb00000.qcom,kgsl-3d0/devfreq/fdb00000.qcom,kgsl-3d0/governor
 	echo "Done! (also will persist at boot)"
+	;;
+6)
+	stop mpdecision
+	sleep 2
+	start mpdecision
+	echo "mpdecision restarted."
 	;;
 *)
 	exit
