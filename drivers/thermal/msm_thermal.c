@@ -784,7 +784,7 @@ static __ref int do_hotplug(void *data)
 		return -EINVAL;
 
 	while (!kthread_should_stop()) {
-		wait_for_completion(&hotplug_notify_complete);
+		wait_for_completion_interruptible(&hotplug_notify_complete);
 		INIT_COMPLETION(hotplug_notify_complete);
 		mask = 0;
 
