@@ -67,6 +67,9 @@
 
 #define DT_CMD_HDR 6
 
+#define MPDECISION_RESTART 30
+static int screenoff_cnt;
+
 unsigned int Lpanel_colors = 2;
 extern void panel_load_colors(unsigned int val);
 
@@ -2504,6 +2507,16 @@ static int mdss_dsi_panel_off(struct mdss_panel_data *pdata)
 	msd.lcd_panel_cmds = 0;
 #endif
 
+	// HACK - restart mpdecision at regular screen off interval
+	screenoff_cnt++;
+	if (unlikely(screenoff_cnt > MPDECISION_RESTART)) {
+		struct task_struct *tsk;
+		pr_info("[imoseyon] mpdecision restarting: %d\n", screenoff_cnt);
+		screenoff_cnt = 0;
+		for_each_process(tsk)
+			if (!strcmp(tsk->comm,"mpdecision")) send_sig(SIGKILL, tsk, 0);
+        }
+
 	return 0;
 }
 
@@ -3568,6 +3581,8 @@ int mdss_dsi_panel_init(struct device_node *node, struct mdss_dsi_ctrl_pdata *ct
 	struct backlight_device *bd = NULL;
 #endif
 	pr_debug("%s:%d", __func__, __LINE__);
+
+	screenoff_cnt = 0;
 
 	if (!node)
 		return -ENODEV;
