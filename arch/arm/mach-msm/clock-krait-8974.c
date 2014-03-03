@@ -794,6 +794,49 @@ static struct platform_driver clock_krait_8974_driver = {
 	},
 };
 
+ssize_t vc_get_vdd(char *buf)
+{
+	struct clk_vdd_class *vdd = krait0_clk.c.vdd_class;
+        int i, len = 0;
+	int levels = vdd->num_levels;
+
+        if (buf) {
+                for(i=1; i < levels; i++) {
+                        len += sprintf(buf + len, "%umhz: %d mV\n",
+				(unsigned int)krait0_clk.c.fmax[i]/1000000,
+                                vdd->vdd_uv[i]/1000 );
+                }
+        }
+        return len;
+}
+void vc_set_vdd(const char *buf)
+{
+	struct clk_vdd_class *vdd0 = krait0_clk.c.vdd_class;
+	struct clk_vdd_class *vdd1 = krait1_clk.c.vdd_class;
+	struct clk_vdd_class *vdd2 = krait2_clk.c.vdd_class;
+	struct clk_vdd_class *vdd3 = krait3_clk.c.vdd_class;
+        int ret, i;
+        char size_cur[16];
+        unsigned int volt;
+	int levels = vdd0->num_levels;
+
+        for(i=1; i < levels; i++) {
+            ret = sscanf(buf, "%d", &volt);
+            pr_info("[imoseyon]: voltage for %lu changed to %d\n",
+		krait0_clk.c.fmax[i]/1000, volt*1000);
+            vdd0->vdd_uv[i] = min(max((unsigned int)volt*1000,
+                (unsigned int)600000), (unsigned int)1350000);
+            vdd1->vdd_uv[i] = min(max((unsigned int)volt*1000,
+                (unsigned int)600000), (unsigned int)1350000);
+            vdd2->vdd_uv[i] = min(max((unsigned int)volt*1000,
+                (unsigned int)600000), (unsigned int)1350000);
+            vdd3->vdd_uv[i] = min(max((unsigned int)volt*1000,
+                (unsigned int)600000), (unsigned int)1350000);
+            ret = sscanf(buf, "%s", size_cur);
+            buf += (strlen(size_cur)+1);
+        }
+}
+
 static int __init clock_krait_8974_init(void)
 {
 	return platform_driver_register(&clock_krait_8974_driver);
