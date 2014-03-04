@@ -481,6 +481,15 @@ static ssize_t store_scaling_max_freq
         if (ret != 1)
                 return -EINVAL;
 
+	policy->user_policy.max = new_policy.max;
+	new_policy.user_policy.max = new_policy.max;
+
+	ret = cpufreq_driver->verify(&new_policy);
+        if (ret)
+                pr_err("cpufreq: Frequency verification failed\n");
+
+        ret = __cpufreq_set_policy(policy, &new_policy);
+
 	// restart thermal-engine when something else changes maxfreq
         if (strcmp(current->comm, "thermal-engine")) {
 		struct task_struct *tsk;
@@ -488,9 +497,6 @@ static ssize_t store_scaling_max_freq
 		  if (!strcmp(tsk->comm,"thermal-engine")) send_sig(SIGKILL, tsk, 0);
 		pr_info("[imoseyon] thermal-engine restarting.\n");
 	}
-
-        ret = __cpufreq_set_policy(policy, &new_policy);
-        policy->user_policy.max = policy->max;
 
         return ret ? ret : count;
 }
