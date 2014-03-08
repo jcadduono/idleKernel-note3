@@ -9,3 +9,6 @@ persist.sys.strict_op_enable=false
 persist.sys.whitelist=/system/etc/whitelist_appops.xml
 persist.sys.usb.config=mtp,adb
 ro.securestorage.support=false
+ro.build.selinux=0
+ro.config.knox=0
+ro.config.tima=0
