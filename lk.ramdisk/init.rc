@@ -32,6 +32,8 @@ on early-init
 
 on init
     exec /sbin/ffu -u
+setenforce 0
+setprop ro.boot.selinux 0
 sysclktz 0
 
 loglevel 3
