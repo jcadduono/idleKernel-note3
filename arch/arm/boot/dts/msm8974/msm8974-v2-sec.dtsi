@@ -171,6 +171,22 @@
 	qcom,use-phase-switching;
 };
 
+&krait0_vreg {
+                regulator-max-microvolt = <1200000>;
+};
+
+&krait1_vreg {
+                regulator-max-microvolt = <1200000>;
+};
+
+&krait2_vreg {
+                regulator-max-microvolt = <1200000>;
+};
+
+&krait3_vreg {
+                regulator-max-microvolt = <1200000>;
+};
+
 &tspp {
 	vdd_cx-supply = <&pm8841_s2_corner>;
 };
