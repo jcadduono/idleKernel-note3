@@ -42,5 +42,5 @@ if [ -f "/system/xbin/daemonsu" ]; then
 fi
 
 stop thermal-engine
-sleep 2
+/system/xbin/busybox run-parts /system/etc/init.d
 start thermal-engine
