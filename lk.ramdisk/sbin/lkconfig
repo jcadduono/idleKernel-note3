@@ -6,9 +6,9 @@ echo
 echo "leanKernel configurator"
 echo "---"
 echo "0) display current settings"
-echo "1) panel temperature"
+#echo "1) panel temperature"
 echo "2) panel color"
-echo "3) set screen_off_maxfreq"
+#echo "3) set screen_off_maxfreq"
 #echo "4) panel brightness tweak"
 echo "5) gpu governor"
 echo
@@ -21,19 +21,19 @@ case $option in
 	echo
 	echo "current settings"
 	echo "----------------"
-	echo -n "1) panel temperature: "
-	cat /sys/class/lcd/panel/temperature
+#	echo -n "1) panel temperature: "
+#	cat /sys/class/lcd/panel/temperature
 	echo -n "2) panel color: "
 	cat /sys/class/lcd/panel/panel_colors
-	echo -n "3) screen off maxfreq: "
-	cat `ls -d /sys/devices/system/cpu/cpufreq/*a*`/screen_off_maxfreq
+#	echo -n "3) screen off maxfreq: "
+#	cat `ls -d /sys/devices/system/cpu/cpufreq/*a*`/screen_off_maxfreq
 #	echo -n "4) panel brightness tweak (0 off, 1 on): "
 #	cat /sys/devices/virtual/graphics/fb0/btweak
 	echo -n "5) gpu governor: "
 	cat /sys/devices/fdb00000.qcom,kgsl-3d0/devfreq/fdb00000.qcom,kgsl-3d0/governor
 	echo
 	;;
-1) 
+11) 
 	echo -n "Enter a number between -60 and 0 (0 is kernel default): "
 	read value
 	echo $value > /data/data/leankernel/paneltemp
@@ -47,7 +47,7 @@ case $option in
 	echo $value > /sys/class/lcd/panel/panel_colors
 	echo "Turn off screen and back on (also will persist at boot)"
 	;;
-3)	
+33)	
 	echo -n "Enter a number between 0 and 4 (0:650mhz,1:883mhz,2:1.2ghz/default,3:1.5ghz,4:disable): "
 	read value
 	case $value in
