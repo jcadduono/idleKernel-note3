@@ -6,7 +6,7 @@ echo
 echo "leanKernel configurator"
 echo "---"
 echo "0) display current settings"
-#echo "1) panel temperature"
+echo "1) panel temperature"
 echo "2) panel color"
 #echo "3) set screen_off_maxfreq"
 #echo "4) panel brightness tweak"
@@ -21,8 +21,8 @@ case $option in
 	echo
 	echo "current settings"
 	echo "----------------"
-#	echo -n "1) panel temperature: "
-#	cat /sys/class/lcd/panel/temperature
+	echo -n "1) panel temperature: "
+	cat /sys/class/lcd/panel/temperature
 	echo -n "2) panel color: "
 	cat /sys/class/lcd/panel/panel_colors
 #	echo -n "3) screen off maxfreq: "
@@ -33,7 +33,7 @@ case $option in
 	cat /sys/devices/fdb00000.qcom,kgsl-3d0/devfreq/fdb00000.qcom,kgsl-3d0/governor
 	echo
 	;;
-11) 
+1) 
 	echo -n "Enter a number between -60 and 0 (0 is kernel default): "
 	read value
 	echo $value > /data/data/leankernel/paneltemp
