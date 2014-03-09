@@ -1,4 +1,4 @@
-/* Copyright (c) 2012, Samsung Electronics. All rights reserved.
+/* Copyright (c) 2012, Samsung Electronics. All rights reservee.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -712,11 +712,20 @@ static struct dsi_cmd get_elvss_tempcompen_control_set(void)
 		pr_debug("%s 0 > temp > -20 \n",__func__);
 		elvss_lowtemp_cmds_list.cmd_desc[1].payload[1] = 0x00;
 		elvss_lowtemp_cmds_list.cmd_desc[2].payload[1] = 0x8C;
-	} else {
-		pr_debug("%s temp <= -20 \n",__func__);
+	} else if (msd.dstat.temperature > -40) {
+		pr_debug("%s -40 > temp > -20 \n",__func__);
 		elvss_lowtemp_cmds_list.cmd_desc[1].payload[1] = 0x94;
 		elvss_lowtemp_cmds_list.cmd_desc[2].payload[1] = 0x8C;
+	} else if (msd.dstat.temperature > -60) {
+		pr_debug("%s -60 > temp > -40 \n",__func__);
+		elvss_lowtemp_cmds_list.cmd_desc[1].payload[1] = msd.dstat.temperature_value;
+		elvss_lowtemp_cmds_list.cmd_desc[2].payload[1] = 0x90;
+	} else {
+		pr_debug("%s temp < -60 \n",__func__);
+		elvss_lowtemp_cmds_list.cmd_desc[1].payload[1] = 0xBC;
+		elvss_lowtemp_cmds_list.cmd_desc[2].payload[1] = 0x94;
 	}
+
 	elvss_tempcompen_control.cmd_desc = elvss_lowtemp_cmds_list.cmd_desc;
 	elvss_tempcompen_control.num_of_cmds = elvss_lowtemp_cmds_list.num_of_cmds;
 
@@ -1402,14 +1411,9 @@ static ssize_t mipi_samsung_auto_brightness_store(struct device *dev,
 static ssize_t mipi_samsung_temperature_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
-	int rc;
 
-	rc = snprintf((char *)buf, 40,"-20, -19, 0, 1, 30, 40\n");
-
-	pr_info("%s msd.mpd->temperature : %d msd.mpd->temperature_value : 0x%x", __func__,
-				msd.dstat.temperature, msd.dstat.temperature_value);
-
-	return rc;
+	// range between -60 and 0
+	return sprintf(buf, "%d\n", msd.dstat.temperature);
 }
 
 static ssize_t mipi_samsung_temperature_store(struct device *dev,
@@ -2322,6 +2326,7 @@ static int mdss_dsi_panel_dimming_init(struct mdss_panel_data *pdata)
 		msd.dstat.is_mdnie_loaded = true;
 	}
 #endif
+
 	return 0;
 }
 
