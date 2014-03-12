@@ -45,8 +45,17 @@ on boot
     chmod 0600 /dev/btlock
     chown bluetooth bluetooth /dev/btlock
 
+## mount carreir partition for SPR model ##
+on init
+    mkdir /carrier 0771 system system
+
 on fs
+    wait /dev/block/platform/msm_sdcc.1/by-name/carrier
+    mount ext4 /dev/block/platform/msm_sdcc.1/by-name/carrier /carrier nosuid nodev barrier=1
+    chown system system /carrier
+    chmod 0771 /carrier
   
+    
 #For Absolute Persistence Partition 
        
      mkdir /persdata 0755 system system 
