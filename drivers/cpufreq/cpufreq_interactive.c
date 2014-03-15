@@ -36,6 +36,7 @@
 #include <trace/events/cpufreq_interactive.h>
 
 static int active_count;
+bool cpufreq_screen_on = true;
 
 struct cpufreq_interactive_cpuinfo {
 	struct timer_list cpu_timer;
@@ -122,6 +123,8 @@ static u64 boostpulse_endtime;
 static int timer_slack_val = DEFAULT_TIMER_SLACK;
 
 #define TOP_STOCK_FREQ 2265600
+#define DEFAULT_SCREEN_OFF_MAX 2265600
+static unsigned long screen_off_max = DEFAULT_SCREEN_OFF_MAX;
 
 static bool io_is_busy;
 
@@ -142,7 +145,7 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 static
 #endif
 struct cpufreq_governor cpufreq_gov_interactive = {
-	.name = "interactive",
+	.name = "interactiveX",
 	.governor = cpufreq_governor_interactive,
 	.max_transition_latency = 10000000,
 	.owner = THIS_MODULE,
@@ -667,6 +670,9 @@ static int cpufreq_interactive_speedchange_task(void *data)
 					max_freq = pjcpu->target_freq;
 			}
 
+			if (unlikely(!cpufreq_screen_on))
+				if (max_freq > screen_off_max) max_freq = screen_off_max;
+
 			if (max_freq != pcpu->policy->cur)
 				__cpufreq_driver_target(pcpu->policy,
 							max_freq,
@@ -1101,6 +1107,30 @@ static ssize_t store_boostpulse_duration(
 
 define_one_global_rw(boostpulse_duration);
 
+ static ssize_t show_screen_off_maxfreq(struct kobject *kobj,
+                                         struct attribute *attr, char *buf)
+ {
+         return sprintf(buf, "%lu\n", screen_off_max);
+ }
+ 
+ static ssize_t store_screen_off_maxfreq(struct kobject *kobj,
+                                          struct attribute *attr,
+                                          const char *buf, size_t count)
+ {
+         int ret;
+         unsigned long val;
+ 
+         ret = strict_strtoul(buf, 0, &val);
+         if (ret < 0) return ret;
+         if (val < 300000) screen_off_max = 2265600;
+         else screen_off_max = val;
+         return count;
+ }
+ 
+ static struct global_attr screen_off_maxfreq =
+        __ATTR(screen_off_maxfreq, 0666, show_screen_off_maxfreq,
+                store_screen_off_maxfreq);
+
 static ssize_t show_io_is_busy(struct kobject *kobj,
 			struct attribute *attr, char *buf)
 {
@@ -1204,6 +1234,7 @@ static struct attribute *interactive_attributes[] = {
 	&boost.attr,
 	&boostpulse.attr,
 	&boostpulse_duration.attr,
+	&screen_off_maxfreq.attr,
 	&io_is_busy_attr.attr,
 	&sampling_down_factor_attr.attr,
 	&sync_freq_attr.attr,
@@ -1370,6 +1401,7 @@ static int __init cpufreq_interactive_init(void)
 	struct cpufreq_interactive_cpuinfo *pcpu;
 	struct sched_param param = { .sched_priority = MAX_RT_PRIO-1 };
 
+	cpufreq_screen_on = true;
 	/* Initalize per-cpu timers */
 	for_each_possible_cpu(i) {
 		pcpu = &per_cpu(cpuinfo, i);
