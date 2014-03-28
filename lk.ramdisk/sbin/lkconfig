@@ -8,8 +8,7 @@ echo "---"
 echo "0) display current settings"
 echo "1) panel temperature"
 echo "2) panel color"
-#echo "3) set screen_off_maxfreq"
-#echo "4) panel brightness tweak"
+echo "3) set screen_off_maxfreq"
 echo "5) gpu governor"
 echo
 echo -n "please enter a number (or press enter to exit): "
@@ -25,10 +24,8 @@ case $option in
 	cat /sys/class/lcd/panel/temperature
 	echo -n "2) panel color: "
 	cat /sys/class/lcd/panel/panel_colors
-#	echo -n "3) screen off maxfreq: "
-#	cat `ls -d /sys/devices/system/cpu/cpufreq/*a*`/screen_off_maxfreq
-#	echo -n "4) panel brightness tweak (0 off, 1 on): "
-#	cat /sys/devices/virtual/graphics/fb0/btweak
+	echo -n "3) screen off maxfreq: "
+	cat `ls -d /sys/devices/system/cpu/cpufreq/*a*`/screen_off_maxfreq
 	echo -n "5) gpu governor: "
 	cat /sys/devices/fdb00000.qcom,kgsl-3d0/devfreq/fdb00000.qcom,kgsl-3d0/governor
 	echo
@@ -47,7 +44,7 @@ case $option in
 	echo $value > /sys/class/lcd/panel/panel_colors
 	echo "Turn off screen and back on (also will persist at boot)"
 	;;
-33)	
+3)	
 	echo -n "Enter a number between 0 and 4 (0:650mhz,1:883mhz,2:1.2ghz/default,3:1.5ghz,4:disable): "
 	read value
 	case $value in
@@ -61,13 +58,6 @@ case $option in
 	echo $FREQ > `ls -d /sys/devices/system/cpu/cpufreq/*a*`/screen_off_maxfreq
 	echo "Done! (also will persist at boot)"
 	;;
-44)
-        echo -n "Enter 0 to turn it off and 1 to turn it on (0 kernel default): "
-        read value
-        echo $value > /data/data/leankernel/btweak
-        echo $value > /sys/devices/virtual/graphics/fb0/btweak
-        echo "Turn off screen and back on (also will persist at boot)"
-        ;;
 5)
         echo -n "Enter a number between 0 and 3 (0:adreno-tz/default,1:powersave,2:performance,3:ondemand): "
         read value
