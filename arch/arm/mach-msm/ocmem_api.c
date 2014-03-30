@@ -55,7 +55,7 @@ static int __ocmem_free(int id, struct ocmem_buf *buf)
 	if (ret) {
 		pr_err("ocmem: Free failed for client %s\n", get_name(id));
 		free_handle(handle);
-		return ret;
+		return 0;
 	}
 	free_handle(handle);
 	return 0;
