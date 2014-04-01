@@ -522,7 +522,7 @@ static ssize_t w1_master_attribute_show_verify_mac(struct device *dev, struct de
 	struct list_head *ent, *n;
 	struct w1_slave *sl = NULL;
 
-#if !defined(CONFIG_SEC_H_PROJECT) || defined(CONFIG_MACH_HLTESPR)
+#ifndef CONFIG_SEC_H_PROJECT
 	mutex_lock(&md->mutex);
 #endif
 	list_for_each_safe(ent, n, &md->slist) {
@@ -546,7 +546,7 @@ static ssize_t w1_master_attribute_show_verify_mac(struct device *dev, struct de
 	else
 		pr_info("%s : sysfs call fail\n", __func__);
 #endif
-#if !defined(CONFIG_SEC_H_PROJECT) || defined(CONFIG_MACH_HLTESPR)
+#ifndef CONFIG_SEC_H_PROJECT
 	mutex_unlock(&md->mutex);
 #endif
 
