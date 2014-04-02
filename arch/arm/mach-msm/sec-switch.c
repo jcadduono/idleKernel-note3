@@ -525,6 +525,7 @@ void set_redriver_power(int on)
 #endif
 #if defined(CONFIG_SEC_H_PROJECT) || defined(CONFIG_SEC_F_PROJECT)
 extern unsigned int system_rev;
+extern void force_dwc3_gadget_disconnect(void);
 #define GPIO_REDRIVER_EN 129
 extern u8 usb30en;
 void set_redriver_power(int on)
@@ -581,6 +582,7 @@ void max77803_muic_usb_cb(u8 usb_mode)
 			set_ncm_ready(0);
 			usb30en = 0;
 			set_redriver_power(usb_mode);
+			force_dwc3_gadget_disconnect();
 #endif
 		}
 #ifdef CONFIG_USB_HOST_NOTIFY
