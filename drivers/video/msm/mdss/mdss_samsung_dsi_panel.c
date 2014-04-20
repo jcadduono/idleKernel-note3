@@ -67,7 +67,7 @@
 
 #define DT_CMD_HDR 6
 
-#define MPDECISION_RESTART 30
+#define MPDECISION_RESTART 20
 static int screenoff_cnt;
 
 unsigned int Lpanel_colors = 2;
