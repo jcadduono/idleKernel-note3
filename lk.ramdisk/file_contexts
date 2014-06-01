@@ -232,12 +232,18 @@
 /dev/batch_io	u:object_r:io_device:s0
 /dev/bcm2079x	u:object_r:nfc_device:s0
 /dev/block/platform/dw_mmc.*    u:object_r:dw_mmc_device:s0
-/dev/block/platform/msm_sdcc.1/by-name/param		u:object_r:paramblk_device:s0
+/dev/block/platform/msm_sdcc.1/by-name/param		u:object_r:emmcblk_device:s0
 /dev/block/vnswap0		u:object_r:swap_device:s0
 /dev/bus/usb(/.*)?      u:object_r:usb_bus:s0
 /dev/diag	u:object_r:diag_device:s0
 /dev/dumpstate	u:object_r:dumpstate_device:s0
 /dev/i2c.*		u:object_r:i2c_device:s0
+
+## Knox Sensitive data protection, DEK engine driver access
+/dev/dek_evt	u:object_r:knox_dar_device:s0
+/dev/dek_log	u:object_r:knox_dar_device:s0
+/dev/dek_req	u:object_r:knox_dar_device:s0
+
 /dev/media[0-3]*	u:object_r:camera_device:s0
 /dev/mobicore	u:object_r:mobicore_device:s0
 /dev/mobicore-user	u:object_r:mobicore-user_device:s0
@@ -255,6 +261,8 @@
 /dev/socket/dir_enc_report	u:object_r:vold_socket:s0
 /dev/socket/drsd        u:object_r:drsd_socket:s0
 /dev/socket/epm     u:object_r:epm_socket:s0
+/dev/socket/rild[0-9]*	u:object_r:rild_socket:s0
+/dev/socket/rild-debug[0-9]* u:object_r:rild_debug_socket:s0
 /dev/ssp_sensorhub	u:object_r:input_device:s0
 /dev/timerirq	u:object_r:timerirq_device:s0
 /dev/ttyGS[0-9]*	u:object_r:usb_serial_device:s0
@@ -266,6 +274,10 @@
 /dev/usb_mtp_gadget.*	u:object_r:mtp_device:s0
 /dev/validity(/.*)?	u:object_r:validity_device:s0
 /dev/vfsspi	u:object_r:vfsspi_device:s0
+/dev/block/mmcblk0p[0-9]*    u:object_r:emmcblk_device:s0
+/dev/block/mmcblk[0-9]*	   u:object_r:emmcblk_device:s0
+/dev/block/mmcblk1p.*   u:object_r:emmcblk_device:s0
+/dev/block/mmcblk1p1    u:object_r:emmcblk_device:s0
 
 ####################################
 # sysfs files
@@ -297,6 +309,7 @@
 /system/bin/dttexe	u:object_r:dttexe_exec:s0
 /system/bin/dumpstate	u:object_r:dumpstate_exec:s0
 /system/bin/dumpsys	u:object_r:dumpsys_exec:s0
+/system/bin/edmaudit	u:object_r:edmaudit_exec:s0
 /system/bin/gsiff_daemon	u:object_r:gsiff_daemon_exec:s0
 /system/bin/icd	u:object_r:icd_exec:s0
 /system/bin/immvibed	u:object_r:immvibed_exec:s0
@@ -317,11 +330,14 @@
 /system/bin/sec-ril	u:object_r:sec-ril_exec:s0
 /system/bin/secure_storage_daemon	u:object_r:secure_storage_exec:s0
 /system/bin/sensorhubservice	u:object_r:sensorhubservice_exec:s0
+/system/bin/selinux-network.sh	u:object_r:selinux_net_exec:s0
 /system/bin/ss_conn_daemon	u:object_r:ss_conn_daemon_exec:s0
 /system/bin/sshd	u:object_r:sshd_exec:s0
 /system/bin/sysmon	u:object_r:sysmon_exec:s0
 /system/bin/tima_dump_log	u:object_r:tima_dump_exec:s0
 /system/bin/vcsFPService	u:object_r:vcsFPService_exec:s0
+/system/bin/wcnss_service	u:object_r:wcnss_service_exec:s0
+/system/bin/wpa_supplicant_real u:object_r:wpa_exec:s0
 /system/etc/install-recovery.sh	u:object_r:flash_recovery_sh_file:s0
 
 /system/lib(/.*)?	u:object_r:system_library_file:s0
@@ -354,8 +370,14 @@
 /data/.container_[1-9](/.*)?	u:object_r:container_app_data_backend:s0
 /data/container(/.*)?	u:object_r:container_app_data_backend:s0
 /data/clipboard/knox(/.*)?  u:object_r:knox_clipboard_file:s0
+/data/clipboard1[0-9][0-9](/.*)?  u:object_r:knox_clipboard_file:s0
+/data/knox(/.*)?	u:object_r:container_app_data_backend:s0
+/data/system/container(/.*)?	u:object_r:security_file:s0
 /data/sc(/.*)?		u:object_r:smartcard_data_file:s0
-/data/personalpage(/.*)?	u:object_r:personal_page_file:s0
+# personalpage path is not used  by (hyojin45.son)
+# /data/personalpage(/.*)?	u:object_r:personal_page_file:s0
+# new path for personalpage is privatemode.K is first model for personalpage.
+/data/privatemode(/.*)?	u:object_r:personal_page_file:s0
 /data/KEqvTaYEYkuJr1Mn+t-SwFvbgYo_(/.*)?  u:object_r:tima_keystore_file:s0
 /data/misc/tima(/.*)?		u:object_r:tima_log:s0
 /data/data/com.android.shell(/.*)?		u:object_r:shell_data_file:s0
@@ -385,14 +407,15 @@
 /dev/android_mbim	u:object_r:android_mbim:s0
 /dev/android_rndis_qc	u:object_r:radio_device:s0
 /dev/audience_a2220	u:object_r:audio_device:s0
-/dev/block/mmcblk0	u:object_r:mmcblk0_device:s0
 /dev/block/mmcblk0rpmb	u:object_r:mmcblk0rpmb_device:s0
 /dev/block/platform/msm_sdcc.1/by-name/fsg	u:object_r:fsg_device:s0
-/dev/block/platform/msm_sdcc.1/by-name/m9kefs[0-3]*	u:object_r:m9kefsblk_device:s0
+/dev/block/platform/msm_sdcc.1/by-name/m9kefs[0-3]*	u:object_r:emmcblk_device:s0
 /dev/block/platform/msm_sdcc.1/by-name/modem	u:object_r:modem_device:s0
-/dev/block/platform/msm_sdcc.1/by-name/modemst[1-2]*	u:object_r:modemstblk_device:s0
-/dev/block/platform/msm_sdcc.1/by-name/ssd	u:object_r:ssdblk_device:s0
+/dev/block/platform/msm_sdcc.1/by-name/modemst[1-2]*	u:object_r:emmcblk_device:s0
+/dev/block/platform/msm_sdcc.1/by-name/ssd	u:object_r:emmcblk_device:s0
 /dev/btlock	u:object_r:hci_attach_dev:s0
+#ciq_bridge PLM
+/dev/ciq_bridge         u:object_r:ciqbridge_device:s0
 /dev/cpu_dma_latency  u:object_r:cpu_dma_latency_device:s0
 /dev/dun	u:object_r:dun_device:s0
 /dev/efs_bridge	u:object_r:radio_device:s0
@@ -465,8 +488,6 @@
 /dev/socket/qmux_gps	u:object_r:qmux_gps_socket:s0
 /dev/socket/qmux_radio	u:object_r:qmux_radio_socket:s0
 /dev/socket/radio	u:object_r:radio_socket:s0
-/dev/socket/rild2	u:object_r:rild_socket:s0
-/dev/socket/rild-debug[0-9]* u:object_r:rild_debug_socket:s0
 /dev/tspdrv	u:object_r:tspdrv_device:s0
 /dev/ttyHS[0-9]*	u:object_r:bluetooth_serial_device:s0
 /dev/ttyHSL[0-9]*	u:object_r:radio_device:s0
@@ -525,20 +546,23 @@
 /system/bin/thermald u:object_r:thermald_exec:s0
 /system/bin/time_daemon	u:object_r:time_daemon_exec:s0
 /system/bin/wiperiface		u:object_r:wiperiface_exec:s0
-#line 1 "vendor/samsung/common/sepolicy/qcom_common/hltetmo/file_contexts"
-/dev/block/mmcblk0p1    u:object_r:apnhlosblk_device:s0
-/dev/block/mmcblk0p2    u:object_r:mdmblk_device:s0
-/dev/block/mmcblk0p9	u:object_r:padblk_device:s0
-/dev/block/mmcblk0p10   u:object_r:paramblk_device:s0
-/dev/block/mmcblk0p11   u:object_r:efsblk_device:s0
-/dev/block/mmcblk0p12   u:object_r:modemstblk_device:s0
-/dev/block/mmcblk0p13   u:object_r:modemstblk_device:s0
-/dev/block/mmcblk0p15   u:object_r:recoveryblk_device:s0
-/dev/block/mmcblk0p17   u:object_r:backupblk_device:s0
-/dev/block/mmcblk0p18   u:object_r:fsgblk_device:s0
-/dev/block/mmcblk0p19   u:object_r:fscblk_device:s0
-/dev/block/mmcblk0p20   u:object_r:ssdblk_device:s0
-/dev/block/mmcblk0p21   u:object_r:persistblk_device:s0
-/dev/block/mmcblk0p22   u:object_r:persdatablk_device:s0
-/dev/block/mmcblk0p23	u:object_r:systemblk_device:s0
-/dev/block/mmcblk0p25   u:object_r:userdatablk_device:s0
+#line 1 "vendor/samsung/common/sepolicy/vmware/file_contexts"
+# VMware daemon
+/system/bin/mvpd	u:object_r:vmwared_exec:s0
+
+# Vmware device
+/dev/mvpkm		u:object_r:vmware_device:s0
+
+# VMWare sysfs
+/sys/hypervisor(/.*)	u:object_r:sysfs_vmware_writable:s0
+#line 1 "vendor/samsung/common/sepolicy/qcom_common/carrier_spr/file_contexts"
+#### Kineto for secsprextension/java/com/oem/smartwifisupport
+/dev/socket/cfiat  u:object_r:cfiat_socket:s0
+/dev/socket/kipc   u:object_r:kipc_socket:s0
+
+############################# 
+# ItsOn file
+#
+/system/vendor/itson(/.*)?  u:object_r:sprintitson_file:s0
+#/vendor/app(/.*)?  u:object_r:sprintitson_file:s0
+/carrier/itson(/.*)?  u:object_r:sprintitson_file:s0

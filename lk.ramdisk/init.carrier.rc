@@ -94,7 +94,7 @@ service ipsec-daemon /system/bin/IPSecService
 service vpnclientpm /system/bin/vpnclientpm -u 1000 -g 1000 \
      -O /data/data/com.ipsec.service/vpnclientpm.txt \
      -U rmnet,rmnet_usb,wlan,bt-pan,rndis,p2p,eth
-      socket vpnclientpm seqpacket 0666
+      socket vpnclientpm seqpacket 0600 system system
       disabled
 on property:service.vpnclientpm.enable=1
       start vpnclientpm

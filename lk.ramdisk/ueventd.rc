@@ -134,7 +134,7 @@
 
 # NFC
 # JPN Felica Temporary Workaround
-/dev/ttyHSL2              0660    nfc       nfc
+/dev/ttyHSL1              0660    nfc       nfc
 /dev/snfc_uart            0660    nfc       nfc
 /dev/snfc_pon             0220    nfc       nfc
 /dev/snfc_cen             0440    nfc       system
@@ -144,6 +144,10 @@
 /dev/snfc_rfs             0440    nfc       nfc
 /dev/snfc_rfs_poll        0440    nfc       nfc
 /dev/uartcc               0660    nfc       nfc
+
+# ISDB-Tmm  FSI 20140416
+/dev/mmtuneri2c		  0660	  system    system
+/dev/mmtunerspi		  0660	  system    system
 
 # sysfs iio event
 /sys/devices/f9927000.i2c/i2c-5/5-0024/iio:device*										0664   system     radio

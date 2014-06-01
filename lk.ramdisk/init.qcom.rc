@@ -115,6 +115,12 @@ on boot
     chmod 0660 /dev/ttyHS2
     chown bluetooth bluetooth /dev/ttyHS2
 
+    # for BT MAC address
+    mkdir /efs/bluetooth 0775 radio system
+    # if already exist
+    chown radio system /efs/bluetooth
+    chmod 0775 /efs/bluetooth
+
     #Audience ES705 UART
     chmod 0666 /dev/ttyHS3
 
@@ -632,8 +638,6 @@ service olsrd /system/bin/olsrd -f /etc/wifi/olsrd.conf
 on property:init.svc.dhcpcd_ibss=running
     start olsrd
 
-on property:init.svc.dhcpcd_ibss=stopped
-    stop olsrd
 service gpsone_daemon /system/bin/gpsone_daemon
     class late_start
     user gps

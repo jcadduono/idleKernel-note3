@@ -287,6 +287,9 @@ on post-fs-data
     mkdir /data/property 0700 root root
     mkdir /data/ssh 0750 root shell
     mkdir /data/ssh/empty 0700 root root
+    mkdir /data/system 0775 system system
+    mkdir /data/system/container 0700 system system
+    restorecon -R /data/system
 
     # SA, System SW, SAMSUNG create log directory
     mkdir /data/log 0775 system log
@@ -365,6 +368,7 @@ on post-fs-data
     # MTP permission
     chmod 0660 /dev/usb_mtp_gadget
     chown system mtp /dev/usb_mtp_gadget
+    mkdir /dev/socket/mtp 0770 system mtp
 
     # symlink to bugreport storage location
     symlink /data/data/com.android.shell/files/bugreports /data/bugreports
@@ -375,6 +379,7 @@ on post-fs-data
     mkdir /data/security/booleans 0711 system system
     mkdir /data/security/good 0700 system system
     mkdir /data/security/stig 0700 system system
+    mkdir /data/security/mycontainer 0700 system system
 
     # If there is no fs-post-data action in the init.<device>.rc file, you
     # must uncomment this line, otherwise encrypted filesystems
@@ -754,6 +759,8 @@ on boot
 	chown system radio /sys/class/power_supply/battery/lte
 	chown system radio /sys/class/power_supply/battery/wc_enable
 	chown system radio /sys/class/power_supply/battery/lcd
+	chown system radio /sys/class/power_supply/ps/status
+	chmod 0664 /sys/class/power_supply/ps/status
 
 # Permission for fast dormancy for RIL
     chown system radio /sys/devices/virtual/sec/bamdmux/waketime
@@ -761,6 +768,9 @@ on boot
 # Permissions for gpio_keys
     chown system radio /sys/class/sec/sec_key/wakeup_keys
     write /sys/class/sec/sec_key/wakeup_keys 116,172
+
+# Permissions for gpio_keys
+    chown system radio /sys/class/sec/sec_key/hall_irq_ctrl
 
 # Define TCP buffer sizes for various networks
 #   ReadMin, ReadInitial, ReadMax, WriteMin, WriteInitial, WriteMax,
@@ -870,6 +880,10 @@ service healthd-charger /sbin/healthd -n
     critical
     seclabel u:r:healthd:s0
 
+# Reload SE Android Policy for MDM
+on property:persist.security.mdm.policy=1
+    setprop selinux.reload_policy 1
+
 on property:selinux.reload_policy=1
     chown system system /sys/fs/selinux/enforce
     chown -R system system /sys/fs/selinux/booleans
@@ -936,6 +950,7 @@ service vold /system/bin/vold
     socket vold stream 0660 root mount
     ioprio be 2
     socket dir_enc_report stream 0660 root mount
+    socket epm stream 0660 system system
 
 service netd /system/bin/netd
     class main
@@ -946,9 +961,6 @@ service netd /system/bin/netd
 service debuggerd /system/bin/debuggerd
     class main
 
-# Tmm Add Start
-    socket rild-cas stream 660  casdrm mmb
-# Tmm Add End
 service DR-daemon /system/bin/ddexe
     class main
     user root

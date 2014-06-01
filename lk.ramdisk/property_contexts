@@ -75,3 +75,9 @@ setupwizard.mode	u:object_r:setupwizard_prop:s0
 sys.mobicoredaemon.enable	u:object_r:mobicore_prop:s0
 vpnclientpm.	u:object_r:vpn_prop:s0
 persist.security.ams.       u:object_r:container_mgmt_prop:s0
+persist.security.good.      u:object_r:good_mgmt_prop:s0
+persist.security.mdm.       u:object_r:policy_mgmt_prop:s0
+#line 1 "vendor/samsung/common/sepolicy/qcom_common/carrier_spr/property_contexts"
+cdma.home.	u:object_r:radio_prop:s0
+#line 1 "vendor/samsung/common/sepolicy/qcom_common/carrier_tfntmo/property_contexts"
+#cdma.home.	u:object_r:radio_prop:s0
