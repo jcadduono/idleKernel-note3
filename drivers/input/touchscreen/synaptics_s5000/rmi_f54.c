@@ -2197,20 +2197,6 @@ static bool synaptics_skip_firmware_update(struct synaptics_rmi4_data *rmi4_data
 	}
 #endif
 
-#if defined(CONFIG_TARGET_LOCALE_JPN)
-	if (system_rev == 9) {
-		if ((rmi4_data->ic_revision_of_bin == 0x00) && (rmi4_data->fw_version_of_bin == 0xA1)) {
-			printk(KERN_ERR "%s: Must be removed later! ONLY for JPN-JA-REV0.1-CCI-OFF-HW-Jumper-Worked target!\n");
-			dev_info(&rmi4_data->i2c_client->dev, "%s: Do not need to update\n", __func__);
-			return true;
-		}
-	} else {
-		if ((rmi4_data->ic_revision_of_bin == rmi4_data->ic_revision_of_ic) && (rmi4_data->fw_version_of_bin <= rmi4_data->fw_version_of_ic)) {
-			dev_info(&rmi4_data->i2c_client->dev, "%s: Do not need to update\n", __func__);
-			return true;
-		}
-	}
-#else
 	if ((rmi4_data->ic_revision_of_bin == rmi4_data->ic_revision_of_ic)
 #ifdef CONFIG_SEC_H_PROJECT /*hlte temp 0423 force firm update*/
 		&& (rmi4_data->fw_version_of_bin == rmi4_data->fw_version_of_ic)) {
@@ -2221,7 +2207,6 @@ static bool synaptics_skip_firmware_update(struct synaptics_rmi4_data *rmi4_data
 			__func__);
 		return true;
 	}
-#endif
 
 	return false;
 }

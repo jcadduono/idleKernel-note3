@@ -147,7 +147,8 @@ const char accessibility_name[ACCESSIBILITY_MAX][20] = {
 	"ACCESSIBILITY_OFF",
 	"NEGATIVE_MODE",
 	"COLOR_BLIND_MODE",
-#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_CMD_WQHD_PT_PANEL)
+#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_CMD_WQHD_PT_PANEL) || \
+	defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_CMD_FULL_HD_PT_PANEL)
 	"SCREEN_CURTAIN_MODE",
 #endif
 };
@@ -697,7 +698,8 @@ static ssize_t accessibility_store(struct device *dev,
 		memcpy(&COLOR_BLIND_2[MDNIE_COLOR_BLINDE_OFFSET],
 				buffer, MDNIE_COLOR_BLINDE_CMD);
 	}
-#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_CMD_WQHD_PT_PANEL)
+#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_CMD_WQHD_PT_PANEL) || \
+	defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_CMD_FULL_HD_PT_PANEL)
 	else if (cmd_value == SCREEN_CURTAIN) {
 		mdnie_tun_state.accessibility = SCREEN_CURTAIN;
 	}

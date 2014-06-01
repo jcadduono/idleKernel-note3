@@ -56,9 +56,8 @@
 #define MSM_CPP_NOMINAL_CLOCK 266670000
 #define MSM_CPP_TURBO_CLOCK 320000000
 
-#if defined(CONFIG_SEC_VIENNA_PROJECT) || defined(CONFIG_SEC_V2_PROJECT)
 extern int poweroff_charging;
-#endif
+
 
 typedef struct _msm_cpp_timer_data_t {
 	struct cpp_device *cpp_dev;
@@ -1993,14 +1992,13 @@ static int __devinit cpp_probe(struct platform_device *pdev)
 {
 	struct cpp_device *cpp_dev;
 	int rc = 0;
-#if defined(CONFIG_SEC_VIENNA_PROJECT) || defined(CONFIG_SEC_V2_PROJECT)
-	// We'll move this modification after studying with QC
+
 	if (poweroff_charging == 1)
 	{
 		pr_err("forced return cpp_probe at lpm mode\n");
 		return rc;
 	}
-#endif
+
 	cpp_dev = kzalloc(sizeof(struct cpp_device), GFP_KERNEL);
 	if (!cpp_dev) {
 		pr_err("no enough memory\n");

@@ -52,6 +52,21 @@ static struct battery_data_t samsung_battery_data[] = {
 		.RCOMP_charging = 0x8D,
 		.temp_cohot = -1000,
 		.temp_cocold = -4350,
+#elif defined(CONFIG_MACH_HLTEDCM)
+		.RCOMP0 = 0x7A,
+		.RCOMP_charging = 0x8A,
+		.temp_cohot = -1025,
+		.temp_cocold = -3675,
+#elif defined(CONFIG_MACH_HLTEKDI)
+		.RCOMP0 = 0x73,
+		.RCOMP_charging = 0x84,
+		.temp_cohot = -1025,
+		.temp_cocold = -3675,
+#elif defined(CONFIG_SEC_JS_PROJECT)
+		.RCOMP0 = 0x75,
+		.RCOMP_charging = 0x80,
+		.temp_cohot = -700,
+		.temp_cocold = -4875,
 #elif defined(CONFIG_MACH_HLTEEUR)
 		.RCOMP0 = 0x62,
 		.RCOMP_charging = 0x7C,
@@ -115,7 +130,8 @@ static struct battery_data_t samsung_battery_data[] = {
 #define CAPACITY_MAX_MARGIN	50
 #define CAPACITY_MIN			0
 #elif defined(CONFIG_MACH_HLTESKT) || defined(CONFIG_MACH_HLTEKTT) || \
-	defined(CONFIG_MACH_HLTELGT) || defined(CONFIG_MACH_HLTEDCM)
+	defined(CONFIG_MACH_HLTELGT) || defined(CONFIG_MACH_HLTEDCM) || \
+	defined(CONFIG_MACH_HLTEKDI)
 #define CAPACITY_MAX			980
 #define CAPACITY_MAX_MARGIN	50
 #define CAPACITY_MIN			-7
@@ -125,6 +141,10 @@ static struct battery_data_t samsung_battery_data[] = {
 #define CAPACITY_MIN			0
 #elif defined(CONFIG_SEC_H_PROJECT)	/* from H USA/EUR */
 #define CAPACITY_MAX			990
+#define CAPACITY_MAX_MARGIN	50
+#define CAPACITY_MIN			-7
+#elif defined(CONFIG_SEC_JS_PROJECT)
+#define CAPACITY_MAX			970
 #define CAPACITY_MAX_MARGIN	50
 #define CAPACITY_MIN			-7
 #else /* CONFIG_SEC_KS01_PROJECT */
@@ -305,6 +325,39 @@ static sec_bat_adc_table_data_t temp_table[] = {
 	{41651,	-200},
 };
 #elif defined(CONFIG_SEC_H_PROJECT)
+static sec_bat_adc_table_data_t temp_table[] = {
+	{25950, 900},
+	{26173, 850},
+	{26424, 800},
+	{26727, 750},
+	{27281,	700},
+	{27669,	650},
+	{28178,	600},
+	{28724,	550},
+	{29342,	500},
+	{30101,	450},
+	{30912,	400},
+	{31807,	350},
+	{32823,	300},
+	{33858,	250},
+	{34950,	200},
+	{36049,	150},
+	{37054,	100},
+	{38025,	50},
+	{38219,	40},
+	{38448,	30},
+	{38626,	20},
+	{38795,	10},
+	{38989,	0},
+	{39229,	-10},
+	{39540,	-30},
+	{39687,	-40},
+	{39822,	-50},
+	{40523,	-100},
+	{41123,	-150},
+	{41619,	-200},
+};
+#elif defined(CONFIG_SEC_JS_PROJECT)
 static sec_bat_adc_table_data_t temp_table[] = {
 	{25950, 900},
 	{26173, 850},
@@ -530,6 +583,49 @@ static sec_bat_adc_table_data_t temp_table[] = {
 #define TEMP_HIGH_RECOVERY_LPM	 440
 #define TEMP_LOW_THRESHOLD_LPM	 -45
 #define TEMP_LOW_RECOVERY_LPM	 0
+
+#elif defined(CONFIG_MACH_H3GDUOS_CTC)
+#define TEMP_HIGH_THRESHOLD_EVENT	600
+#define TEMP_HIGH_RECOVERY_EVENT	420
+#define TEMP_LOW_THRESHOLD_EVENT	-50
+#define TEMP_LOW_RECOVERY_EVENT	0
+#define TEMP_HIGH_THRESHOLD_NORMAL	600
+#define TEMP_HIGH_RECOVERY_NORMAL	420
+#define TEMP_LOW_THRESHOLD_NORMAL	-50
+#define TEMP_LOW_RECOVERY_NORMAL	0
+#define TEMP_HIGH_THRESHOLD_LPM		600
+#define TEMP_HIGH_RECOVERY_LPM		420
+#define TEMP_LOW_THRESHOLD_LPM		-50
+#define TEMP_LOW_RECOVERY_LPM		0
+
+#elif defined(CONFIG_MACH_HLTEAUS)
+#define TEMP_HIGH_THRESHOLD_EVENT   600
+#define TEMP_HIGH_RECOVERY_EVENT    460
+#define TEMP_LOW_THRESHOLD_EVENT    -50
+#define TEMP_LOW_RECOVERY_EVENT       0
+#define TEMP_HIGH_THRESHOLD_NORMAL  600
+#define TEMP_HIGH_RECOVERY_NORMAL   460
+#define TEMP_LOW_THRESHOLD_NORMAL   -50
+#define TEMP_LOW_RECOVERY_NORMAL      0
+#define TEMP_HIGH_THRESHOLD_LPM     600
+#define TEMP_HIGH_RECOVERY_LPM      460
+#define TEMP_LOW_THRESHOLD_LPM      -50
+#define TEMP_LOW_RECOVERY_LPM         0
+
+#elif defined(CONFIG_MACH_HLTEEUR) || defined(CONFIG_MACH_H3G_CHN_CMCC)
+#define TEMP_HIGH_THRESHOLD_EVENT	600
+#define TEMP_HIGH_RECOVERY_EVENT	460
+#define TEMP_LOW_THRESHOLD_EVENT	-45
+#define TEMP_LOW_RECOVERY_EVENT	0
+#define TEMP_HIGH_THRESHOLD_NORMAL	600
+#define TEMP_HIGH_RECOVERY_NORMAL	460
+#define TEMP_LOW_THRESHOLD_NORMAL	-45
+#define TEMP_LOW_RECOVERY_NORMAL	0
+#define TEMP_HIGH_THRESHOLD_LPM		600
+#define TEMP_HIGH_RECOVERY_LPM		460
+#define TEMP_LOW_THRESHOLD_LPM		-45
+#define TEMP_LOW_RECOVERY_LPM		0
+
 /* H Project*/
 #elif defined(CONFIG_SEC_H_PROJECT)
 #define TEMP_HIGH_THRESHOLD_EVENT	650
@@ -543,6 +639,21 @@ static sec_bat_adc_table_data_t temp_table[] = {
 #define TEMP_HIGH_THRESHOLD_LPM		650
 #define TEMP_HIGH_RECOVERY_LPM		440
 #define TEMP_LOW_THRESHOLD_LPM		-45
+#define TEMP_LOW_RECOVERY_LPM		0
+
+/* JS Project*/
+#elif defined(CONFIG_SEC_JS_PROJECT)
+#define TEMP_HIGH_THRESHOLD_EVENT	600
+#define TEMP_HIGH_RECOVERY_EVENT	400
+#define TEMP_LOW_THRESHOLD_EVENT	-50
+#define TEMP_LOW_RECOVERY_EVENT	0
+#define TEMP_HIGH_THRESHOLD_NORMAL	600
+#define TEMP_HIGH_RECOVERY_NORMAL	400
+#define TEMP_LOW_THRESHOLD_NORMAL	-50
+#define TEMP_LOW_RECOVERY_NORMAL	0
+#define TEMP_HIGH_THRESHOLD_LPM		600
+#define TEMP_HIGH_RECOVERY_LPM		400
+#define TEMP_LOW_THRESHOLD_LPM		-50
 #define TEMP_LOW_RECOVERY_LPM		0
 
 #elif defined(CONFIG_MACH_FLTEEUR) || defined(CONFIG_MACH_FLTESKT)
@@ -717,7 +828,7 @@ static void sec_bat_adc_ap_init(struct platform_device *pdev,
 
 #if defined(CONFIG_ARCH_MSM8974PRO)
 	temp_channel = LR_MUX5_PU1_AMUX_THM2;
-#elif defined(CONFIG_SEC_H_PROJECT) || defined(CONFIG_SEC_KS01_PROJECT)
+#elif defined(CONFIG_SEC_H_PROJECT) || defined(CONFIG_SEC_JS_PROJECT) || defined(CONFIG_SEC_KS01_PROJECT)
 	temp_channel = LR_MUX5_PU2_AMUX_THM2;
 #else
 	temp_channel = LR_MUX4_PU2_AMUX_THM1;
@@ -876,7 +987,7 @@ void adc_exit(struct sec_battery_info *battery)
 
 bool sec_bat_check_jig_status(void)
 {
-#if defined(CONFIG_SEC_H_PROJECT) || defined(CONFIG_SEC_F_PROJECT) || \
+#if defined(CONFIG_SEC_H_PROJECT) || defined(CONFIG_SEC_JS_PROJECT) || defined(CONFIG_SEC_F_PROJECT) || \
 	defined(CONFIG_SEC_KS01_PROJECT) || defined(CONFIG_MACH_MONDRIAN)
 	extern bool is_jig_attached;	// from sec-switch
 	return is_jig_attached;
@@ -977,7 +1088,7 @@ bool sec_bat_check_callback(struct sec_battery_info *battery)
 bool sec_bat_check_cable_result_callback(
 		int cable_type)
 {
-#if defined(CONFIG_SEC_H_PROJECT)
+#if defined(CONFIG_SEC_H_PROJECT) || defined(CONFIG_SEC_JS_PROJECT)
 	struct regulator *ldo11;
 	current_cable_type = cable_type;
 
@@ -1138,9 +1249,15 @@ void cable_initial_check(struct sec_battery_info *battery)
 
 	pr_info("%s : current_cable_type : (%d)\n", __func__, current_cable_type);
 	if (POWER_SUPPLY_TYPE_BATTERY != current_cable_type) {
-		value.intval = current_cable_type;
-		psy_do_property("battery", set,
-				POWER_SUPPLY_PROP_ONLINE, value);
+		if (current_cable_type == POWER_SUPPLY_TYPE_POWER_SHARING) {
+			value.intval = current_cable_type;
+			psy_do_property("ps", set,
+					POWER_SUPPLY_PROP_ONLINE, value);
+		} else {
+			value.intval = current_cable_type;
+			psy_do_property("battery", set,
+					POWER_SUPPLY_PROP_ONLINE, value);
+		}
 	} else {
 		psy_do_property(battery->pdata->charger_name, get,
 				POWER_SUPPLY_PROP_ONLINE, value);

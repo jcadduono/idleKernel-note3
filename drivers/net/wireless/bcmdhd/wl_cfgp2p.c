@@ -1,7 +1,7 @@
 /*
  * Linux cfgp2p driver
  *
- * Copyright (C) 1999-2013, Broadcom Corporation
+ * Copyright (C) 1999-2014, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -21,7 +21,7 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: wl_cfgp2p.c 445404 2013-12-26 13:52:07Z $
+ * $Id: wl_cfgp2p.c 447531 2014-01-09 11:31:40Z $
  *
  */
 #include <typedefs.h>
@@ -617,6 +617,7 @@ wl_cfgp2p_set_p2p_mode(struct wl_priv *wl, u8 mode, u32 channel, u16 listen_ms, 
 		return BCME_NOTFOUND;
 	}
 
+
 	/* Put the WL driver into P2P Listen Mode to respond to P2P probe reqs */
 	discovery_mode.state = mode;
 	discovery_mode.chspec = wl_ch_host_to_driver(channel);
@@ -737,12 +738,6 @@ wl_cfgp2p_enable_discovery(struct wl_priv *wl, struct net_device *dev,
 	s32 ret = BCME_OK;
 	s32 bssidx;
 
-	if (wl_to_prmry_ndev(wl) == dev) {
-		bssidx = wl_to_p2p_bss_bssidx(wl, P2PAPI_BSSCFG_DEVICE);
-	} else if (wl_cfgp2p_find_idx(wl, dev, &bssidx) != BCME_OK) {
-		WL_ERR(("Find p2p index from dev(%p) failed\n", dev));
-		return BCME_ERROR;
-	}
 	if (wl_get_p2p_status(wl, DISCOVERY_ON)) {
 		CFGP2P_INFO((" DISCOVERY is already initialized, we have nothing to do\n"));
 		goto set_ie;
@@ -768,6 +763,13 @@ wl_cfgp2p_enable_discovery(struct wl_priv *wl, struct net_device *dev,
 	}
 set_ie:
 	if (ie_len) {
+		if (wl_to_prmry_ndev(wl) == dev) {
+			bssidx = wl_to_p2p_bss_bssidx(wl, P2PAPI_BSSCFG_DEVICE);
+		} else if (wl_cfgp2p_find_idx(wl, dev, &bssidx) != BCME_OK) {
+			WL_ERR(("Find p2p index from dev(%p) failed\n", dev));
+			return BCME_ERROR;
+		}
+
 		ret = wl_cfgp2p_set_management_ie(wl, dev,
 			bssidx,
 			VNDR_IE_PRBREQ_FLAG, ie, ie_len);
@@ -946,6 +948,7 @@ wl_cfgp2p_escan(struct wl_priv *wl, struct net_device *dev, u16 active,
 	eparams->version = htod32(ESCAN_REQ_VERSION);
 	eparams->action =  htod16(action);
 	wl_escan_set_sync_id(eparams->sync_id, wl);
+	wl_escan_set_type(wl, WL_SCANTYPE_P2P);
 	CFGP2P_INFO(("SCAN CHANNELS : "));
 
 	for (i = 0; i < num_chans; i++) {
@@ -1179,6 +1182,12 @@ wl_cfgp2p_set_management_ie(struct wl_priv *wl, struct net_device *ndev, s32 bss
 				mgmt_ie_buf = wl->ap_info->beacon_ie;
 				mgmt_ie_len = &wl->ap_info->beacon_ie_len;
 				mgmt_ie_buf_len = sizeof(wl->ap_info->beacon_ie);
+				break;
+			case VNDR_IE_ASSOCRSP_FLAG :
+				/* WPS-AP WSC2.0 assoc res includes wps_ie */
+				mgmt_ie_buf = wl->ap_info->assoc_res_ie;
+				mgmt_ie_len = &wl->ap_info->assoc_res_ie_len;
+				mgmt_ie_buf_len = sizeof(wl->ap_info->assoc_res_ie);
 				break;
 			default:
 				mgmt_ie_buf = NULL;
@@ -1595,6 +1604,7 @@ wl_cfgp2p_listen_complete(struct wl_priv *wl, bcm_struct_cfgdev *cfgdev,
 	CFGP2P_DBG((" Enter\n"));
 
 	ndev = cfgdev_to_wlc_ndev(cfgdev, wl);
+
 
 	if (wl_get_p2p_status(wl, LISTEN_EXPIRED) == 0) {
 		wl_set_p2p_status(wl, LISTEN_EXPIRED);
@@ -2603,19 +2613,19 @@ wl_cfgp2p_add_p2p_disc_if(void)
 	struct ether_addr primary_mac;
 
 	if (!wl)
-		return NULL;
+		return ERR_PTR(-EINVAL);
 
 	WL_TRACE(("Enter\n"));
 
 	if (wl->p2p_wdev) {
 		CFGP2P_ERR(("p2p_wdev defined already.\n"));
-		return NULL;
+		return ERR_PTR(-ENFILE);
 	}
 
 	wdev = kzalloc(sizeof(*wdev), GFP_KERNEL);
 	if (unlikely(!wdev)) {
 		WL_ERR(("Could not allocate wireless device\n"));
-		return NULL;
+		return ERR_PTR(-ENOMEM);
 	}
 
 	memset(&primary_mac, 0, sizeof(primary_mac));
@@ -2626,6 +2636,11 @@ wl_cfgp2p_add_p2p_disc_if(void)
 	wdev->wiphy = wl->wdev->wiphy;
 	wdev->iftype = NL80211_IFTYPE_P2P_DEVICE;
 	memcpy(wdev->address, &wl->p2p->dev_addr, ETHER_ADDR_LEN);
+
+#if defined(WL_NEWCFG_PRIVCMD_SUPPORT)
+	if (cfg->p2p_net)
+		memcpy(cfg->p2p_net->dev_addr, &cfg->p2p->dev_addr, ETHER_ADDR_LEN);
+#endif /* WL_NEWCFG_PRIVCMD_SUPPORT */
 
 	/* store p2p wdev ptr for further reference. */
 	wl->p2p_wdev = wdev;

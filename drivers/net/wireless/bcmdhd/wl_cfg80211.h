@@ -1,7 +1,7 @@
 /*
  * Linux cfg80211 driver
  *
- * Copyright (C) 1999-2013, Broadcom Corporation
+ * Copyright (C) 1999-2014, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -21,7 +21,7 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: wl_cfg80211.h 440872 2013-12-04 05:25:35Z $
+ * $Id: wl_cfg80211.h 447766 2014-01-10 05:20:49Z $
  */
 
 #ifndef _wl_cfg80211_h_
@@ -442,6 +442,7 @@ struct escan_info {
 #endif /* STATIC_WL_PRIV_STRUCT */
 #if defined(CUSTOMER_HW4) && defined(DUAL_ESCAN_RESULT_BUFFER)
 	u8 cur_sync_id;
+	u8 escan_type[2];
 #endif /* CUSTOMER_HW4 && DUAL_ESCAN_RESULT_BUFFER */
 	struct wiphy *wiphy;
 	struct net_device *ndev;
@@ -451,8 +452,10 @@ struct ap_info {
 /* Structure to hold WPS, WPA IEs for a AP */
 	u8   probe_res_ie[VNDR_IES_MAX_BUF_LEN];
 	u8   beacon_ie[VNDR_IES_MAX_BUF_LEN];
+	u8   assoc_res_ie[VNDR_IES_MAX_BUF_LEN];
 	u32 probe_res_ie_len;
 	u32 beacon_ie_len;
+	u32 assoc_res_ie_len;
 	u8 *wpa_ie;
 	u8 *rsn_ie;
 	u8 *wps_ie;
@@ -959,6 +962,9 @@ void wl_cfg80211_enable_trace(bool set, u32 level);
 extern s32 wl_update_wiphybands(struct wl_priv *wl, bool notify);
 extern s32 wl_cfg80211_if_is_group_owner(void);
 extern chanspec_t wl_ch_host_to_driver(u16 channel);
+extern s32 wl_set_tx_power(struct net_device *dev,
+	enum nl80211_tx_power_setting type, s32 dbm);
+extern s32 wl_get_tx_power(struct net_device *dev, s32 *dbm);
 extern s32 wl_add_remove_eventmsg(struct net_device *ndev, u16 event, bool add);
 extern void wl_stop_wait_next_action_frame(struct wl_priv *wl);
 extern int wl_cfg80211_update_power_mode(struct net_device *dev);
@@ -971,10 +977,26 @@ extern s32 wl_cfg80211_apply_eventbuffer(struct net_device *ndev,
 extern void get_primary_mac(struct wl_priv *wl, struct ether_addr *mac);
 #define SCAN_BUF_CNT	2
 #define SCAN_BUF_NEXT	1
+#define WL_SCANTYPE_LEGACY	0x1
+#define WL_SCANTYPE_P2P		0x2
 #if defined(DUAL_ESCAN_RESULT_BUFFER)
 #define wl_escan_set_sync_id(a, b) ((a) = (b)->escan_info.cur_sync_id)
-#define wl_escan_get_buf(a, b) ((wl_scan_results_t *) (a)->escan_info.escan_buf\
-[((a)->escan_info.cur_sync_id + (b))%SCAN_BUF_CNT])
+#define wl_escan_set_type(a, b) ((a)->escan_info.escan_type\
+[((a)->escan_info.cur_sync_id)%SCAN_BUF_CNT] = (b))
+static inline wl_scan_results_t *wl_escan_get_buf(struct wl_priv *wl, bool aborted)
+{
+	u8 index;
+	if (aborted) {
+		if (wl->escan_info.escan_type[0] == wl->escan_info.escan_type[1])
+			index = (wl->escan_info.cur_sync_id + 1)%SCAN_BUF_CNT;
+		else
+			index = (wl->escan_info.cur_sync_id)%SCAN_BUF_CNT;
+	}
+	else
+		index = (wl->escan_info.cur_sync_id)%SCAN_BUF_CNT;
+
+	return (wl_scan_results_t *)wl->escan_info.escan_buf[index];
+}
 static inline int wl_escan_check_sync_id(s32 status, u16 result_id, u16 wl_id)
 {
 	if (result_id != wl_id) {
@@ -998,6 +1020,7 @@ static inline void wl_escan_print_sync_id(s32 status, u16 result_id, u16 wl_id)
 #define wl_escan_init_sync_id(a) ((a)->escan_info.cur_sync_id = 0)
 #else
 #define wl_escan_set_sync_id(a, b) ((a) = htod16(0x1234))
+#define wl_escan_set_type(a, b)
 #define wl_escan_get_buf(a, b) ((wl_scan_results_t *) (a)->escan_info.escan_buf)
 #define wl_escan_check_sync_id(a, b, c) 0
 #define wl_escan_print_sync_id(a, b, c)
@@ -1016,4 +1039,7 @@ extern void wl_cfg80211_set_txfail_pid(int pid);
 #ifdef WLFBT
 extern void wl_get_fbt_key(uint8 *key);
 #endif
-#endif				/* _wl_cfg80211_h_ */
+#ifdef WL_CFG80211_VSDB_PRIORITIZE_SCAN_REQUEST
+struct net_device *wl_cfg80211_get_remain_on_channel_ndev(struct wl_priv *wl);
+#endif /* WL_CFG80211_VSDB_PRIORITIZE_SCAN_REQUEST */
+#endif /* _wl_cfg80211_h_ */

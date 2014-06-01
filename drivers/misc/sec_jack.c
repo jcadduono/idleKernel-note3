@@ -500,6 +500,9 @@ void sec_jack_buttons_work(struct work_struct *work)
 	int adc;
 	int i;
 
+	/* prevent suspend to allow user space to respond to switch */
+	wake_lock_timeout(&hi->det_wake_lock, WAKE_LOCK_TIME);
+
 	/* when button is released */
 	if (hi->pressed == 0) {
 		input_report_key(hi->input_dev, hi->pressed_code, 0);

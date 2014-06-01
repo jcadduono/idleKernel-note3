@@ -10,6 +10,11 @@ menuconfig VIBETONZ
 	-------------
 	-------------
 
+config TACTILE_ASSIST
+	tristate "Auto Haptic"
+	default n
+	depends on VIBETONZ
+
 config MOTOR_DRV_MAX77803
 	tristate "Maxim MAX77803 motor"
 	default n

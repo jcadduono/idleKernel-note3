@@ -7,7 +7,7 @@
  *
  * $Id: sbchipc.h 385540 2013-02-15 23:14:50Z $
  *
- * Copyright (C) 1999-2013, Broadcom Corporation
+ * Copyright (C) 1999-2014, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you

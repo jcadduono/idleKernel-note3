@@ -8462,7 +8462,9 @@ dhd_bus_devreset(dhd_pub_t *dhdp, uint8 flag)
 
 #if defined(OOB_INTR_ONLY) || defined(BCMSPI_ANDROID)
 			/* Clean up any pending IRQ */
+			dhd_enable_oob_intr(bus, FALSE);
 			bcmsdh_oob_intr_set(bus->sdh, FALSE);
+			bcmsdh_oob_intr_unregister(bus->sdh);
 #endif /* defined(OOB_INTR_ONLY) || defined(BCMSPI_ANDROID) */
 
 			/* Clean tx/rx buffer pointers, detach from the dongle */

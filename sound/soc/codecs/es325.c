@@ -2249,7 +2249,7 @@ static int es325_wakeup(struct es325_priv *es325)
 		gpio_set_value(5, 1);
 		usleep_range(10000, 10000);
 	}
-#elif (defined(CONFIG_MACH_HLTESKT) || defined(CONFIG_MACH_HLTEKTT)) && defined(CONFIG_ES325_UART_WORKAROUND_ENG_ONLY)
+#elif (defined(CONFIG_MACH_HLTESKT) || defined(CONFIG_MACH_HLTEKTT) || defined(CONFIG_MACH_FRESCOLTESKT) || defined(CONFIG_MACH_FRESCOLTEKTT)) && defined(CONFIG_ES325_UART_WORKAROUND_ENG_ONLY)
 	if (system_rev == 5) {
 		pr_info("%s : [ES325] ES325_UART_WORKAROUND system rev = %d\n", __func__, system_rev);
 		gpio_tlmm_config(GPIO_CFG(4, 0, GPIO_CFG_INPUT,
@@ -3853,7 +3853,7 @@ EXPORT_SYMBOL_GPL(es325_wrapper_wakeup);
 	es325_BWE_enable = ES325_MAX_INVALID_BWE;
 	es325_Tx_NS = ES325_MAX_INVALID_TX_NS;
 
-#if !defined(CONFIG_SEC_LOCALE_KOR)
+#if !(defined(CONFIG_SEC_LOCALE_KOR) || defined(CONFIG_SEC_HLTE_HKTW))
 	es325->new_internal_route_config = ES325_INTERNAL_ROUTE_MAX;
 #endif
 

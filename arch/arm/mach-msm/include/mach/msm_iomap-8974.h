@@ -43,5 +43,6 @@
 #endif
 
 #define MSM_MMSS_GP1_BASE 0xFD8C3450
+#define MSM_MMSS_GP3_BASE 0xFC401984
 
 #endif

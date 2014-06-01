@@ -1,7 +1,7 @@
 /*
  * Linux cfg80211 driver - Android related functions
  *
- * Copyright (C) 1999-2013, Broadcom Corporation
+ * Copyright (C) 1999-2014, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -21,7 +21,7 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: wl_android.c 442435 2013-12-11 09:03:27Z $
+ * $Id: wl_android.c 445702 2013-12-30 03:11:51Z $
  */
 
 #include <linux/module.h>
@@ -124,6 +124,10 @@
 #ifdef WLFBT
 #define CMD_GET_FTKEY		"GET_FTKEY"
 #endif /* WLFBT */
+#ifdef TEST_TX_POWER_CONTROL
+#define CMD_TEST_SET_TX_POWER		"TEST_SET_TX_POWER"
+#define CMD_TEST_GET_TX_POWER		"TEST_GET_TX_POWER"
+#endif /* TEST_TX_POWER_CONTROL */
 #endif /* CUSTOMER_HW4 */
 
 /* CCX Private Commands */
@@ -349,7 +353,6 @@ extern int dhd_os_check_if_up(void *dhdp);
 #ifdef BCMLXSDMMC
 extern void *bcmsdh_get_drvdata(void);
 #endif /* BCMLXSDMMC */
-
 #if defined(CUSTOMER_HW4) && defined(WES_SUPPORT)
 /* wl_roam.c */
 extern int get_roamscan_mode(struct net_device *dev, int *mode);
@@ -1978,6 +1981,57 @@ wl_android_rmc_enable(struct net_device *net, int rmc_enable)
 	}
 	return err;
 }
+
+#ifdef TEST_TX_POWER_CONTROL
+static int
+wl_android_set_tx_power(struct net_device *dev, const char* string_num)
+{
+	int err = 0;
+	s32 mw;
+	enum nl80211_tx_power_setting type;
+
+	mw = bcm_atoi(string_num);
+
+	if (mw < -1) {
+		DHD_ERROR(("%s: dbm is negative...\n", __FUNCTION__));
+		return -EINVAL;
+	}
+
+	if (mw == -1)
+		type = NL80211_TX_POWER_AUTOMATIC;
+	else
+		type = NL80211_TX_POWER_FIXED;
+
+	err = wl_set_tx_power(dev, type, mw);
+	if (unlikely(err)) {
+		DHD_ERROR(("%s: error (%d)\n", __FUNCTION__, err));
+		return err;
+	}
+
+	return 1;
+}
+
+static int
+wl_android_get_tx_power(struct net_device *dev, char *command, int total_len)
+{
+	int err;
+	int bytes_written;
+	s32 mw = 0;
+
+	err = wl_get_tx_power(dev, &mw);
+	if (unlikely(err)) {
+		DHD_ERROR(("%s: error (%d)\n", __FUNCTION__, err));
+		return err;
+	}
+
+	bytes_written = snprintf(command, total_len, "%s %d",
+		CMD_TEST_GET_TX_POWER, mw);
+
+	DHD_ERROR(("%s: GET_TX_POWER: mW=%d\n", __FUNCTION__, mw));
+
+	return bytes_written;
+}
+#endif /* TEST_TX_POWER_CONTROL */
 #endif /* CUSTOMER_HW4 */
 
 int wl_android_set_roam_mode(struct net_device *dev, char *command, int total_len)
@@ -2417,6 +2471,7 @@ static int wl_android_get_ibss_peer_info(struct net_device *dev, char *command,
 				peer_list_info.count);
 
 		peer_info = (bss_peer_info_t *) ((void *)buf + BSS_PEER_LIST_INFO_FIXED_LEN);
+
 
 		for (i = 0; i < peer_list_info.count; i++) {
 
@@ -2968,6 +3023,17 @@ int wl_android_priv_cmd(struct net_device *net, struct ifreq *ifr, int cmd)
 		bytes_written = FBT_KEYLEN;
 	}
 #endif /* WLFBT */
+#ifdef TEST_TX_POWER_CONTROL
+	else if (strnicmp(command, CMD_TEST_SET_TX_POWER,
+		strlen(CMD_TEST_SET_TX_POWER)) == 0) {
+		int skip = strlen(CMD_TEST_SET_TX_POWER) + 1;
+		wl_android_set_tx_power(net, (const char*)command+skip);
+	}
+	else if (strnicmp(command, CMD_TEST_GET_TX_POWER,
+		strlen(CMD_TEST_GET_TX_POWER)) == 0) {
+		wl_android_get_tx_power(net, command, priv_cmd.total_len);
+	}
+#endif /* TEST_TX_POWER_CONTROL */
 #endif /* CUSTOMER_HW4 */
 	else if (strnicmp(command, CMD_HAPD_MAC_FILTER, strlen(CMD_HAPD_MAC_FILTER)) == 0) {
 		int skip = strlen(CMD_HAPD_MAC_FILTER) + 1;

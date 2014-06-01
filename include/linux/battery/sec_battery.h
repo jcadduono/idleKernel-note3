@@ -150,6 +150,7 @@ struct sec_battery_info {
 	/* wearable charging */
 	int ps_enable;
 	int ps_status;
+	int ps_changed;
 
 	/* test mode */
 	int test_mode;

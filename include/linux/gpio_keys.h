@@ -28,6 +28,9 @@ struct gpio_keys_platform_data {
 	int (*enable)(struct device *dev);
 	void (*disable)(struct device *dev);
 	const char *name;		/* input device name */
+#ifdef CONFIG_SENSORS_HALL_DEBOUNCE
+	bool debounce_set;
+#endif
 #ifdef CONFIG_SENSORS_HALL
 	int gpio_flip_cover;
 #endif

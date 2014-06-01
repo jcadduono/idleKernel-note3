@@ -98,7 +98,6 @@ static int __mdss_fb_display_thread(void *data);
 static int mdss_fb_pan_idle(struct msm_fb_data_type *mfd);
 static int mdss_fb_send_panel_event(struct msm_fb_data_type *mfd,
 					int event, void *arg);
-int get_lcd_attached(void);
 
 void mdss_fb_no_update_notify_timer_cb(unsigned long data)
 {
@@ -834,11 +833,6 @@ static int mdss_fb_blank_sub(int blank_mode, struct fb_info *info,
 
 	if (mfd->dcm_state == DCM_ENTER)
 		return -EPERM;
-
-	if (get_lcd_attached() == 0) {
-		pr_err("%s : lcd is not attached..\n",__func__);
-		return -ENODEV;
-	}
 
 	switch (blank_mode) {
 	case FB_BLANK_UNBLANK:

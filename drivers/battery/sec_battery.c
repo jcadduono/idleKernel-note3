@@ -1736,7 +1736,7 @@ static unsigned int sec_bat_get_polling_time(
 			battery->polling_short = false;
 		break;
 	case POWER_SUPPLY_STATUS_DISCHARGING:
-		if (battery->polling_in_sleep)
+		if (battery->polling_in_sleep && (battery->ps_enable != true))
 			battery->polling_time =
 				battery->pdata->polling_time[
 				SEC_BATTERY_POLLING_TIME_SLEEP];
@@ -3057,21 +3057,33 @@ static int sec_ps_set_property(struct power_supply *psy,
 
 	switch (psp) {
 	case POWER_SUPPLY_PROP_STATUS:
-	if ((val->intval == 0) || (val->intval ==1)) {
-		battery->ps_enable = val->intval;
+		if (val->intval == 0) {
+			if (battery->ps_enable == true) {
+				battery->ps_enable = val->intval;
+				dev_info(battery->dev,
+						"%s: power sharing cable set (%d)\n", __func__, battery->ps_enable);
+				value.intval = POWER_SUPPLY_TYPE_POWER_SHARING;
+				psy_do_property("sec-charger", set,
+						POWER_SUPPLY_PROP_ONLINE, value);
+			}
+		} else if ((val->intval ==1) && (battery->ps_status == true)) {
+			battery->ps_enable = val->intval;
 			dev_info(battery->dev,
-				"%s: power sharing cable set (%d)\n", __func__, battery->ps_enable);
-		value.intval = POWER_SUPPLY_TYPE_POWER_SHARING;
-		psy_do_property(battery->pdata->charger_name, set,
-			POWER_SUPPLY_PROP_ONLINE, value);
-	} else {
-		dev_err(battery->dev,
-			"%s: invalid setting (%d)\n", __func__, val->intval);
-	}
+					"%s: power sharing cable set (%d)\n", __func__, battery->ps_enable);
+			value.intval = POWER_SUPPLY_TYPE_POWER_SHARING;
+			psy_do_property("sec-charger", set,
+					POWER_SUPPLY_PROP_ONLINE, value);
+		} else {
+			dev_err(battery->dev,
+					"%s: invalid setting (%d) ps_status (%d)\n",
+					__func__, val->intval, battery->ps_status);
+		}
 		break;
 	case POWER_SUPPLY_PROP_ONLINE:
 		if (val->intval == POWER_SUPPLY_TYPE_POWER_SHARING) {
 			battery->ps_status = true;
+			battery->ps_enable = true;
+			battery->ps_changed = true;
 			dev_info(battery->dev,
 				"%s: power sharing cable plugin (%d)\n", __func__, battery->ps_status);
 			wake_lock(&battery->monitor_wake_lock);
@@ -3097,6 +3109,7 @@ static int sec_ps_get_property(struct power_supply *psy,
 {
 	struct sec_battery_info *battery =
 		container_of(psy, struct sec_battery_info, psy_ps);
+	union power_supply_propval value;
 
 	switch (psp) {
 	case POWER_SUPPLY_PROP_STATUS:
@@ -3106,10 +3119,28 @@ static int sec_ps_get_property(struct power_supply *psy,
 			val->intval = 0;
 		break;
 	case POWER_SUPPLY_PROP_ONLINE:
-		if (battery->ps_status)
+		if (battery->ps_status) {
+			if ((battery->ps_enable == true) && (battery->ps_changed == true)) {
+				battery->ps_changed = false;
+
+				value.intval = POWER_SUPPLY_TYPE_POWER_SHARING;
+				psy_do_property("sec-charger", set,
+						POWER_SUPPLY_PROP_ONLINE, value);
+			}
 			val->intval = 1;
-		else
+		} else {
+			if (battery->ps_enable == true) {
+				battery->ps_enable = false;
+				dev_info(battery->dev,
+						"%s: power sharing cable disconnected! ps disable (%d)\n",
+						__func__, battery->ps_enable);
+
+				value.intval = POWER_SUPPLY_TYPE_POWER_SHARING;
+				psy_do_property(battery->pdata->charger_name, set,
+						POWER_SUPPLY_PROP_ONLINE, value);
+			}
 			val->intval = 0;
+		}
 		break;
 	default:
 		return -EINVAL;
@@ -3647,6 +3678,8 @@ static int __devinit sec_battery_probe(struct platform_device *pdev)
 
         battery->wc_status = 0;
 	battery->ps_status= 0;
+	battery->ps_changed = 0;
+	battery->ps_enable = 0;
 	battery->wire_status = POWER_SUPPLY_TYPE_BATTERY;
 
 	alarm_init(&battery->event_termination_alarm,

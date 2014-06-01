@@ -64,8 +64,17 @@
 #define NOT_USING
 #endif
 
+#if defined(CONFIG_MACH_KS01SKT) || defined(CONFIG_MACH_KS01KTT) || defined(CONFIG_MACH_KS01LGT) \
+       || defined(CONFIG_MACH_HLTESKT) || defined(CONFIG_MACH_HLTELGT) || defined(CONFIG_MACH_HLTEKTT)
+#define octa_manufacture_date
+#endif
 
 #define DT_CMD_HDR 6
+
+#if defined(octa_manufacture_date)
+static struct dsi_cmd nv_date_read_cmds;
+char mdate_buffer[10];
+#endif
 
 #define MPDECISION_RESTART 20
 static int screenoff_cnt;
@@ -1180,6 +1189,27 @@ static ssize_t mipi_samsung_disp_acl_store(struct device *dev,
 	return size;
 }
 
+#if defined(octa_manufacture_date)
+static ssize_t manufacture_date_show(struct device *dev,
+			struct device_attribute *attr, char *buf)
+{
+	u16 year;
+	u8 month;
+	u8 day;
+
+	pr_info("C8 41th : %02x\n", mdate_buffer[0]);
+	pr_info("C8 42th : %02x\n", mdate_buffer[1]);
+
+	year = ((mdate_buffer[0] & 0xF0)>>4) + 2011;
+	month = mdate_buffer[0] & 0x0F;
+	day = mdate_buffer[1] & 0x1F;
+
+	sprintf(buf, "%d, %d, %d\n", year, month, day);
+
+	return strlen(buf);
+}
+#endif
+
 static ssize_t mipi_samsung_disp_siop_show(struct device *dev,
 			struct device_attribute *attr, char *buf)
 {
@@ -1577,6 +1607,11 @@ static DEVICE_ATTR(siop_enable, S_IRUGO | S_IWUSR | S_IWGRP,
 static DEVICE_ATTR(partial_disp, S_IRUGO | S_IWUSR | S_IWGRP,
 			mipi_samsung_disp_partial_disp_show,
 			mipi_samsung_disp_partial_disp_store);
+#endif
+
+#if defined(octa_manufacture_date)
+static DEVICE_ATTR(manufacture_date, S_IRUGO,
+			manufacture_date_show, NULL);
 #endif
 
 #if defined(FORCE_500CD)
@@ -2198,6 +2233,11 @@ static int mdss_dsi_panel_dimming_init(struct mdss_panel_data *pdata)
 
 		/* Set the mtp read buffer pointer and read the NVM value*/
 		mipi_samsung_read_nv_mem(pdata, &nv_mtp_read_cmds, msd.sdimconf->mtp_buffer);
+
+#if defined(octa_manufacture_date)
+		mipi_samsung_read_nv_mem(pdata, &nv_date_read_cmds, mdate_buffer);
+#endif
+
 #ifdef LDI_FPS_CHANGE
 		if(msd.id3 >= 0x21) {
 			mipi_samsung_read_nv_mem(msd.pdata, &read_ldi_fps_cmds, &ldi_fps_buffer);
@@ -3127,7 +3167,10 @@ static int mdss_panel_parse_dt(struct device_node *np,
 				"qcom,panel-off-cmds");
 
 #endif
-
+#if defined(octa_manufacture_date)
+	mdss_samsung_parse_panel_cmd(np, &nv_date_read_cmds,
+				"samsung,panel-nv-mdate-read-cmds");
+#endif
 	mdss_samsung_parse_panel_cmd(np, &nv_mtp_read_cmds,
 				"samsung,panel-nv-mtp-read-cmds");
 #if defined(HBM_RE)
@@ -3559,6 +3602,9 @@ static struct attribute *panel_sysfs_attributes[] = {
 #if defined(FORCE_500CD)
 	&dev_attr_force_500cd.attr,
 #endif
+#if defined(octa_manufacture_date)
+        &dev_attr_manufacture_date.attr,
+#endif
 	&dev_attr_panel_colors.attr,
 	NULL
 };
@@ -3647,6 +3693,11 @@ int mdss_dsi_panel_init(struct device_node *node, struct mdss_dsi_ctrl_pdata *ct
 				__func__, __LINE__);
 
 		ctrl_pdata->panel_data.panel_info.cont_splash_enabled = 1;
+	}
+
+	if (get_lcd_attached() == 0) {
+		pr_err("%s:lcd is not attached, set splash flag to 0 \n", __func__);
+		ctrl_pdata->panel_data.panel_info.cont_splash_enabled = 0;
 	}
 
 

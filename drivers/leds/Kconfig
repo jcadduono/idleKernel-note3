@@ -610,4 +610,11 @@ config LEDS_MAX77804K
 comment "iptables trigger is under Netfilter config (LED target)"
 	depends on LEDS_TRIGGERS
 
+config LEDS_SEPERATE_MOVIE_FLASH
+       bool "LED support for seperate movie flash"
+       depends on LEDS_MAX77803
+       default n
+       help
+	 This option enables support for seperate movie flash
+
 endif # NEW_LEDS

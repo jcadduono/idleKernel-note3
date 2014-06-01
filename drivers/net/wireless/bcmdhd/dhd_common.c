@@ -1,7 +1,7 @@
 /*
  * Broadcom Dongle Host Driver (DHD), common DHD core.
  *
- * Copyright (C) 1999-2013, Broadcom Corporation
+ * Copyright (C) 1999-2014, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -21,7 +21,7 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: dhd_common.c 439201 2013-11-26 00:31:53Z $
+ * $Id: dhd_common.c 447528 2014-01-09 11:26:43Z $
  */
 #include <typedefs.h>
 #include <osl.h>
@@ -75,6 +75,8 @@ extern void htsf_update(struct dhd_info *dhd, void *data);
 #endif
 int dhd_msg_level = DHD_ERROR_VAL;
 
+
+extern int disable_proptx;
 
 #include <wl_iw.h>
 
@@ -508,6 +510,7 @@ dhd_doiovar(dhd_pub_t *dhd_pub, const bcm_iovar_t *vi, uint32 actionid, const ch
 
 	case IOV_SVAL(IOV_PROPTXSTATUS_ENABLE):
 		dhd_pub->wlfc_enabled = int_val? 1 : 0;
+		disable_proptx = int_val? 0 : 1;
 		break;
 
 	case IOV_GVAL(IOV_PROPTXSTATUS_MODE): {
@@ -2122,12 +2125,6 @@ dhd_get_suspend_bcn_li_dtim(dhd_pub_t *dhd)
 	if ((ret = dhd_wl_ioctl_cmd(dhd, WLC_GET_BCNPRD,
 		&ap_beacon, sizeof(ap_beacon), FALSE, 0)) < 0) {
 		DHD_ERROR(("%s get beacon failed code %d\n", __FUNCTION__, ret));
-		goto exit;
-	}
-
-	/* if associated APs Beacon more  that 100msec do no dtim skip */
-	if (ap_beacon > MAX_DTIM_SKIP_BEACON_INTERVAL) {
-		DHD_ERROR(("%s NO dtim skip for AP with beacon %d ms\n", __FUNCTION__, ap_beacon));
 		goto exit;
 	}
 

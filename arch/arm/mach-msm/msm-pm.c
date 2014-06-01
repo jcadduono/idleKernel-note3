@@ -40,6 +40,9 @@
 #include "scm-boot.h"
 #include "spm.h"
 #include "pm-boot.h"
+#ifdef CONFIG_SEC_DEBUG
+#include <mach/sec_debug.h>
+#endif
 
 #define CREATE_TRACE_POINTS
 #include <mach/trace_msm_low_power.h>
@@ -531,8 +534,16 @@ static bool __ref msm_pm_spm_power_collapse(
 
 	msm_jtag_save_state();
 
+#ifdef CONFIG_SEC_DEBUG
+	secdbg_sched_msg("+pc(I:%d,R:%d)", from_idle, notify_rpm);
+#endif
+
 	collapsed = save_cpu_regs ?
 		!cpu_suspend(0, msm_pm_collapse) : msm_pm_pc_hotplug();
+
+#ifdef CONFIG_SEC_DEBUG
+	secdbg_sched_msg("-pc(%d)", collapsed);
+#endif
 
 	msm_jtag_restore_state();
 
@@ -780,7 +791,11 @@ int msm_pm_wait_cpu_shutdown(unsigned int cpu)
 		return 0;
 	if (!msm_pm_slp_sts[cpu].base_addr)
 		return 0;
+#if defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
+	while (1) {
+#else
 	while (timeout--) {
+#endif
 		/*
 		 * Check for the SPM of the core being hotplugged to set
 		 * its sleep state.The SPM sleep state indicates that the
@@ -791,10 +806,14 @@ int msm_pm_wait_cpu_shutdown(unsigned int cpu)
 		if (acc_sts & msm_pm_slp_sts[cpu].mask)
 			return 0;
 		udelay(100);
+#if defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
+		WARN(++timeout == 20, "CPU%u didn't collapse in 2 ms\n", cpu);
+#endif
 	}
-
+#if !(defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO))
 	pr_info("%s(): Timed out waiting for CPU %u SPM to enter sleep state",
 		__func__, cpu);
+#endif
 	return -EBUSY;
 }
 

@@ -1,7 +1,7 @@
 /*
  * Driver O/S-independent utility routines
  *
- * Copyright (C) 1999-2013, Broadcom Corporation
+ * Copyright (C) 1999-2014, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -20,7 +20,7 @@
  *      Notwithstanding the above, under no circumstances may you combine this
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
- * $Id: bcmutils.c 427979 2013-10-07 08:35:57Z $
+ * $Id: bcmutils.c 440953 2013-12-04 13:39:58Z $
  */
 
 #include <bcm_cfg.h>
@@ -53,6 +53,7 @@
 #include <proto/802.1d.h>
 #include <proto/802.11.h>
 void *_bcmutils_dummy_fn = NULL;
+
 
 
 #ifdef BCMDRIVER
@@ -2313,7 +2314,7 @@ bcm_uint64_divide(uint32* r, uint32 a_high, uint32 a_low, uint32 b)
 	*r = r0;
 }
 
-#ifndef setbit     /* As in the header file */
+#ifndef setbit /* As in the header file */
 #ifdef BCMUTILS_BIT_MACROS_USE_FUNCS
 /* Set bit in byte array. */
 void

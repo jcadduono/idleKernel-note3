@@ -711,9 +711,8 @@ static int rx_hdlc_packet(struct io_device *iod, struct link_device *ld,
 		goto data_check;
 	}
 
-#if 1	//#ifdef CONFIG_LINK_DEVICE_SPI_DEBUG
-	mif_info("\n<%s> Rx FMT frame (len %d)\n",
-		iod->name, rest);
+	mif_info("\n<%s> Rx FMT frame (len %d)\n",iod->name, rest);
+#ifdef CONFIG_LINK_DEVICE_SPI_DEBUG
 	mif_print_data((char*)data, rest);
 	mif_info("\n");
 #endif
@@ -1184,7 +1183,7 @@ static ssize_t misc_write(struct file *filp, const char __user *buf,
 	if (ld->aligned)
 		skb_put(skb, calc_padding_size(ld, skb->len));
 
-#if	1	//#ifdef CONFIG_LINK_DEVICE_SPI_DEBUG
+#ifdef CONFIG_LINK_DEVICE_SPI_DEBUG
 	if (iod->format == IPC_FMT) {
 		mif_info("\n<%s> Tx HDLC FMT frame (len %d)\n",
 			iod->name, skb->len);

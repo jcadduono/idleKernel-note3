@@ -134,6 +134,11 @@ source "drivers/media/dvb/Kconfig"
 
 source "drivers/media/tdmb/Kconfig"
 
+#
+# ISDB-Tmm Drivers
+#
+source "drivers/media/isdbtmm/Kconfig"
+
 # ISDBT Drivers
 #
 source "drivers/media/isdbt/Kconfig"

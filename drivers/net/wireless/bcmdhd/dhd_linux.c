@@ -2,7 +2,7 @@
  * Broadcom Dongle Host Driver (DHD), Linux-specific network interface
  * Basically selected code segments from usb-cdc.c and usb-rndis.c
  *
- * Copyright (C) 1999-2013, Broadcom Corporation
+ * Copyright (C) 1999-2014, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -22,7 +22,7 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: dhd_linux.c 445384 2013-12-26 11:10:06Z $
+ * $Id: dhd_linux.c 446907 2014-01-07 17:58:28Z $
  */
 
 #include <typedefs.h>
@@ -104,6 +104,7 @@ typedef struct histo_ {
 
 static histo_t vi_d1, vi_d2, vi_d3, vi_d4;
 #endif /* WLMEDIA_HTSF */
+
 
 #if defined(BLOCK_IPV6_PACKET) && defined(CUSTOMER_HW4)
 #define HEX_PREF_STR	"0x"
@@ -276,6 +277,10 @@ extern int dhd_write_macaddr(struct ether_addr *mac);
 static inline int dhd_write_macaddr(struct ether_addr *mac) { return 0; }
 #endif
 #endif /* CUSTOMER_HW4 */
+
+
+
+
 struct ipv6_addr {
 	char 			ipv6_addr[IPV6_ADDR_LEN];
 	dhd_ipv6_op_t 	ipv6_oper;
@@ -391,7 +396,9 @@ typedef struct dhd_info {
 	struct mutex dhd_suspend_mutex;
 #endif
 	spinlock_t wakelock_spinlock;
-	int wakelock_counter;
+	uint32 wakelock_counter;
+	bool waive_wakelock;
+	uint32 wakelock_before_waive;
 	int wakelock_wd_counter;
 	int wakelock_rx_timeout_enable;
 	int wakelock_ctrl_timeout_enable;
@@ -682,6 +689,8 @@ static int dhd_toe_set(dhd_info_t *dhd, int idx, uint32 toe_ol);
 
 static int dhd_wl_host_event(dhd_info_t *dhd, int *ifidx, void *pktdata,
                              wl_event_msg_t *event_ptr, void **data_ptr);
+static int dhd_wakelock_waive(dhd_info_t *dhdinfo);
+static int dhd_wakelock_restore(dhd_info_t *dhdinfo);
 
 #if defined(CONFIG_PM_SLEEP)
 static int dhd_sleep_pm_callback(struct notifier_block *nfb, unsigned long action, void *ignored)
@@ -691,6 +700,8 @@ static int dhd_sleep_pm_callback(struct notifier_block *nfb, unsigned long actio
 	dhd_info_t *dhdinfo = (dhd_info_t*)container_of(nfb, struct dhd_info, pm_notifier);
 
 	BCM_REFERENCE(dhdinfo);
+	BCM_REFERENCE(dhd_wakelock_waive);
+	BCM_REFERENCE(dhd_wakelock_restore);
 	switch (action) {
 	case PM_HIBERNATION_PREPARE:
 	case PM_SUSPEND_PREPARE:
@@ -703,10 +714,13 @@ static int dhd_sleep_pm_callback(struct notifier_block *nfb, unsigned long actio
 	}
 
 #ifdef PROP_TXSTATUS
-	if (suspend)
+	if (suspend) {
+		dhd_wakelock_waive(dhdinfo);
 		dhd_wlfc_suspend(&dhdinfo->pub);
-	else
+		dhd_wakelock_restore(dhdinfo);
+	} else {
 		dhd_wlfc_resume(&dhdinfo->pub);
+	}
 #endif
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)) && (LINUX_VERSION_CODE <= \
@@ -714,6 +728,7 @@ static int dhd_sleep_pm_callback(struct notifier_block *nfb, unsigned long actio
 	dhd_mmc_suspend = suspend;
 	smp_mb();
 #endif
+
 	return ret;
 }
 extern int register_pm_notifier(struct notifier_block *nb);
@@ -854,6 +869,7 @@ exit:
 }
 #endif /* PKT_FILTER_SUPPORT && !GAN_LITE_NAT_KEEPALIVE_FILTER */
 
+
 void dhd_set_packet_filter(dhd_pub_t *dhd)
 {
 #ifdef PKT_FILTER_SUPPORT
@@ -874,6 +890,8 @@ void dhd_enable_packet_filter(int value, dhd_pub_t *dhd)
 	int i;
 
 	DHD_TRACE(("%s: enter, value = %d\n", __FUNCTION__, value));
+
+
 	/* 1 - Enable packet filter, only allow unicast packet to send up */
 	/* 0 - Disable packet filter */
 	if (dhd_pkt_filter_enable && (!value ||
@@ -2089,8 +2107,7 @@ dhd_rx_frame(dhd_pub_t *dhdp, int ifidx, void *pktbuf, int numpkt, uint8 chan)
 			PKTFREE(dhdp->osh, pktbuf, TRUE);
 			continue;
 		}
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 0)
-		/* Dropping only data packets before registering net device to avoid kernel panic */
+		/* Dropping packets before registering net device to avoid kernel panic */
 		eh = (struct ether_header *)PKTDATA(wl->sh.osh, pktbuf);
 #ifndef PROP_TXSTATUS_VSDB
 		if ((!ifp->net || ifp->net->reg_state != NETREG_REGISTERED) &&
@@ -2104,7 +2121,6 @@ dhd_rx_frame(dhd_pub_t *dhdp, int ifidx, void *pktbuf, int numpkt, uint8 chan)
 			PKTFREE(dhdp->osh, pktbuf, TRUE);
 			continue;
 		}
-#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 0) */
 
 #ifdef WLBTAMP
 		eh = (struct ether_header *)PKTDATA(wl->sh.osh, pktbuf);
@@ -2560,7 +2576,6 @@ dhd_rxf_thread(void *data)
 #define RXF_WATCHDOG_TIME 250 /* BARK_TIME(1000) /  */
 	ulong watchdogTime = OSL_SYSUPTIME(); /* msec */
 #endif
-
 	/* This thread doesn't need any user-level access,
 	 * so get rid of all our resources
 	 */
@@ -4506,6 +4521,7 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 			DHD_ERROR(("%s: country code setting failed\n", __FUNCTION__));
 	}
 
+
 	/* Set Listen Interval */
 	bcm_mkiovar("assoc_listen", (char *)&listen_interval, 4, iovbuf, sizeof(iovbuf));
 	if ((ret = dhd_wl_ioctl_cmd(dhd, WLC_SET_VAR, iovbuf, sizeof(iovbuf), TRUE, 0)) < 0)
@@ -4562,6 +4578,7 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 	_dhd_tdls_enable(dhd, true, false, NULL);
 #endif /* CUSTOMER_HW4 */
 #endif /* WLTDLS */
+
 
 #ifdef DHD_ENABLE_LPC
 	/* Set lpc 1 */
@@ -4914,6 +4931,7 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 	bcm_mkiovar("bcn_li_bcn", (char *)&bcn_li_bcn, 4, iovbuf, sizeof(iovbuf));
 	dhd_wl_ioctl_cmd(dhd, WLC_SET_VAR, iovbuf, sizeof(iovbuf), TRUE, 0);
 #endif /* CUSTOMER_HW4 && ENABLE_BCN_LI_BCN_WAKEUP */
+
 
 	/* query for 'ver' to get version info from firmware */
 	memset(buf, 0, sizeof(buf));
@@ -6816,13 +6834,14 @@ int dhd_os_wake_lock(dhd_pub_t *pub)
 
 	if (dhd) {
 		spin_lock_irqsave(&dhd->wakelock_spinlock, flags);
+		if (dhd->wakelock_counter == 0 && !dhd->waive_wakelock) {
 #ifdef CONFIG_HAS_WAKELOCK
-		if (!dhd->wakelock_counter)
 			wake_lock(&dhd->wl_wifi);
 #elif 1 && (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 36))
-		if (pm_dev)
-			pm_stay_awake(pm_dev);
+			if (pm_dev)
+				pm_stay_awake(pm_dev);
 #endif
+		}
 		dhd->wakelock_counter++;
 		ret = dhd->wakelock_counter;
 		spin_unlock_irqrestore(&dhd->wakelock_spinlock, flags);
@@ -6849,15 +6868,16 @@ int dhd_os_wake_unlock(dhd_pub_t *pub)
 	dhd_os_wake_lock_timeout(pub);
 	if (dhd) {
 		spin_lock_irqsave(&dhd->wakelock_spinlock, flags);
-		if (dhd->wakelock_counter) {
+		if (dhd->wakelock_counter > 0) {
 			dhd->wakelock_counter--;
+			if (dhd->wakelock_counter == 0 && !dhd->waive_wakelock) {
 #ifdef CONFIG_HAS_WAKELOCK
-			if (!dhd->wakelock_counter)
 				wake_unlock(&dhd->wl_wifi);
 #elif 1 && (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 36))
-			if (pm_dev)
-				pm_relax(pm_dev);
+				if (pm_dev)
+					pm_relax(pm_dev);
 #endif
+			}
 			ret = dhd->wakelock_counter;
 		}
 		spin_unlock_irqrestore(&dhd->wakelock_spinlock, flags);
@@ -6936,6 +6956,66 @@ int dhd_os_wd_wake_unlock(dhd_pub_t *pub)
 	}
 	return ret;
 }
+
+/* waive wakelocks for operations such as IOVARs in suspend function, must be closed
+ * by a paired function call to dhd_wakelock_restore. returns current wakelock counter
+ */
+int dhd_wakelock_waive(dhd_info_t *dhdinfo)
+{
+	unsigned long flags;
+	int ret = 0;
+
+	spin_lock_irqsave(&dhdinfo->wakelock_spinlock, flags);
+	/* dhd_wakelock_waive/dhd_wakelock_restore must be paired */
+	if (dhdinfo->waive_wakelock)
+		goto exit;
+	/* record current lock status */
+	dhdinfo->wakelock_before_waive = dhdinfo->wakelock_counter;
+	dhdinfo->waive_wakelock = TRUE;
+
+exit:
+	ret = dhdinfo->wakelock_wd_counter;
+	spin_unlock_irqrestore(&dhdinfo->wakelock_spinlock, flags);
+	return ret;
+}
+
+int dhd_wakelock_restore(dhd_info_t *dhdinfo)
+{
+	unsigned long flags;
+	int ret = 0;
+
+	spin_lock_irqsave(&dhdinfo->wakelock_spinlock, flags);
+	/* dhd_wakelock_waive/dhd_wakelock_restore must be paired */
+	if (!dhdinfo->waive_wakelock)
+		goto exit;
+
+	dhdinfo->waive_wakelock = FALSE;
+	/* if somebody else acquires wakelock between dhd_wakelock_waive/dhd_wakelock_restore,
+	 * we need to make it up by calling wake_lock or pm_stay_awake. or if somebody releases
+	 * the lock in between, do the same by calling wake_unlock or pm_relax
+	 */
+	if (dhdinfo->wakelock_before_waive == 0 && dhdinfo->wakelock_counter > 0) {
+#ifdef CONFIG_HAS_WAKELOCK
+		wake_lock(&dhdinfo->wl_wifi);
+#elif 1 && (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 36))
+		if (pm_dev)
+			pm_stay_awake(pm_dev);
+#endif
+	} else if (dhdinfo->wakelock_before_waive > 0 && dhdinfo->wakelock_counter == 0) {
+#ifdef CONFIG_HAS_WAKELOCK
+		wake_unlock(&dhdinfo->wl_wifi);
+#elif 1 && (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 36))
+		if (pm_dev)
+			pm_relax(pm_dev);
+#endif
+	}
+	dhdinfo->wakelock_before_waive = 0;
+exit:
+	ret = dhdinfo->wakelock_wd_counter;
+	spin_unlock_irqrestore(&dhdinfo->wakelock_spinlock, flags);
+	return ret;
+}
+
 int dhd_os_check_if_up(void *dhdp)
 {
 	dhd_pub_t *pub = (dhd_pub_t *)dhdp;

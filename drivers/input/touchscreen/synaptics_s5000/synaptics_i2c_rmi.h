@@ -111,11 +111,19 @@
 #else
 #define FW_IMAGE_NAME_B0_4_3	"tsp_synaptics/synaptics_b0_4_3.fw"
 #endif
+#if defined(CONFIG_SEC_JS_PROJECT)
+#define FW_IMAGE_NAME_B0_5_1	"tsp_synaptics/synaptics_js_b0_5_1.fw"
+#else
 #define FW_IMAGE_NAME_B0_5_1	"tsp_synaptics/synaptics_b0_5_1.fw"
+#endif
 
 /* Factory firmware */
 #define FAC_FWIMAGE_NAME_B0		"tsp_synaptics/synaptics_b0_fac.fw"
+#if defined(CONFIG_SEC_JS_PROJECT)
+#define FAC_FWIMAGE_NAME_B0_5_1		"tsp_synaptics/synaptics_js_b0_5_1_fac.fw"
+#else
 #define FAC_FWIMAGE_NAME_B0_5_1		"tsp_synaptics/synaptics_b0_5_1_fac.fw"
+#endif
 
 
 //#ifdef SEC_PRODUCT_SHIP

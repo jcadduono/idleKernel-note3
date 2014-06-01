@@ -57,6 +57,9 @@ struct gpio_keys_drvdata {
 	unsigned int n_buttons;
 	int (*enable)(struct device *dev);
 	void (*disable)(struct device *dev);
+#ifdef CONFIG_SENSORS_HALL_DEBOUNCE
+	bool debounce_set;
+#endif
 #ifdef CONFIG_SENSORS_HALL
 	int gpio_flip_cover;
 	int irq_flip_cover;
@@ -588,13 +591,34 @@ static irqreturn_t flip_cover_detect(int irq, void *dev_id)
 {
 	bool flip_status;
 	struct gpio_keys_drvdata *ddata = dev_id;
+#ifdef CONFIG_SENSORS_HALL_DEBOUNCE
+	int DTIME_IRQ, DTIME_WAKE;
+
+	/* Set Debounce time for HALL IC IRQ(wake_lock / IRQ recheck)
+	 * ON : 140ms / 70ms
+	 * OFF : 50ms / 10ms (default)
+	 */
+	DTIME_IRQ = ddata->debounce_set ? (HZ*7/100) : (HZ*1/100);
+	DTIME_WAKE = ddata->debounce_set ? (HZ*14/100) : (HZ*5/100);
+#endif
 
 	flip_status = gpio_get_value(ddata->gpio_flip_cover);
 
-	printk(KERN_DEBUG "[keys] %s flip_satatus : %d\n",
-		__func__, flip_status);
-
 	cancel_delayed_work_sync(&ddata->flip_cover_dwork);
+#ifdef CONFIG_SENSORS_HALL_DEBOUNCE
+	printk(KERN_DEBUG "[keys] %s flip_status : %d, IRQt : %d, WAKEt : %d\n",
+		__func__, flip_status, DTIME_IRQ, DTIME_WAKE);
+
+	if(flip_status) {
+		wake_lock_timeout(&ddata->flip_wake_lock, HZ * DTIME_WAKE);
+		schedule_delayed_work(&ddata->flip_cover_dwork, DTIME_IRQ);
+	} else {
+		wake_unlock(&ddata->flip_wake_lock);
+		wake_lock_timeout(&ddata->flip_wake_lock, HZ * DTIME_WAKE);
+		schedule_delayed_work(&ddata->flip_cover_dwork, DTIME_IRQ);
+	}
+#else
+	printk(KERN_DEBUG "[keys] %s flip_status : %d\n", __func__, flip_status);
 
 	if(flip_status) {
 		wake_lock_timeout(&ddata->flip_wake_lock, HZ * 5 / 100); /* 50ms */
@@ -603,6 +627,7 @@ static irqreturn_t flip_cover_detect(int irq, void *dev_id)
 		wake_unlock(&ddata->flip_wake_lock);
 		schedule_delayed_work(&ddata->flip_cover_dwork, 0);
 	}
+#endif
 	return IRQ_HANDLED;
 }
 #endif /* CONFIG_SENSORS_HALL */
@@ -650,6 +675,41 @@ static void gpio_keys_close(struct input_dev *input)
 		ddata->disable(input->dev.parent);
 }
 
+#ifdef CONFIG_SENSORS_HALL_DEBOUNCE
+static ssize_t sysfs_hall_debounce_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct gpio_keys_drvdata *ddata = dev_get_drvdata(dev);
+	const char *mode;
+
+	if (ddata->debounce_set)
+		mode = "DEBOUNCE_TIME_ON";
+	else 
+		mode = "DEBOUNCE_TIME_OFF";
+
+	return sprintf(buf, "%s\n", mode);
+}
+
+static ssize_t sysfs_hall_debounce_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	struct gpio_keys_drvdata *ddata = dev_get_drvdata(dev);
+
+	if (!strncasecmp(buf, "ON", 2))
+		ddata->debounce_set = true;
+	else if (!strncasecmp(buf, "OFF", 3))
+		ddata->debounce_set = false;
+	else
+		pr_info("%s: Wrong commnad, current state %s\n",
+			__func__, buf);
+
+	return count;
+}
+
+static DEVICE_ATTR(hall_irq_ctrl, S_IRUGO | S_IWUGO, 
+		sysfs_hall_debounce_show, 
+		sysfs_hall_debounce_store);
+#endif
 
 #ifdef CONFIG_SENSORS_HALL
 static ssize_t sysfs_hall_detect_show(struct device *dev,
@@ -891,6 +951,9 @@ struct regulator *lvs1_1p8 = NULL;
 	ddata->n_buttons = pdata->nbuttons;
 	ddata->enable = pdata->enable;
 	ddata->disable = pdata->disable;
+#ifdef CONFIG_SENSORS_HALL_DEBOUNCE
+	ddata->debounce_set = pdata->debounce_set;
+#endif
 #ifdef CONFIG_SENSORS_HALL
 
 #if defined (CONFIG_SEC_MILLET_PROJECT) || defined (CONFIG_SEC_BERLUTI_PROJECT)
@@ -920,6 +983,9 @@ struct regulator *lvs1_1p8 = NULL;
 		input->evbit[0] |= BIT_MASK(EV_SW);
 		input_set_capability(input, EV_SW, SW_FLIP);
 	}
+#endif
+#ifdef CONFIG_SENSORS_HALL_DEBOUNCE
+	ddata->debounce_set = false;
 #endif
 	input->open = gpio_keys_open;
 	input->close = gpio_keys_close;
@@ -978,6 +1044,15 @@ struct regulator *lvs1_1p8 = NULL;
 				dev_attr_sec_key_pressed.attr.name);
 	}
 
+#if defined(CONFIG_SENSORS_HALL_DEBOUNCE)
+	if(ddata->gpio_flip_cover != 0) {
+		ret = device_create_file(sec_key, &dev_attr_hall_irq_ctrl);
+		if (ret < 0) {
+			pr_err("Failed to create device file(%s)!, error: %d\n",
+				dev_attr_hall_irq_ctrl.attr.name, ret);
+		}
+	}
+#endif
 #if defined(CONFIG_SENSORS_HALL)
 	if(ddata->gpio_flip_cover != 0) {
 		ret = device_create_file(sec_key, &dev_attr_hall_detect);

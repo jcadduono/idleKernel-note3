@@ -2,7 +2,7 @@
 /*
  * Linux cfg80211 driver
  *
- * Copyright (C) 1999-2013, Broadcom Corporation
+ * Copyright (C) 1999-2014, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -22,7 +22,7 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: wl_cfg80211.c 445404 2013-12-26 13:52:07Z $
+ * $Id: wl_cfg80211.c 447766 2014-01-10 05:20:49Z $
  */
 /* */
 #include <typedefs.h>
@@ -1087,8 +1087,7 @@ static void swap_key_to_BE(struct wl_wsec_key *key)
 	key->iv_initialized = dtoh32(key->iv_initialized);
 }
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)) && !defined(WL_COMPAT_WIRELESS)
-/* For debug: Dump the contents of the encoded wps ie buffe */
+/* Dump the contents of the encoded wps ie buffer and get pbc value */
 static void
 wl_validate_wps_ie(char *wps_ie, s32 wps_ie_len, bool *pbc)
 {
@@ -1171,7 +1170,61 @@ wl_validate_wps_ie(char *wps_ie, s32 wps_ie_len, bool *pbc)
 		subel += subelt_len;
 	}
 }
-#endif /* LINUX_VERSION < VERSION(3, 4, 0) && !WL_COMPAT_WIRELESS */
+
+s32 wl_set_tx_power(struct net_device *dev,
+	enum nl80211_tx_power_setting type, s32 dbm)
+{
+	s32 err = 0;
+	s32 disable = 0;
+	s32 txpwrqdbm;
+	u16 txpwrmw;
+
+	/* Make sure radio is off or on as far as software is concerned */
+	disable = WL_RADIO_SW_DISABLE << 16;
+	disable = htod32(disable);
+	err = wldev_ioctl(dev, WLC_SET_RADIO, &disable, sizeof(disable), true);
+	if (unlikely(err)) {
+		WL_ERR(("WLC_SET_RADIO error (%d)\n", err));
+		return err;
+	}
+
+	if (dbm > 0xffff)
+		txpwrmw = 0xffff;
+	else
+		txpwrmw = (u16)dbm;
+	txpwrqdbm = (s32)bcm_mw_to_qdbm(txpwrmw);
+#ifdef SUPPORT_WL_TXPOWER
+	if (type == NL80211_TX_POWER_AUTOMATIC)
+		txpwrqdbm = 127;
+	else
+		txpwrqdbm |= WL_TXPWR_OVERRIDE;
+#endif /* SUPPORT_WL_TXPOWER */
+	err = wldev_iovar_setint(dev, "qtxpower", txpwrqdbm);
+	if (unlikely(err))
+		WL_ERR(("qtxpower error (%d)\n", err));
+	else
+		WL_ERR(("mW=%d, txpwrqdbm=0x%x\n", dbm, txpwrqdbm));
+
+	return err;
+}
+
+s32 wl_get_tx_power(struct net_device *dev, s32 *dbm)
+{
+	s32 err = 0;
+	s32 txpwrdbm;
+	u8 result;
+
+	err = wldev_iovar_getint(dev, "qtxpower", &txpwrdbm);
+	if (unlikely(err)) {
+		WL_ERR(("error (%d)\n", err));
+		return err;
+	}
+
+	result = (u8) (txpwrdbm & ~WL_TXPWR_OVERRIDE);
+	*dbm = (s32) bcm_qdbm_to_mw(result);
+
+	return err;
+}
 
 static chanspec_t wl_cfg80211_get_shared_freq(struct wiphy *wiphy)
 {
@@ -2200,6 +2253,7 @@ wl_run_escan(struct wl_priv *wl, struct net_device *ndev,
 		params->version = htod32(ESCAN_REQ_VERSION);
 		params->action =  htod16(action);
 		wl_escan_set_sync_id(params->sync_id, wl);
+		wl_escan_set_type(wl, WL_SCANTYPE_LEGACY);
 		if (params_size + sizeof("escan") >= WLC_IOCTL_MEDLEN) {
 			WL_ERR(("ioctl buffer length not sufficient\n"));
 			kfree(params);
@@ -2387,6 +2441,9 @@ __wl_cfg80211_scan(struct wiphy *wiphy, struct net_device *ndev,
 
 	unsigned long flags;
 	static s32 busy_count = 0;
+#ifdef WL_CFG80211_VSDB_PRIORITIZE_SCAN_REQUEST
+	struct net_device *remain_on_channel_ndev = NULL;
+#endif
 
 	dhd_pub_t *dhd;
 
@@ -2422,9 +2479,10 @@ __wl_cfg80211_scan(struct wiphy *wiphy, struct net_device *ndev,
 		return -EOPNOTSUPP;
 	}
 #ifdef WL_CFG80211_VSDB_PRIORITIZE_SCAN_REQUEST
-	if (wl_get_drv_status_all(wl, REMAINING_ON_CHANNEL)) {
+	remain_on_channel_ndev = wl_cfg80211_get_remain_on_channel_ndev(wl);
+	if (remain_on_channel_ndev) {
 		WL_DBG(("Remain_on_channel bit is set, somehow it didn't get cleared\n"));
-		wl_notify_escan_complete(wl, ndev, true, true);
+		wl_notify_escan_complete(wl, remain_on_channel_ndev, true, true);
 	}
 #endif /* WL_CFG80211_VSDB_PRIORITIZE_SCAN_REQUEST */
 
@@ -4035,10 +4093,7 @@ wl_cfg80211_set_tx_power(struct wiphy *wiphy,
 
 	struct wl_priv *wl = wiphy_priv(wiphy);
 	struct net_device *ndev = wl_to_prmry_ndev(wl);
-	u16 txpwrmw;
 	s32 err = 0;
-	s32 disable = 0;
-	s32 txpwrqdbm;
 #if defined(WL_CFG80211_P2P_DEV_IF)
 	s32 dbm = MBM_TO_DBM(mbm);
 #elif (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 3, 0)) || \
@@ -4063,31 +4118,13 @@ wl_cfg80211_set_tx_power(struct wiphy *wiphy,
 		}
 		break;
 	}
-	/* Make sure radio is off or on as far as software is concerned */
-	disable = WL_RADIO_SW_DISABLE << 16;
-	disable = htod32(disable);
-	err = wldev_ioctl(ndev, WLC_SET_RADIO, &disable, sizeof(disable), true);
+
+	err = wl_set_tx_power(ndev, type, dbm);
 	if (unlikely(err)) {
-		WL_ERR(("WLC_SET_RADIO error (%d)\n", err));
+		WL_ERR(("error (%d)\n", err));
 		return err;
 	}
 
-	if (dbm > 0xffff)
-		txpwrmw = 0xffff;
-	else
-		txpwrmw = (u16) dbm;
-	txpwrqdbm = (s32)bcm_mw_to_qdbm(txpwrmw);
-#ifdef SUPPORT_WL_TXPOWER
-	if (type == NL80211_TX_POWER_AUTOMATIC)
-		txpwrqdbm = 127;
-	else
-		txpwrqdbm |= WL_TXPWR_OVERRIDE;
-#endif /* SUPPORT_WL_TXPOWER */
-	err = wldev_iovar_setint(ndev, "qtxpower", txpwrqdbm);
-	if (unlikely(err)) {
-		WL_ERR(("qtxpower error (%d)\n", err));
-		return err;
-	}
 	wl->conf->tx_power = dbm;
 
 	return err;
@@ -4102,18 +4139,12 @@ static s32 wl_cfg80211_get_tx_power(struct wiphy *wiphy, s32 *dbm)
 {
 	struct wl_priv *wl = wiphy_priv(wiphy);
 	struct net_device *ndev = wl_to_prmry_ndev(wl);
-	s32 txpwrdbm;
-	u8 result;
 	s32 err = 0;
 
 	RETURN_EIO_IF_NOT_UP(wl);
-	err = wldev_iovar_getint(ndev, "qtxpower", &txpwrdbm);
-	if (unlikely(err)) {
+	err = wl_get_tx_power(ndev, dbm);
+	if (unlikely(err))
 		WL_ERR(("error (%d)\n", err));
-		return err;
-	}
-	result = (u8) (txpwrdbm & ~WL_TXPWR_OVERRIDE);
-	*dbm = (s32) bcm_qdbm_to_mw(result);
 
 	return err;
 }
@@ -5710,7 +5741,7 @@ wl_cfg80211_mgmt_tx(struct wiphy *wiphy, bcm_struct_cfgdev *cfgdev,
 		if (ieee80211_is_probe_resp(mgmt->frame_control)) {
 			s32 ie_offset =  DOT11_MGMT_HDR_LEN + DOT11_BCN_PRB_FIXED_LEN;
 			s32 ie_len = len - ie_offset;
-			if (dev == wl_to_prmry_ndev(wl))
+			if ((dev == wl_to_prmry_ndev(wl)) && wl->p2p)
 				bssidx = wl_to_p2p_bss_bssidx(wl, P2PAPI_BSSCFG_DEVICE);
 				wl_cfgp2p_set_management_ie(wl, dev, bssidx,
 				VNDR_IE_PRBRSP_FLAG, (u8 *)(buf + ie_offset), ie_len);
@@ -5968,6 +5999,20 @@ change_bw:
 	}
 	return err;
 }
+
+#ifdef WL_CFG80211_VSDB_PRIORITIZE_SCAN_REQUEST
+struct net_device *
+wl_cfg80211_get_remain_on_channel_ndev(struct wl_priv *wl)
+{
+	struct net_info *_net_info, *next;
+	list_for_each_entry_safe(_net_info, next, &wl->net_list, list) {
+		if (_net_info->ndev &&
+			test_bit(WL_STATUS_REMAINING_ON_CHANNEL, &_net_info->sme_state))
+			return _net_info->ndev;
+	}
+	return NULL;
+}
+#endif /* WL_CFG80211_VSDB_PRIORITIZE_SCAN_REQUEST */
 
 static s32
 wl_validate_opensecurity(struct net_device *dev, s32 bssidx)
@@ -6281,6 +6326,7 @@ wl_validate_wpaie(struct net_device *dev, wpa_ie_fixed_t *wpaie, s32 bssidx)
 exit:
 	return 0;
 }
+
 
 static s32
 wl_cfg80211_bcn_validate_sec(
@@ -6842,6 +6888,16 @@ wl_cfg80211_start_ap(
 	if ((err = wl_cfg80211_set_ies(dev, &info->beacon, bssidx)) < 0)
 		WL_ERR(("Set IEs failed \n"));
 
+	/* Enable Probe Req filter, WPS-AP certification 4.2.13 */
+	if ((dev_role == NL80211_IFTYPE_AP) && (ies.wps_ie != NULL)) {
+		bool pbc = 0;
+		wl_validate_wps_ie((char *) ies.wps_ie, ies.wps_ie_len, &pbc);
+		if (pbc) {
+			WL_DBG(("set WLC_E_PROBREQ_MSG\n"));
+			wl_add_remove_eventmsg(dev, WLC_E_PROBREQ_MSG, true);
+		}
+	}
+
 fail:
 	if (err) {
 		WL_ERR(("ADD/SET beacon failed\n"));
@@ -6942,6 +6998,7 @@ wl_cfg80211_change_beacon(
 	struct parsed_ies ies;
 	u32 dev_role = 0;
 	s32 bssidx = 0;
+	bool pbc = 0;
 
 	WL_DBG(("Enter \n"));
 
@@ -6985,6 +7042,15 @@ wl_cfg80211_change_beacon(
 			WL_ERR(("Hostapd update sec failed \n"));
 			err = -EINVAL;
 			goto fail;
+		}
+		/* Enable Probe Req filter, WPS-AP certification 4.2.13 */
+		if ((dev_role == NL80211_IFTYPE_AP) && (ies.wps_ie != NULL)) {
+			wl_validate_wps_ie((char *) ies.wps_ie, ies.wps_ie_len, &pbc);
+			WL_DBG((" WPS AP, wps_ie is exists pbc=%d\n", pbc));
+			if (pbc)
+				wl_add_remove_eventmsg(dev, WLC_E_PROBREQ_MSG, true);
+			else
+				wl_add_remove_eventmsg(dev, WLC_E_PROBREQ_MSG, false);
 		}
 	}
 
@@ -8874,6 +8940,35 @@ wl_notify_rx_mgmt_frame(struct wl_priv *wl, bcm_struct_cfgdev *cfgdev,
 			WL_DBG(("P2P: GO_NEG_PHASE status cleared \n"));
 			wl_clr_p2p_status(wl, GO_NEG_PHASE);
 		}
+	} else if (event == WLC_E_PROBREQ_MSG) {
+
+		/* Handle probe reqs frame
+		 * WPS-AP certification 4.2.13
+		 */
+		struct parsed_ies prbreq_ies;
+		u32 prbreq_ie_len = 0;
+		bool pbc = 0;
+
+		WL_DBG((" Event WLC_E_PROBREQ_MSG received\n"));
+		mgmt_frame = (u8 *)(data);
+		mgmt_frame_len = ntoh32(e->datalen);
+
+		prbreq_ie_len = mgmt_frame_len - DOT11_MGMT_HDR_LEN;
+
+		/* Parse prob_req IEs */
+		if (wl_cfg80211_parse_ies(&mgmt_frame[DOT11_MGMT_HDR_LEN],
+			prbreq_ie_len, &prbreq_ies) < 0) {
+			WL_ERR(("Prob req get IEs failed\n"));
+			return 0;
+		}
+		if (prbreq_ies.wps_ie != NULL) {
+			wl_validate_wps_ie((char *)prbreq_ies.wps_ie, prbreq_ies.wps_ie_len, &pbc);
+			WL_DBG((" wps_ie exist pbc = %d\n", pbc));
+			/* if pbc method, send prob_req mgmt frame to upper layer */
+			if (!pbc)
+				return 0;
+		} else
+			return 0;
 	} else {
 		mgmt_frame = (u8 *)((wl_event_rx_frame_data_t *)rxframe + 1);
 
@@ -9120,6 +9215,8 @@ wl_init_escan_result_buf(struct wl_priv *wl)
 	bzero(wl->escan_info.escan_buf[0], ESCAN_BUF_SIZE);
 	wl->escan_info.escan_buf[1] = dhd_os_prealloc(NULL, DHD_PREALLOC_WIPHY_ESCAN1, 0);
 	bzero(wl->escan_info.escan_buf[1], ESCAN_BUF_SIZE);
+	wl->escan_info.escan_type[0] = 0;
+	wl->escan_info.escan_type[1] = 0;
 #else
 	wl->escan_info.escan_buf = dhd_os_prealloc(NULL, DHD_PREALLOC_WIPHY_ESCAN0, 0);
 	bzero(wl->escan_info.escan_buf, ESCAN_BUF_SIZE);
@@ -9132,6 +9229,8 @@ wl_deinit_escan_result_buf(struct wl_priv *wl)
 #if defined(DUAL_ESCAN_RESULT_BUFFER)
 	wl->escan_info.escan_buf[0] = NULL;
 	wl->escan_info.escan_buf[1] = NULL;
+	wl->escan_info.escan_type[0] = 0;
+	wl->escan_info.escan_type[1] = 0;
 #else
 	wl->escan_info.escan_buf = NULL;
 #endif
@@ -10481,6 +10580,9 @@ void wl_cfg80211_detach(void *para)
 	wl = wlcfg_drv_priv;
 
 	WL_TRACE(("In\n"));
+
+	wl_add_remove_pm_enable_work(wl, FALSE, WL_HANDLER_DEL);
+
 
 #if defined(COEX_DHCP)
 	wl_cfg80211_btcoex_deinit(wl);

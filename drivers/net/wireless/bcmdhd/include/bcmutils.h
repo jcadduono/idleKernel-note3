@@ -1,7 +1,7 @@
 /*
  * Misc useful os-independent macros and functions.
  *
- * Copyright (C) 1999-2013, Broadcom Corporation
+ * Copyright (C) 1999-2014, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -640,7 +640,7 @@ extern int bcm_format_ssid(char* buf, const uchar ssid[], uint ssid_len);
 #define ARRAYSIZE(a)		(sizeof(a) / sizeof(a[0]))
 #endif
 
-#ifndef ARRAYLAST   
+#ifndef ARRAYLAST 
 #define ARRAYLAST(a)		(&a[ARRAYSIZE(a)-1])
 #endif
 
@@ -650,7 +650,7 @@ extern void *_bcmutils_dummy_fn;
 
 
 #ifndef setbit
-#ifndef NBBY		  
+#ifndef NBBY		
 #define	NBBY	8	
 #endif 
 #ifdef BCMUTILS_BIT_MACROS_USE_FUNCS

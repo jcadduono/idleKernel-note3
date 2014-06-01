@@ -55,15 +55,13 @@ static struct cdev tzic_cdev;
 static int ic = STATE_IC_GOOD;
 static int set_tamper_fuse_cmd(void);
 static uint8_t get_tamper_fuse_cmd(void);
+
 static int set_tamper_fuse_cmd()
 {
 	uint32_t fuse_id = HLOS_IMG_TAMPER_FUSE;
 
-	if (ic == STATE_IC_BAD)
-		return 0;
-	ic = STATE_IC_BAD;
 	return scm_call(SCM_SVC_FUSE, SCM_BLOW_SW_FUSE_ID, &fuse_id,
-		sizeof(fuse_id), 0, 0);
+		sizeof(fuse_id), NULL, 0);
 }
 
 static uint8_t get_tamper_fuse_cmd()
@@ -94,6 +92,12 @@ static long tzic_ioctl(struct file *file, unsigned cmd,
 	LOG(KERN_INFO "tamper_fuse before = %x\n", ret);
 
 	switch (cmd) {
+	case TZIC_IOCTL_GET_FUSE_REQ: {
+		ret = get_tamper_fuse_cmd();
+		LOG(KERN_INFO "tamper_fuse value = %x\n", ret);
+
+		break;
+	}
 	case TZIC_IOCTL_SET_FUSE_REQ: {
 		LOG(KERN_INFO "ioctl set_fuse\n");
 		mutex_lock(&tzic_mutex);

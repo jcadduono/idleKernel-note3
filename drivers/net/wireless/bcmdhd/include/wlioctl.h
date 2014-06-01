@@ -4,7 +4,7 @@
  *
  * Definitions subject to change without notice.
  *
- * Copyright (C) 1999-2013, Broadcom Corporation
+ * Copyright (C) 1999-2014, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -24,7 +24,7 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: wlioctl.h 443577 2013-12-17 02:32:12Z $
+ * $Id: wlioctl.h 445540 2013-12-27 02:29:38Z $
  */
 
 #ifndef _wlioctl_h_
@@ -1818,11 +1818,11 @@ typedef struct {
 /* WLC_GET_AUTH, WLC_SET_AUTH values */
 #define WL_AUTH_OPEN_SYSTEM		0	/* d11 open authentication */
 #define WL_AUTH_SHARED_KEY		1	/* d11 shared authentication */
-#if (defined(BCM4334_CHIP) || defined(BCM43341_CHIP)) && defined(CUSTOMER_HW4)
+#if defined(BCM4334_CHIP) || defined(BCM43341_CHIP)
 #define WL_AUTH_OPEN_SHARED		3	 /* try open, then shared if open failed w/rc 13 */
 #else
 #define WL_AUTH_OPEN_SHARED		2	 /* try open, then shared if open failed w/rc 13 */
-#endif 
+#endif /* BCM4334_CHIP || BCM43341_CHIP */
 #endif /* LINUX_POSTMOGRIFY_REMOVAL */
 
 /* Bit masks for radio disabled status - returned by WL_GET_RADIO */
@@ -4336,6 +4336,7 @@ typedef struct wl_pkt_filter_stats {
 	uint32	num_pkts_forwarded;	/* # packets fwded from dongle to host for all filters */
 	uint32	num_pkts_discarded;	/* # packets discarded by dongle for all filters */
 } wl_pkt_filter_stats_t;
+
 
 #define RSN_KCK_LENGTH 16
 #define RSN_KEK_LENGTH 16

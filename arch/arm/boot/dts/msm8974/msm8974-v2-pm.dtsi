@@ -120,7 +120,7 @@
 		qcom,phase-port = <0x1>;
 		qcom,pfm-port = <0x2>;
 		qcom,saw2-spm-cmd-ret = [1f 00 03 00 0f];
-		qcom,saw2-spm-cmd-gdhs = [00 32 42 07 44 50 02 32 50 0f];
+		qcom,saw2-spm-cmd-gdhs = [00 32 42 03 44 50 02 32 50 0f];
 		qcom,saw2-spm-cmd-pc = [00 10 32 b0 11 42 07 01 b0 12 44
 				50 02 32 50 0f];
 		qcom,L2-spm-is-apcs-master;
@@ -268,6 +268,7 @@
 			<0xff 207>, /* rpm_ipc(27) */
 			<0xff 211>, /* usb_dwc3_otg */
 			<0xff 240>, /* summary_irq_kpss */
+			<0xff 252>, /* sps */
 			<0xff 253>, /* sdcc_pwr_cmd_irq */
 			<0xff 256>, /* sdcc_pwr_cmd_irq */
 			<0xff 268>, /* bam_irq[1] */
@@ -313,7 +314,8 @@
 			<38  92>,
 			<39  93>,
 			<40  95>,
-			<41  144>;
+			<41  144>,
+			<0xff  145>;
 	};
 
 	qcom,pm-8x60@fe805664 {

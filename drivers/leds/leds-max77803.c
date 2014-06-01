@@ -130,7 +130,7 @@ static ssize_t max77803_store_movie_brightness(struct device *dev,
 		set_brightness = led_data->brightness;
 	}
 
-	pr_debug("[LED] %s:movie_brightness = %d\n", __func__, led_data->movie_brightness);
+	pr_err("[LED] %s:movie_brightness = %d\n", __func__, led_data->movie_brightness);
 
 	ret = max77803_set_bits(led_data->i2c, reg_led_current[led_data->data->id],
 			led_current_mask[led_data->data->id],

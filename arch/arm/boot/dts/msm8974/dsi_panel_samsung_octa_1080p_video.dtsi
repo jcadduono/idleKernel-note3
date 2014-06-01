@@ -110,6 +110,7 @@
 			like below  READ LENGH = 0x21
 		 */
 			samsung,panel-nv-mtp-read-cmds = [ 06 01 00 00 00 00 01 c8 21 00];
+			samsung,panel-nv-mdate-read-cmds = [ 06 01 00 00 00 00 01 c8 02 28];
 			samsung,panel-nv-mtp-read-hbm-cmds = [ 06 01 00 00 00 00 01 c8 06 21];	/* read C8 34~39th , 33=0x21*/
 			samsung,panel-nv-mtp-read-hbm2-cmds = [ 06 01 00 00 00 00 01 c8 0F 48];	/* read C8 73~87th , 72=0x48*/
 			samsung,panel-nv-mdnie-read-cmds = [ 06 01 00 00 00 00 01 A1 04 00];

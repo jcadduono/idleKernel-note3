@@ -42,9 +42,14 @@ extern struct vibrator_platform_data vibrator_drvdata;
 #define MODULE_NAME                         "tspdrv"
 #define TSPDRV                              "/dev/"MODULE_NAME
 #define TSPDRV_MAGIC_NUMBER                 0x494D4D52
+
+#ifdef CONFIG_TACTILE_ASSIST
 #define TSPDRV_IOCTL_GROUP                  0x52
 #define TSPDRV_SET_MAGIC_NUMBER             _IO(TSPDRV_IOCTL_GROUP, 2)
+#endif
+
 #define TSPDRV_STOP_KERNEL_TIMER            _IO(TSPDRV_MAGIC_NUMBER & 0xFF, 1)
+
 /*
 ** Obsolete IOCTL command
 ** #define TSPDRV_IDENTIFY_CALLER           _IO(TSPDRV_MAGIC_NUMBER & 0xFF, 2)
@@ -93,13 +98,12 @@ int32_t g_nforce_32;
 
 #if defined(CONFIG_MACH_KS01SKT) \
 	   || defined(CONFIG_MACH_KS01KTT) || defined(CONFIG_MACH_KS01LGT) \
-	   || defined(CONFIG_MACH_JACTIVESKT) || defined(CONFIG_MACH_HLTEDCM)
+	   || defined(CONFIG_MACH_JACTIVESKT) || defined(CONFIG_MACH_HLTEDCM) \
+	   || defined(CONFIG_MACH_HLTEKDI)
 #define MOTOR_STRENGTH			94/*MOTOR_STRENGTH 94 %*/
 #elif defined(CONFIG_MACH_LT03EUR) || defined(CONFIG_MACH_LT03SKT)\
 	|| defined(CONFIG_MACH_LT03KTT)	|| defined(CONFIG_MACH_LT03LGT) || defined(CONFIG_MACH_PICASSO_LTE)
 #define MOTOR_STRENGTH			98/*MOTOR_STRENGTH 98 %*/
-#elif defined(CONFIG_MACH_JS01LTEDCM)
-#define MOTOR_STRENGTH			93/*MOTOR_STRENGTH 93 %*/
 #elif defined(CONFIG_MACH_HLTEUSC) || defined(CONFIG_MACH_HLTEVZW)
 #define MOTOR_STRENGTH			99/*MOTOR_STRENGTH 99 %*/
 #elif defined(CONFIG_SEC_K_PROJECT)
@@ -114,7 +118,7 @@ int32_t g_nforce_32;
 	#define GP_CLK_N_DEFAULT                        138
 	#define GP_CLK_D_DEFAULT                        69  /* 50% duty cycle	*/
 	#define IMM_PWM_MULTIPLIER			137
-#elif defined (CONFIG_MACH_JS01LTEDCM) || defined (CONFIG_MACH_JS01LTESBM)
+#elif defined (CONFIG_MACH_HLTEDCM) || defined (CONFIG_MACH_HLTEKDI) || defined (CONFIG_MACH_JS01LTEDCM) || defined (CONFIG_MACH_JS01LTESBM)
 	#define GP_CLK_M_DEFAULT			2
 	#define GP_CLK_N_DEFAULT			92
 	#define GP_CLK_D_DEFAULT			46  /* 50% duty cycle */

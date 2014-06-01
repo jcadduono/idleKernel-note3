@@ -42,8 +42,12 @@
 #define MODEL_NAME	"SM-N9006"
 #elif defined (CONFIG_MACH_H3G_CHN_CMCC)
 #define MODEL_NAME	"SM-N9008"
+#elif defined (CONFIG_MACH_HLTECHNTWU)
+#define MODEL_NAME	"SM-N900U"
 #elif defined (CONFIG_MACH_HLTEEUR)
 #define MODEL_NAME	"SM-N9005"
+#elif defined (CONFIG_MACH_HLTEAUS)
+#define MODEL_NAME	"SM-N9007"
 #elif defined (CONFIG_MACH_HLTETMO)
 #define MODEL_NAME	"SM-N900T"
 #elif defined (CONFIG_MACH_HLTESPR)

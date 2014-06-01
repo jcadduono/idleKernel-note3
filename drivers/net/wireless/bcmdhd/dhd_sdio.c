@@ -1,7 +1,7 @@
 /*
  * DHD Bus Module for SDIO
  *
- * Copyright (C) 1999-2013, Broadcom Corporation
+ * Copyright (C) 1999-2014, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -21,7 +21,7 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: dhd_sdio.c 445342 2013-12-26 06:03:12Z $
+ * $Id: dhd_sdio.c 447771 2014-01-10 05:43:56Z $
  */
 
 #include <typedefs.h>
@@ -2373,7 +2373,7 @@ dhd_bus_txdata(struct dhd_bus *bus, void *pkt)
 		ret = dhdsdio_txpkt(bus, pkt,
 		        (bus->ext_loop ? SDPCM_TEST_CHANNEL : SDPCM_DATA_CHANNEL), TRUE, FALSE);
 #endif
-		if (ret)
+		if (ret == BCME_OK)
 			bus->dhd->tx_errors++;
 		else
 			bus->dhd->dstats.tx_bytes += datalen;
@@ -2498,7 +2498,7 @@ dhdsdio_sendfromq(dhd_bus_t *bus, uint maxframes)
 #endif
 		}
 
-		if (ret)
+		if (ret == BCME_OK)
 			bus->dhd->tx_errors++;
 		else
 			bus->dhd->dstats.tx_bytes += datalen;
@@ -6846,7 +6846,7 @@ dhdsdio_pktgen(dhd_bus_t *bus)
 #endif
 
 		/* Send it */
-		if (dhdsdio_txpkt(bus, pkt, SDPCM_TEST_CHANNEL, TRUE, FALSE)) {
+		if (dhdsdio_txpkt(bus, pkt, SDPCM_TEST_CHANNEL, TRUE, FALSE) != BCME_OK) {
 			bus->pktgen_fail++;
 			if (bus->pktgen_stop && bus->pktgen_stop == bus->pktgen_fail)
 				bus->pktgen_count = 0;
@@ -6891,7 +6891,7 @@ dhdsdio_sdtest_set(dhd_bus_t *bus, uint count)
 	*data++ = (uint8)(count >> 24);
 
 	/* Send it */
-	if (dhdsdio_txpkt(bus, pkt, SDPCM_TEST_CHANNEL, TRUE, FALSE))
+	if (dhdsdio_txpkt(bus, pkt, SDPCM_TEST_CHANNEL, TRUE, FALSE) != BCME_OK)
 		bus->pktgen_fail++;
 }
 
@@ -6936,7 +6936,7 @@ dhdsdio_testrcv(dhd_bus_t *bus, void *pkt, uint seq)
 	case SDPCM_TEST_ECHOREQ:
 		/* Rx->Tx turnaround ok (even on NDIS w/current implementation) */
 		*(uint8 *)(PKTDATA(osh, pkt)) = SDPCM_TEST_ECHORSP;
-		if (dhdsdio_txpkt(bus, pkt, SDPCM_TEST_CHANNEL, TRUE, FALSE) == 0) {
+		if (dhdsdio_txpkt(bus, pkt, SDPCM_TEST_CHANNEL, TRUE, FALSE) == BCME_OK) {
 			bus->pktgen_sent++;
 		} else {
 			bus->pktgen_fail++;
@@ -7199,7 +7199,7 @@ dhd_bus_console_in(dhd_pub_t *dhdp, uchar *msg, uint msglen)
 	 * sdpcm_sendup (RX) checks for virtual console input.
 	 */
 	if ((pkt = PKTGET(bus->dhd->osh, 4 + SDPCM_RESERVE, TRUE)) != NULL)
-		dhdsdio_txpkt(bus, pkt, SDPCM_EVENT_CHANNEL, TRUE, FALSE);
+		rv = dhdsdio_txpkt(bus, pkt, SDPCM_EVENT_CHANNEL, TRUE, FALSE);
 
 done:
 	if ((bus->idletime == DHD_IDLE_IMMEDIATE) && !bus->dpc_sched) {
@@ -7783,6 +7783,7 @@ dhdsdio_probe_init(dhd_bus_t *bus, osl_t *osh, void *sdh)
 	int32 fnum;
 
 	DHD_TRACE(("%s: Enter\n", __FUNCTION__));
+
 
 #ifdef SDTEST
 	dhdsdio_pktgen_init(bus);
@@ -8497,7 +8498,9 @@ dhd_bus_devreset(dhd_pub_t *dhdp, uint8 flag)
 
 #if defined(OOB_INTR_ONLY) || defined(BCMSPI_ANDROID)
 			/* Clean up any pending IRQ */
+			dhd_enable_oob_intr(bus, FALSE);
 			bcmsdh_set_irq(FALSE);
+			bcmsdh_unregister_oob_intr();
 #endif /* defined(OOB_INTR_ONLY) || defined(BCMSPI_ANDROID) */
 
 			/* Clean tx/rx buffer pointers, detach from the dongle */

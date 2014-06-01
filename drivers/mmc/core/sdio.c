@@ -1292,19 +1292,31 @@ int sdio_reset_comm(struct mmc_card *card)
 	printk("%s():\n", __func__);
 	mmc_claim_host(host);
 
+	mmc_set_timing(host, MMC_TIMING_LEGACY);
+	mmc_set_clock(host, host->f_init);
+
+	sdio_reset(host);
 	mmc_go_idle(host);
 
-	mmc_set_clock(host, host->f_min);
+	mmc_send_if_cond(host, host->ocr_avail);
 
 	err = mmc_send_io_op_cond(host, 0, &ocr);
 	if (err)
 		goto err;
 
-	host->ocr = mmc_select_voltage(host, ocr);
+	if (host->ocr_avail_sdio)
+		host->ocr_avail = host->ocr_avail_sdio;
+
+	host->ocr = mmc_select_voltage(host, ocr & ~0x7F);
 	if (!host->ocr) {
 		err = -EINVAL;
+		printk("%s(): voltage err\n", __func__);
 		goto err;
 	}
+
+	if (mmc_host_uhs(host))
+		/* to query card if 1.8V signalling is supported */
+		host->ocr |= R4_18V_PRESENT;
 
 	err = mmc_sdio_init_card(host, host->ocr, card, 0);
 	if (err)
@@ -1322,3 +1334,18 @@ err:
 #endif /* CONFIG_BCM4339 || CONFIG_BCM4335  || CONFIG_BCM4354 */
 }
 EXPORT_SYMBOL(sdio_reset_comm);
+
+#if defined(CONFIG_BCM4339) || defined(CONFIG_BCM4335) || defined(CONFIG_BCM4354)
+void sdio_ctrl_power(struct mmc_host *host, bool onoff)
+{
+		mmc_claim_host(host);
+		if (onoff)
+			mmc_power_up(host);
+        else
+			mmc_power_off(host);
+		/* Wait at least 1 ms according to SD spec */
+		mmc_delay(1);
+		mmc_release_host(host);
+}
+EXPORT_SYMBOL(sdio_ctrl_power);
+#endif /* CONFIG_BCM4339 || CONFIG_BCM4335  || CONFIG_BCM4354 */

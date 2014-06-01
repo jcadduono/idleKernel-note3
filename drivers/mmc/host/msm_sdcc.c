@@ -5748,7 +5748,7 @@ err:
 
 #if defined(CONFIG_BCM4335) || defined(CONFIG_BCM4335_MODULE) || defined(CONFIG_BCM4339) || defined(CONFIG_BCM4339_MODULE)  || defined(CONFIG_BCM4354)
 int brcm_wifi_status_register(
-			void (*callback)(int card_present, void *dev_id), void *dev_id);
+	void (*callback)(int card_present, void *dev_id), void *dev_id, void *mmc_host);
 unsigned int brcm_wifi_status(struct device *dev);
 #endif /* defined(CONFIG_BCM4335) || defined(CONFIG_BCM4335_MODULE) || defined(CONFIG_BCM4339) || defined(CONFIG_BCM4339_MODULE)  || defined(CONFIG_BCM4354)*/
 
@@ -6289,7 +6289,7 @@ msmsdcc_probe(struct platform_device *pdev)
 			goto sdiowakeup_irq_free;
 		}
 	} else if (plat->register_status_notify) {
-		plat->register_status_notify(msmsdcc_status_notify_cb, host);
+		plat->register_status_notify(msmsdcc_status_notify_cb, host, host->mmc);
 	} else if (!plat->status)
 		pr_err("%s: No card detect facilities available\n",
 		       mmc_hostname(mmc));

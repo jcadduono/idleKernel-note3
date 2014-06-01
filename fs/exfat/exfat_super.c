@@ -175,9 +175,13 @@ void exfat_time_fat2unix(struct exfat_sb_info *sbi, struct timespec *ts,
 		ld++;
 
 	ts->tv_sec =  tp->Second  + tp->Minute * SECS_PER_MIN
-				  + tp->Hour * SECS_PER_HOUR
-				  + (year * 365 + ld + accum_days_in_year[(tp->Month)] + (tp->Day - 1) + DAYS_DELTA_DECADE) * SECS_PER_DAY
-				  + sys_tz.tz_minuteswest * SECS_PER_MIN;
+			+ tp->Hour * SECS_PER_HOUR
+			+ (year * 365 + ld + accum_days_in_year[(tp->Month)] 
+			+ (tp->Day - 1) + DAYS_DELTA_DECADE) * SECS_PER_DAY;
+
+	if(!sbi->options.tz_utc)
+		ts->tv_sec += sys_tz.tz_minuteswest * SECS_PER_MIN;
+
 	ts->tv_nsec = 0;
 }
 
@@ -188,7 +192,8 @@ void exfat_time_unix2fat(struct exfat_sb_info *sbi, struct timespec *ts,
 	time_t day, month, year;
 	time_t ld;
 
-	second -= sys_tz.tz_minuteswest * SECS_PER_MIN;
+	if (!sbi->options.tz_utc)
+		second -= sys_tz.tz_minuteswest * SECS_PER_MIN;
 
 	if (second < UNIX_SECS_1980) {
 		tp->Second  = 0;
@@ -1879,6 +1884,7 @@ static int exfat_show_options(struct seq_file *m, struct vfsmount *mnt)
 	struct exfat_sb_info *sbi = EXFAT_SB(mnt->mnt_sb);
 #endif
 	struct exfat_mount_options *opts = &sbi->options;
+	FS_INFO_T *p_fs = &(sbi->fs_info);
 
 	if (opts->fs_uid != 0)
 		seq_printf(m, ",uid=%u", opts->fs_uid);
@@ -1893,6 +1899,8 @@ static int exfat_show_options(struct seq_file *m, struct vfsmount *mnt)
 	if (sbi->nls_io)
 		seq_printf(m, ",iocharset=%s", sbi->nls_io->charset);
 	seq_printf(m, ",namecase=%u", opts->casesensitive);
+	if (opts->tz_utc)
+		seq_puts(m, ",tz=UTC");
 	if (opts->errors == EXFAT_ERRORS_CONT)
 		seq_puts(m, ",errors=continue");
 	else if (opts->errors == EXFAT_ERRORS_PANIC)
@@ -1903,6 +1911,8 @@ static int exfat_show_options(struct seq_file *m, struct vfsmount *mnt)
 	if (opts->discard)
 		seq_printf(m, ",discard");
 #endif
+	if (p_fs->dev_ejected)
+		seq_puts(m, ",ejected");
 	return 0;
 }
 
@@ -1937,6 +1947,7 @@ enum {
 	Opt_charset,
 	Opt_namecase,
 	Opt_debug,
+	Opt_tz_utc,
 	Opt_err_cont,
 	Opt_err_panic,
 	Opt_err_ro,
@@ -1957,6 +1968,7 @@ static const match_table_t exfat_tokens = {
 	{Opt_charset, "iocharset=%s"},
 	{Opt_namecase, "namecase=%u"},
 	{Opt_debug, "debug"},
+	{Opt_tz_utc, "tz=UTC"},
 	{Opt_err_cont, "errors=continue"},
 	{Opt_err_panic, "errors=panic"},
 	{Opt_err_ro, "errors=remount-ro"},
@@ -1981,6 +1993,7 @@ static int parse_options(char *options, int silent, int *debug,
 	opts->codepage = exfat_default_codepage;
 	opts->iocharset = exfat_default_iocharset;
 	opts->casesensitive = 0;
+	opts->tz_utc = 0;
 	opts->errors = EXFAT_ERRORS_RO;
 #if EXFAT_CONFIG_DISCARD
 	opts->discard = 0;
@@ -2039,6 +2052,9 @@ static int parse_options(char *options, int silent, int *debug,
 			if (match_int(&args[0], &option))
 				return 0;
 			opts->casesensitive = option;
+			break;
+		case Opt_tz_utc:
+			opts->tz_utc = 1;
 			break;
 		case Opt_err_cont:
 			opts->errors = EXFAT_ERRORS_CONT;

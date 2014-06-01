@@ -221,6 +221,36 @@ static DEVICE_ATTR(slideCount, S_IRUGO | S_IWUSR | S_IWGRP,\
 			slideCount_show, slideCount_store);
 #endif
 
+/*
+ * For external CP download
+ */
+#ifdef CONFIG_GSM_MODEM_SPRD6500
+static ssize_t update_cp_bin_show
+	(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	int update = 0;
+
+	sec_get_param(param_update_cp_bin, (void *)&update);
+
+	return snprintf(buf, sizeof(buf), "%d\n", update);
+}
+
+static ssize_t update_cp_bin_store
+	(struct device *dev, struct device_attribute *attr,\
+		const char *buf, size_t size)
+{
+	int update = 0;
+
+	sscanf(buf, "%i", &update);
+	sec_set_param(param_update_cp_bin, &update);
+
+	return size;
+}
+static DEVICE_ATTR(update_cp_bin, S_IRUGO | S_IWUSR | S_IWGRP,\
+			update_cp_bin_show, update_cp_bin_store);
+#endif
+
+
 struct device *sec_misc_dev;
 
 static struct device_attribute *sec_misc_attrs[] = {
@@ -232,6 +262,9 @@ static struct device_attribute *sec_misc_attrs[] = {
 #endif
 #if defined(CONFIG_MACH_APEXQ) || defined(CONFIG_MACH_AEGIS2)
 	&dev_attr_slideCount,
+#endif
+#ifdef CONFIG_GSM_MODEM_SPRD6500
+	&dev_attr_update_cp_bin,
 #endif
 };
 

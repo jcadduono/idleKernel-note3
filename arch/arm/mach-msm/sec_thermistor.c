@@ -55,6 +55,10 @@ static int convert_adc_to_temper(struct sec_therm_info *info, unsigned int adc);
 static int sec_therm_get_adc_data_flash_led(struct sec_therm_info *info);
 #endif
 
+#if defined(CONFIG_MACH_HLTEDCM) || defined(CONFIG_MACH_HLTEKDI)
+static int convert_adc_flash_to_temper(struct sec_therm_info *info, unsigned int adc);
+#endif
+
 #if defined (SSRM_TEST)
 static int tempTest;
 #endif
@@ -110,8 +114,13 @@ static ssize_t sec_therm_show_temperature_flash_led(struct device *dev,
 	struct sec_therm_info *info = dev_get_drvdata(dev);
 
 	adc = sec_therm_get_adc_data_flash_led(info);
+	#if defined(CONFIG_MACH_HLTEDCM) || defined(CONFIG_MACH_HLTEKDI)
+	temper = convert_adc_flash_to_temper(info, adc);
+	#else
 	temper = convert_adc_to_temper(info, adc);
+	#endif
 
+	dev_info(info->dev, "%s: adc_flash=%d\n", __func__, adc);
 	return sprintf(buf, "%d\n", temper);
 }
 
@@ -213,7 +222,7 @@ static int sec_therm_get_adc_data_flash_led(struct sec_therm_info *info)
 
 	for (i = 0; i < ADC_SAMPLING_CNT; i++) {
 
-		rc = qpnp_vadc_read(LR_MUX9_PU2_AMUX_THM5, &results);
+		rc = qpnp_vadc_read(NULL, LR_MUX9_PU2_AMUX_THM5, &results);
 
 		if (rc) {
 			pr_err("error reading AMUX %d, rc = %d\n",
@@ -243,6 +252,58 @@ err:
 	return rc;
 
 }
+
+#if defined(CONFIG_MACH_HLTEDCM) || defined(CONFIG_MACH_HLTEKDI)
+static int convert_adc_flash_to_temper(struct sec_therm_info *info, unsigned int adc)
+{
+	int low = 0;
+	int high = 0;
+	int mid = 0;
+	int temp = 0;
+	int temp2 = 0;
+
+	if (!info->pdata->adc_table_flash || !info->pdata->adc_flash_arr_size) {
+		/* using fake temp */
+		return 300;
+	}
+
+	high = info->pdata->adc_flash_arr_size - 1;
+
+	if (info->pdata->adc_table_flash[low].adc >= adc) {
+		temp = info->pdata->adc_table_flash[low].temperature;
+		goto convert_adc_to_temp_goto;
+	} else if (info->pdata->adc_table_flash[high].adc <= adc) {
+		temp = info->pdata->adc_table_flash[high].temperature;
+		goto convert_adc_to_temp_goto;
+	}
+
+	while (low <= high) {
+		mid = (low + high) / 2;
+		if (info->pdata->adc_table_flash[mid].adc > adc) {
+			high = mid - 1;
+		} else if (info->pdata->adc_table_flash[mid].adc < adc) {
+			low = mid + 1;
+		} else {
+			temp = info->pdata->adc_table_flash[mid].temperature;
+			goto convert_adc_to_temp_goto;
+		}
+	}
+
+	temp = info->pdata->adc_table_flash[high].temperature;
+
+	temp2 = (info->pdata->adc_table_flash[low].temperature -
+			info->pdata->adc_table_flash[high].temperature) *
+			(adc - info->pdata->adc_table_flash[high].adc);
+
+	temp += temp2 /
+		(info->pdata->adc_table_flash[low].adc -
+			info->pdata->adc_table_flash[high].adc);
+
+convert_adc_to_temp_goto:
+
+	return temp;
+}
+#endif
 #endif
 
 static int convert_adc_to_temper(struct sec_therm_info *info, unsigned int adc)
@@ -366,7 +427,11 @@ static void sec_therm_polling_work(struct work_struct *work)
 	if (adc_flash < 0)
 		goto out;
 
+	#if defined(CONFIG_MACH_HLTEDCM) || defined(CONFIG_MACH_HLTEKDI)
+	temper_flash= convert_adc_flash_to_temper(info, adc_flash);
+	#else
 	temper_flash= convert_adc_to_temper(info, adc_flash);
+	#endif
 	dev_info(info->dev, "%s: temper_flash=%d\n", __func__, temper_flash);
 
 	/* if temperature was changed, notify to framework */

@@ -3,7 +3,7 @@
  * Contents are wifi-specific, used by any kernel or app-level
  * software that might want wifi things as it grows.
  *
- * Copyright (C) 1999-2013, Broadcom Corporation
+ * Copyright (C) 1999-2014, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -766,6 +766,7 @@ wf_chspec_valid(chanspec_t chanspec)
 					if (chspec_ch == 165)
 						i = 0;
 
+					
 					if (chspec_ch == 34 || chspec_ch == 38 ||
 					    chspec_ch == 42 || chspec_ch == 46)
 						i = 0;

@@ -324,7 +324,8 @@ struct sdhci_msm_pltfm_data {
     defined(CONFIG_BCM4339) || defined(CONFIG_BCM4339_MODULE) || \
     defined(CONFIG_BCM4354) || defined(CONFIG_BCM4354_MODULE)
 	bool is_status_cb;
-	int (*register_status_notify)(void (*callback)(int card_present, void *dev_id), void *dev_id);
+	int (*register_status_notify)(void (*callback)(int card_present, void *dev_id),
+		void *dev_id, void *mmc_host);
 #endif /* CONFIG_BCM4335 || CONFIG_BCM4335_MODULE || CONFIG_BCM4339 || CONFIG_BCCM4339_MODULE */
 };
 
@@ -380,7 +381,7 @@ enum vdd_io_level {
     defined(CONFIG_BCM4339) || defined(CONFIG_BCM4339_MODULE) || \
     defined(CONFIG_BCM4354) || defined(CONFIG_BCM4354_MODULE)
 extern int brcm_wifi_status_register(
-	void (*callback)(int card_present, void *dev_id), void *dev_id);
+	void (*callback)(int card_present, void *dev_id), void *dev_id, void *mmc_host);
 #endif
 
 /* MSM platform specific tuning */
@@ -3181,7 +3182,7 @@ static int __devinit sdhci_msm_probe(struct platform_device *pdev)
 	pr_err("%s: id %d\n", mmc_hostname(msm_host->mmc), msm_host->id);
 	if (msm_host->pdata->is_status_cb) {
 		msm_host->pdata->register_status_notify = brcm_wifi_status_register;
-		msm_host->pdata->register_status_notify(sdhci_msm_status_notify, host);
+		msm_host->pdata->register_status_notify(sdhci_msm_status_notify, host, host->mmc);
 		host->mmc->pm_flags |= MMC_PM_IGNORE_PM_NOTIFY | MMC_PM_KEEP_POWER;
 		host->mmc->pm_caps |= MMC_PM_IGNORE_PM_NOTIFY | MMC_PM_KEEP_POWER;
 		host->mmc->rescan_disable=1;

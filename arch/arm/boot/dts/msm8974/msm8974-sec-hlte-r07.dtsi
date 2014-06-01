@@ -70,6 +70,10 @@
 		status = "ok";
 	};
 
+	qcom,wcnss-wlan@fb000000 {
+		status = "disabled";
+	};
+
 	i2c@19 {
 		cell-index = <19>;
 		compatible = "i2c-gpio";
@@ -545,7 +549,7 @@
 				<85 512 40000 160000>;
         };
 
-	wlan0: qca,wlan {
+	/* wlan0: qca,wlan {
 		compatible = "qca,ar6004-hsic";
 		qcom,msm-bus,name = "wlan";
 		qcom,msm-bus,num-cases = <5>;
@@ -557,7 +561,7 @@
 				<85 512 40000 320000>,
 				<85 512 40000 480000>,
 				<85 512 40000 800000>;
-	};
+	};*/
 
 	bluetooth_hostwake{
 		compatible = "bluetooth_hostwake";

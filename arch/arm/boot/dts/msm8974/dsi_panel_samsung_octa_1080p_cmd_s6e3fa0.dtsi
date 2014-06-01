@@ -54,7 +54,7 @@
 		samsung,mdss-early-lcd-on = <1>;
 		qcom,mdss-pan-dsi-data-lanes = <1 1 1 1>;
 		qcom,mdss-pan-dsi-dlane-swap = <0>;
-		qcom,mdss-pan-dsi-t-clk = <0x1c 0x04>;
+		qcom,mdss-pan-dsi-t-clk = <0x34 0x19>;
 		qcom,mdss-pan-dsi-stream = <0>;
 		qcom,mdss-pan-dsi-mdp-tr = <0x0>;
 		qcom,mdss-pan-dsi-dma-tr = <0x04>;
@@ -123,6 +123,7 @@
 		 	samsung,panel-test-key-enable-cmds 		= [ 29 01 00 00 00 00 03 F0 5A 5A];
 		 	samsung,panel-test-key-disable-cmds 	= [ 29 01 00 00 00 00 03 F0 A5 A5];
 
+			samsung,panel-nv-mdate-read-cmds = [ 06 01 00 00 00 00 01 c8 02 28];
 			samsung,panel-nv-mtp-read-cmds = [ 06 01 00 00 00 00 01 c8 21 00];
 			samsung,panel-nv-mtp-read-hbm-cmds = [ 06 01 00 00 00 00 01 c8 07 21];	/* read C8 34~40th , 33=0x21*/
 			samsung,panel-nv-mtp-read-hbm2-cmds = [ 06 01 00 00 00 00 01 c8 0F 48];	/* read C8 73~87th , 72=0x48*/

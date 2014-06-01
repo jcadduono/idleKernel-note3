@@ -29,7 +29,7 @@
 /* jmodel */
 #if defined(CONFIG_ARCH_EXYNOS)
 #include <mach/smc.h>
-#elif defined(CONFIG_ARCH_APQ8064) || defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
+#elif defined(CONFIG_ARCH_APQ8064) || defined(CONFIG_ARCH_MSM8974)
 #include <mach/scm.h>
 #endif
 
@@ -70,10 +70,8 @@
 #endif
 
 /* Hmodel */
-#if defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
-#if !defined(CONFIG_MACH_KLTEKDI) && !defined(CONFIG_MACH_KLTE_DCM) && !defined(CONFIG_MACH_KLTE_SBM)
+#ifdef CONFIG_ARCH_MSM8974
 static int gfelica_irq_int_pin = -1;
-#endif
 static struct platform_device *felica_gpio_pdev;
 
 #if defined(CONFIG_MACH_HLTEDCM)
@@ -81,18 +79,6 @@ static int g_uicc_initrev = 7;		//HW Rev 0.9
 static int gfelica_sps_pin = 130;	//Select Power Supply
 #define HW_REV09_OR_10		7	// to fix hltedcm i2c h/w issue in REV 09/10.
 extern void of_sii8240_hw_poweron(bool enable);  // to fix hltedcm i2c h/w issue in REV 09/10.  Defined in driver/video/msm/mhl_v2/sii8240.c
-/* K MODEL */
-#elif defined(CONFIG_MACH_KLTE_DCM) || defined(CONFIG_MACH_KLTE_SBM)
-static int gfelica_sps_pin = -1;	//Select Power Supply
-static int gfelica_pon_pin = -1;	// PON
-static int gfelica_hsel_pin = -1;
-static int g_uicc_initrev = 0;
-#elif defined(CONFIG_MACH_KLTEKDI)
-static int gfelica_pon_pin = -1;	// PON
-static int gfelica_sps_pin = -1;
-static int g_uicc_initrev = 0;
-#define HW_REV09_OR_10 		3
-extern void of_sii8240_hw_poweron(bool enable); // KLTE KDI work around for I2C hardware issue.
 #elif defined(CONFIG_MACH_HLTEKDI)
 static int g_uicc_initrev = 4;
 static int gfelica_sps_pin = -1;
@@ -338,7 +324,7 @@ static int felica_uart_open(struct inode *inode, struct file *file)
 		FELICA_LOG_ERR
 		    ("[MFDD] %s END -EACCESS, uid=[%d], gmfc_uid=[%d], gdiag_uid=[%d]",
 		     __func__, uid, gmfc_uid, gdiag_uid);
-//		return -EACCES;
+		return -EACCES;
 	}
 
 	if (down_interruptible(&dev_sem->felica_sem)) {
@@ -857,12 +843,7 @@ static void felica_nl_recv_msg(struct sk_buff *skb)
 #elif defined(CONFIG_MACH_M3)
 			port_threshold = 0x02;
 #endif
-	//			if (felica_get_tamper_fuse_cmd() != 1) // Custom kernel status detected. mfsc:  311] [MFDD] felica_get_tamper_fuse_cmd END resp_buf = 1. Disabling the check for now, need to be enabled later.
-	if (felica_get_tamper_fuse_cmd() != 1)
-			{
-			FELICA_LOG_DEBUG("\nSamsung kernel status detected. Disabling the check for now, need to be enabled later.\n");
-			}
-	{
+			if (felica_get_tamper_fuse_cmd() != 1) {
 			/* jmodel */
 #if defined(CONFIG_ARCH_EXYNOS)
 			s3c_gpio_cfgall_range(FELICA_UART1RX, 2,\
@@ -870,8 +851,8 @@ static void felica_nl_recv_msg(struct sk_buff *skb)
 			felica_uart_port = 1;
 #elif defined(CONFIG_ARCH_APQ8064)
 			felica_uart_port = 2;
-#elif defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
-			felica_uart_port = 2;
+#elif defined(CONFIG_ARCH_MSM8974)
+			felica_uart_port = 1;
 #endif
 
 			felica_set_felica_info();
@@ -1101,7 +1082,7 @@ static uint8_t felica_get_tamper_fuse_cmd(void)
 	return (uint8_t)fuse_id;
 }
 
-#elif defined(CONFIG_ARCH_APQ8064) || defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
+#elif defined(CONFIG_ARCH_APQ8064) || defined(CONFIG_ARCH_MSM8974)
 
 static uint8_t felica_get_tamper_fuse_cmd(void)
 {
@@ -1124,8 +1105,8 @@ static uint8_t felica_get_tamper_fuse_cmd(void)
 	
 	return resp_buf;
 }
-#endif
 
+#endif
 
 /******************************************************************************
  * /dev/felica_pon
@@ -1150,7 +1131,7 @@ static void felica_pon_init(void)
 	int ret;
 	struct device *device_felica_pon;
 	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
-	
+
 	devid_felica_pon = MKDEV(FELICA_MAJOR, FELICA_MINOR);
 	ret =
 	    alloc_chrdev_region(&devid_felica_pon, FELICA_BASEMINOR,
@@ -1235,7 +1216,7 @@ static int felica_pon_open(struct inode *inode, struct file *file)
 		FELICA_LOG_ERR
 		    ("[MFDD] %s END -EACCES, uid=[%d], gmfc_uid=[%d], gdiag_uid=[%d]",
 		     __func__, uid, gmfc_uid, gdiag_uid);
-//		return -EACCES;
+		return -EACCES;
 	}
 
 	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
@@ -1252,12 +1233,8 @@ static int felica_pon_close(struct inode *inode, struct file *file)
 	gpio_set_value(GPIO_PINID_FELICA_PON, GPIO_VALUE_LOW);
 #elif defined(CONFIG_ARCH_APQ8064)
 	ice_gpiox_set(GPIO_PINID_FELICA_PON, GPIO_VALUE_LOW);
-#elif defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
-#if defined(CONFIG_MACH_KLTEKDI) || defined(CONFIG_MACH_KLTE_DCM) || defined(CONFIG_MACH_KLTE_SBM)
-	gpio_set_value(gfelica_pon_pin, GPIO_VALUE_LOW);
-#else
+#elif defined(CONFIG_ARCH_MSM8974)
 	gpio_set_value(GPIO_PINID_FELICA_PON, GPIO_VALUE_LOW);
-#endif	// CONFIG_MACH_KLTE
 #endif
 
 	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
@@ -1277,12 +1254,8 @@ static ssize_t felica_pon_read(struct file *file, char __user *buf, size_t len,
 	ret = gpio_get_value(GPIO_PINID_FELICA_PON);
 #elif defined(CONFIG_ARCH_APQ8064)
 	ret = ice_gpiox_get(GPIO_PINID_FELICA_PON);
-#elif defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
-#if defined(CONFIG_MACH_KLTEKDI) || defined(CONFIG_MACH_KLTE_DCM) || defined(CONFIG_MACH_KLTE_SBM)
-	ret = gpio_get_value(gfelica_pon_pin);
-#else
+#elif defined(CONFIG_ARCH_MSM8974)
 	ret = gpio_get_value(GPIO_PINID_FELICA_PON);
-#endif // CONFIG_MACH_KLTE
 #endif
 	FELICA_LOG_DEBUG("[MFDD] %s GPIO Read value of GPIO_PINID_FELICA_PON -> ret=[%d]", __func__,ret);
 
@@ -1346,13 +1319,9 @@ static ssize_t felica_pon_write(struct file *file, const char __user *data,
 	gpio_set_value(GPIO_PINID_FELICA_PON, setparam);
 #elif defined(CONFIG_ARCH_APQ8064)
 	ice_gpiox_set(GPIO_PINID_FELICA_PON, setparam);
-#elif defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
-#if defined(CONFIG_MACH_KLTEKDI) || defined(CONFIG_MACH_KLTE_DCM) || defined(CONFIG_MACH_KLTE_SBM)
-	gpio_set_value(gfelica_pon_pin, setparam);
-#else
+#elif defined(CONFIG_ARCH_MSM8974)
 	gpio_set_value(GPIO_PINID_FELICA_PON, setparam);
-#endif // CONFIG_MACH_KLTE
-#endif 
+#endif
 
 	return FELICA_PON_DATA_LEN;
 }
@@ -1361,35 +1330,31 @@ static ssize_t felica_pon_write(struct file *file, const char __user *data,
  * felica_i2c_driver
  ******************************************************************************/
 static struct i2c_client *felica_i2c_client;
-static const struct i2c_device_id felica_i2c_idtable[] = 
-{
+static const struct i2c_device_id felica_i2c_idtable[] = {
 	{FELICA_I2C_NAME, 0},
 	{}
 };
 
 MODULE_DEVICE_TABLE(i2c, felica_i2c_idtable);
 
-#if defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
-static struct of_device_id felica_i2c_match_table[] = 
-{
-	{ .compatible = "felica,felica-i2c",},
-	{},
+#ifdef CONFIG_ARCH_MSM8974
+static struct of_device_id felica_i2c_match_table[] = {
+	{ .compatible = "felica,felica_irq",},
+	{ },
 };
 #endif
 
 
-static struct i2c_driver felica_i2c_driver = 
-{
+static struct i2c_driver felica_i2c_driver = {
 	.probe = felica_i2c_probe,
 	.remove = felica_i2c_remove,
-	.driver = 
-			{
+	.driver = {
 		   .name = FELICA_I2C_NAME,
 		   .owner = THIS_MODULE,
-#if defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
+#ifdef CONFIG_ARCH_MSM8974
 		   .of_match_table = felica_i2c_match_table,
 #endif
-			},
+		   },
 	.id_table = felica_i2c_idtable,
 };
 
@@ -1539,7 +1504,7 @@ static int felica_cen_open(struct inode *inode, struct file *file)
 
 	FELICA_LOG_DEBUG("[MFDD] %s START . system_rev=[%d]", __func__,system_rev);
 
-	#if defined(CONFIG_MACH_HLTEDCM) || defined(CONFIG_MACH_KLTEKDI)
+	#if defined(CONFIG_MACH_HLTEDCM)
 	//high
 	if (system_rev == HW_REV09_OR_10)
 	{
@@ -1581,7 +1546,7 @@ static int felica_cen_open(struct inode *inode, struct file *file)
 			}
 			#endif
 			
-//			return -EACCES;
+			return -EACCES;
 		}
 	}
 	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
@@ -1616,24 +1581,30 @@ static ssize_t felica_cen_read(struct file *file, char __user *buf, \
 	int ret;
 	unsigned char address = gi2c_lockaddress;
 	unsigned char read_buff = 0;
+	struct i2c_msg read_msgs[2];
 
-	gread_msgs[0].addr = gi2c_address;
-	gread_msgs[0].buf = &address;
-	gread_msgs[1].addr = gi2c_address;
-	gread_msgs[1].buf = &read_buff;
+	read_msgs[0].flags = gread_msgs[0].flags;
+	read_msgs[0].len = gread_msgs[0].len;
+	read_msgs[1].flags = gread_msgs[1].flags;
+	read_msgs[1].len = gread_msgs[1].len;
+
+	read_msgs[0].addr = gi2c_address;
+	read_msgs[0].buf = &address;
+	read_msgs[1].addr = gi2c_address;
+	read_msgs[1].buf = &read_buff;
 
 	if (felica_i2c_client == NULL) {
 		FELICA_LOG_ERR("[MFDD] felica_i2c_client is NULL %s -EIO",__func__);
 		return -EIO;
 	}
 
-	ret = i2c_transfer(felica_i2c_client->adapter, &gread_msgs[0], 1);
+	ret = i2c_transfer(felica_i2c_client->adapter, &read_msgs[0], 1);
 	if (ret < 0) {
 		FELICA_LOG_ERR("[MFDD] %s ERROR(i2c_transfer[0]), ret=[%d]",
 			       __func__, ret);
 		return -EIO;
 	}
-	ret = i2c_transfer(felica_i2c_client->adapter, &gread_msgs[1], 1);
+	ret = i2c_transfer(felica_i2c_client->adapter, &read_msgs[1], 1);
 	if (ret < 0) {
 		FELICA_LOG_ERR("[MFDD] %s ERROR(i2c_transfer[1]), ret=[%d]",
 			       __func__, ret);
@@ -1806,7 +1777,7 @@ static int felica_rfs_open(struct inode *inode, struct file *file)
 		FELICA_LOG_ERR
 		    ("[MFDD] %s -EACCESS, uid=[%d], gmfc_uid=[%d], gdiag_uid=[%d]",
 		     __func__, uid, gmfc_uid, gdiag_uid);
-//		return -EACCES;
+		return -EACCES;
 	}
 
 	FELICA_LOG_DEBUG("[MFDD] %s END, uid=[%d], gmfc_uid=[%d], gdiag_uid=[%d]",  __func__, uid, gmfc_uid, gdiag_uid);
@@ -1948,14 +1919,14 @@ static int felica_rws_open(struct inode *inode, struct file *file)
 			FELICA_LOG_ERR(\
 			"[MFDD] %s END -EACCES, uid=[%d],gmfc_uid=[%d],gdiag_uid=[%d]",
 			     __func__, uid, gmfc_uid, gdiag_uid);
-//			return -EACCES;
+			return -EACCES;
 		}
 	} else {
 		if ((uid != gmfc_uid) && (uid != grwm_uid)) {
 			FELICA_LOG_ERR(\
 			"[MFDD] %s END -EACCES, uid=[%d],gmfc_uid=[%d],gdiag_uid=[%d]",
 			     __func__, uid, gmfc_uid, gdiag_uid);
-//			return -EACCES;
+			return -EACCES;
 		}
 	}
 
@@ -2063,12 +2034,8 @@ static irqreturn_t felica_int_irq_handler(int irq, void *dev_id)
 {
 	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
 
-#if defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
-#if defined(CONFIG_MACH_KLTEKDI) || defined(CONFIG_MACH_KLTE_DCM) || defined(CONFIG_MACH_KLTE_SBM)
-	disable_irq_nosync(gpio_to_irq(GPIO_PINID_FELICA_INT));
-#else
+#ifdef CONFIG_ARCH_MSM8974
 	disable_irq_nosync(gpio_to_irq(gfelica_irq_int_pin));
-#endif	
 #else
 	disable_irq_nosync(gpio_to_irq(GPIO_PINID_FELICA_INT_REV03));
 #endif /* CONFIG_ARCH_MSM8974 */
@@ -2085,12 +2052,8 @@ static irqreturn_t felica_int_irq_handler(int irq, void *dev_id)
 static void felica_int_irq_work(struct work_struct *work)
 {
 	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
-#if defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
-#if defined(CONFIG_MACH_KLTEKDI) || defined(CONFIG_MACH_KLTE_DCM) || defined(CONFIG_MACH_KLTE_SBM)
-	enable_irq(gpio_to_irq(GPIO_PINID_FELICA_INT));
-#else
+#ifdef CONFIG_ARCH_MSM8974
 	enable_irq(gpio_to_irq(gfelica_irq_int_pin));
-#endif // CONFIG_MACH_KLTE
 #else
 	enable_irq(gpio_to_irq(GPIO_PINID_FELICA_INT_REV03));
 #endif /* CONFIG_ARCH_MSM8974 */
@@ -2113,12 +2076,11 @@ static void felica_int_poll_init(void)
 {
 	int ret;
 	struct device *device_felica_int_poll;
-	
-#if defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
-#if !defined(CONFIG_MACH_KLTEKDI) && !defined(CONFIG_MACH_KLTE_DCM) && !defined(CONFIG_MACH_KLTE_SBM)
+
+
+#ifdef CONFIG_ARCH_MSM8974
 	struct device *dev = &felica_gpio_pdev->dev;
 	struct device_node *np;
-#endif	// CONFIG_MACH_KLTE
 #endif
 
 	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
@@ -2161,8 +2123,7 @@ static void felica_int_poll_init(void)
 	init_waitqueue_head(&pgint_irq->read_wait);
 
 
-#if defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
-#if !defined(CONFIG_MACH_KLTEKDI) && !defined(CONFIG_MACH_KLTE_DCM) && !defined(CONFIG_MACH_KLTE_SBM)
+#ifdef CONFIG_ARCH_MSM8974
 	if (!dev) {
 		FELICA_LOG_ERR("[MFDD] %s ERROR NULL", __func__);
 		return;
@@ -2171,8 +2132,9 @@ static void felica_int_poll_init(void)
 	gfelica_irq_int_pin = of_get_named_gpio(np, "felica,irq-gpio", 0);
 	FELICA_LOG_DEBUG("[MFDD] %s gfelica_irq_int_pin [%d]",
 		__func__, gfelica_irq_int_pin);
-#endif // CONFIG_MACH_KLTE
 
+//for test -s-
+#ifdef CONFIG_ARCH_MSM8974
 #if defined(CONFIG_MACH_HLTEKDI)
 	gfelica_sps_pin = of_get_named_gpio(np, "felica,sps-gpio", 0);
 	if(gfelica_sps_pin < 0)
@@ -2197,19 +2159,9 @@ static void felica_int_poll_init(void)
 			__func__, gpio_get_value(gfelica_sps_pin));
 	}
 #endif
+#endif
+//for test -e-
 
-#if defined(CONFIG_MACH_KLTEKDI) || defined(CONFIG_MACH_KLTE_DCM) || defined(CONFIG_MACH_KLTE_SBM)
-	ret = request_threaded_irq(
-		  gpio_to_irq(GPIO_PINID_FELICA_INT),
-		  NULL,
-		  felica_int_irq_handler,
-		  IRQF_TRIGGER_FALLING,
-		  FELICA_INT_POLL_NAME,
-		  (void *)pgint_irq);
-	
-	FELICA_LOG_DEBUG("[MFDD] %s INFO(request_irq)= %d GPIO=%d, ret=[%d]",
-			       __func__, gpio_to_irq(GPIO_PINID_FELICA_INT),GPIO_PINID_FELICA_INT,ret);		  
-#else
 	ret = request_threaded_irq(
 		  gpio_to_irq(gfelica_irq_int_pin),
 		  NULL,
@@ -2217,7 +2169,6 @@ static void felica_int_poll_init(void)
 		  IRQF_TRIGGER_FALLING,
 		  FELICA_INT_POLL_NAME,
 		  (void *)pgint_irq);
-#endif	// CONFIG_MACH_KLTE  
 #else
 	ret = request_irq(gpio_to_irq(GPIO_PINID_FELICA_INT_REV03),
 		  felica_int_irq_handler,
@@ -2230,24 +2181,11 @@ static void felica_int_poll_init(void)
 		cdev_del(&cdev_felica_int_poll);
 		unregister_chrdev_region(devid_felica_int_poll,
 					 FELICA_MINOR_COUNT);
-		FELICA_LOG_ERR("[MFDD] %s ERROR(request_irq)= %d, ret=[%d]",
-			       __func__,GPIO_PINID_FELICA_INT,ret);
-		return;
-	}
-#if defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
-#if defined(CONFIG_MACH_KLTEKDI) || defined(CONFIG_MACH_KLTE_DCM) || defined(CONFIG_MACH_KLTE_SBM)
-	ret = enable_irq_wake(gpio_to_irq(GPIO_PINID_FELICA_INT));
-	if (ret < 0) {
-		free_irq(gpio_to_irq(GPIO_PINID_FELICA_INT), (void *)pgint_irq);
-		device_destroy(felica_class, devid_felica_int_poll);
-		cdev_del(&cdev_felica_int_poll);
-		unregister_chrdev_region(devid_felica_int_poll,
-					 FELICA_MINOR_COUNT);
-		FELICA_LOG_ERR("[MFDD] %s ERROR(enable_irq_wake), ret=[%d]",
+		FELICA_LOG_ERR("[MFDD] %s ERROR(request_irq), ret=[%d]",
 			       __func__, ret);
 		return;
 	}
-#else
+#ifdef CONFIG_ARCH_MSM8974
 	ret = enable_irq_wake(gpio_to_irq(gfelica_irq_int_pin));
 	if (ret < 0) {
 		free_irq(gpio_to_irq(gfelica_irq_int_pin), (void *)pgint_irq);
@@ -2259,7 +2197,6 @@ static void felica_int_poll_init(void)
 			       __func__, ret);
 		return;
 	}
-#endif	// CONFIG_MACH_KLTE
 #else
 	ret = enable_irq_wake(gpio_to_irq(GPIO_PINID_FELICA_INT_REV03));
 	if (ret < 0) {
@@ -2290,18 +2227,11 @@ static void felica_int_poll_exit(void)
 	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
 
 
-#if defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
-#if defined(CONFIG_MACH_KLTEKDI) || defined(CONFIG_MACH_KLTE_DCM) || defined(CONFIG_MACH_KLTE_SBM)
-	disable_irq(gpio_to_irq(GPIO_PINID_FELICA_INT));
-	free_irq(gpio_to_irq(
-		GPIO_PINID_FELICA_INT),
-		(void *)pgint_irq);
-#else		
+#ifdef CONFIG_ARCH_MSM8974
 	disable_irq(gpio_to_irq(gfelica_irq_int_pin));
 	free_irq(gpio_to_irq(
 		gfelica_irq_int_pin),
 		(void *)pgint_irq);
-#endif	// CONFIG_MACH_KLTE
 #else
 	disable_irq(gpio_to_irq(GPIO_PINID_FELICA_INT_REV03));
 	free_irq(gpio_to_irq(
@@ -2359,12 +2289,8 @@ static ssize_t felica_int_poll_read(struct file *file, char __user *buf,
 		}
 	}
 
-#if defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
-#if defined(CONFIG_MACH_KLTEKDI) || defined(CONFIG_MACH_KLTE_DCM) || defined(CONFIG_MACH_KLTE_SBM)
-	ret = gpio_get_value(GPIO_PINID_FELICA_INT);
-#else	
+#ifdef CONFIG_ARCH_MSM8974
 	ret = gpio_get_value(gfelica_irq_int_pin);
-#endif	// CONFIG_MACH_KLTE
 #else
 	ret = gpio_get_value(GPIO_PINID_FELICA_INT_REV03);
 #endif
@@ -2503,7 +2429,7 @@ static int felica_uid_open(struct inode *inode, struct file *file)
 	if (strncmp(cmdline, gdiag_name, leng) != 0) {
 		FELICA_LOG_DEBUG("[MFDD] %s ERROR, %s gdiag %s", \
 			__func__, cmdline, gdiag_name);
-	//	return -EACCES;
+		return -EACCES;
 	}
 
 	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
@@ -2621,7 +2547,7 @@ static int felica_ant_open(struct inode *inode, struct file *file)
 	uid_t uid;
 	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
 
-	#if defined(CONFIG_MACH_HLTEDCM) || defined(CONFIG_MACH_KLTEKDI)
+	#if defined(CONFIG_MACH_HLTEDCM)
 	//high
 	if (system_rev == HW_REV09_OR_10)
 	{
@@ -2644,7 +2570,7 @@ static int felica_ant_open(struct inode *inode, struct file *file)
 		}
 		#endif
 		
-//		return -EACCES;
+		return -EACCES;
 	}
 
 	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
@@ -2679,11 +2605,17 @@ static ssize_t felica_ant_read(struct file *file, char __user *buf, \
 	int ret;
 	unsigned char address = gi2c_antaddress;
 	unsigned char read_buff = 0;
+	struct i2c_msg read_msgs[2];
 
-	gread_msgs[0].addr = gi2c_address;
-	gread_msgs[0].buf = &address;
-	gread_msgs[1].addr = gi2c_address;
-	gread_msgs[1].buf = &read_buff;
+	read_msgs[0].flags = gread_msgs[0].flags;
+	read_msgs[0].len = gread_msgs[0].len;
+	read_msgs[1].flags = gread_msgs[1].flags;
+	read_msgs[1].len = gread_msgs[1].len;
+
+	read_msgs[0].addr = gi2c_address;
+	read_msgs[0].buf = &address;
+	read_msgs[1].addr = gi2c_address;
+	read_msgs[1].buf = &read_buff;
 
 	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
 	if (felica_i2c_client == NULL) {
@@ -2692,13 +2624,13 @@ static ssize_t felica_ant_read(struct file *file, char __user *buf, \
 		return -EIO;
 	}
 
-	ret = i2c_transfer(felica_i2c_client->adapter, &gread_msgs[0], 1);
+	ret = i2c_transfer(felica_i2c_client->adapter, &read_msgs[0], 1);
 	if (ret < 0) {
 		FELICA_LOG_ERR("[MFDD] %s ERROR(i2c_transfer[0]), ret=[%d]",
 			       __func__, ret);
 		return -EIO;
 	}
-	ret = i2c_transfer(felica_i2c_client->adapter, &gread_msgs[1], 1);
+	ret = i2c_transfer(felica_i2c_client->adapter, &read_msgs[1], 1);
 	if (ret < 0) {
 		FELICA_LOG_ERR("[MFDD] %s ERROR(i2c_transfer[1]), ret=[%d]",
 			       __func__, ret);
@@ -2774,10 +2706,8 @@ static void felica_initialize_pin(void)
 	gpio_set_value(GPIO_PINID_FELICA_PON, GPIO_VALUE_LOW);
 #elif defined(CONFIG_ARCH_APQ8064)
 	ice_gpiox_set(GPIO_PINID_FELICA_PON, GPIO_VALUE_LOW);
-#elif defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
-#if !defined(CONFIG_MACH_KLTEKDI) && !defined(CONFIG_MACH_KLTE_DCM) && !defined(CONFIG_MACH_KLTE_SBM)	// We are not doing the initialization here. felica_register_device() does it and sets up the initial pin value to LOW.
+#elif defined(CONFIG_ARCH_MSM8974)
 	gpio_set_value(GPIO_PINID_FELICA_PON, GPIO_VALUE_LOW);
-#endif
 #endif
 
 	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
@@ -2794,10 +2724,8 @@ static void felica_finalize_pin(void)
 	gpio_set_value(GPIO_PINID_FELICA_PON, GPIO_VALUE_LOW);
 #elif defined(CONFIG_ARCH_APQ8064)
 	ice_gpiox_set(GPIO_PINID_FELICA_PON, GPIO_VALUE_LOW);
-#elif defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
-#if !defined (CONFIG_MACH_KLTEKDI) && !defined (CONFIG_MACH_KLTE_DCM) && !defined(CONFIG_MACH_KLTE_SBM)	// We are not doing the initialization here. felica_register_device() does it and sets up the initial pin value to LOW.
+#elif defined(CONFIG_ARCH_MSM8974)
 	gpio_set_value(GPIO_PINID_FELICA_PON, GPIO_VALUE_LOW);
-#endif
 #endif
 
 	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
@@ -2808,73 +2736,9 @@ static void felica_finalize_pin(void)
  */
 static void felica_register_device(void)
 {
-#if defined(CONFIG_MACH_KLTEKDI) || defined(CONFIG_MACH_KLTE_DCM) || defined(CONFIG_MACH_KLTE_SBM)
-	struct device *dev = &felica_gpio_pdev->dev;
-	struct device_node *np;	
-#endif 	
-
 	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
 
-#if defined(CONFIG_MACH_KLTEKDI) || defined(CONFIG_MACH_KLTE_DCM) || defined(CONFIG_MACH_KLTE_SBM)
-	if (!dev) 
-	{
-		FELICA_LOG_ERR("[MFDD] %s ERROR NULL", __func__);
-		return;
-	}
-	
-	np  = dev->of_node;
-	
-	gfelica_pon_pin = of_get_named_gpio(np, "felica,pon-gpio", 0);
-	if(gfelica_pon_pin < 0)
-	{
-		FELICA_LOG_ERR("[MFDD] %s ERROR(), gfelica_pon_pin=[%d]",__func__, gfelica_pon_pin);
-		return;
-	}
-
-	gpio_tlmm_config(GPIO_CFG(gfelica_pon_pin, GPIOMUX_FUNC_GPIO,
-					GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_2MA),
-					GPIO_CFG_ENABLE);
-	FELICA_LOG_DEBUG("[MFDD] %s gfelica_pon_pin kltekdi [%d]",__func__, gpio_get_value(gfelica_pon_pin));
-	
-	gpio_set_value(gfelica_pon_pin, GPIO_VALUE_LOW);
-#if defined(CONFIG_MACH_KLTE_DCM) || defined(CONFIG_MACH_KLTE_SBM)
-	
-	gfelica_sps_pin = of_get_named_gpio(np, "felica,sps-gpio", 0);
-	if(gfelica_sps_pin < 0)
-	{
-		FELICA_LOG_ERR("[MFDD] %s ERROR(), ret=[%d]",__func__, gfelica_sps_pin);
-		return;
-	}
-	FELICA_LOG_DEBUG("[MFDD] %s gfelica_sps_pin [%d]",__func__, gfelica_sps_pin);
-			
-	if (system_rev >= g_uicc_initrev) 
-	{
-		gpio_tlmm_config(GPIO_CFG(gfelica_sps_pin, GPIOMUX_FUNC_GPIO,
-				 GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_2MA),
-				 GPIO_CFG_ENABLE);
-		FELICA_LOG_DEBUG("[MFDD] %s gfelica_sps_pin dcm [%d]",__func__, gpio_get_value(gfelica_sps_pin));
-	}
-	gfelica_hsel_pin = of_get_named_gpio (np, "felica,hsel-gpio", 0);
-	if(gfelica_hsel_pin < 0)
-	{
-		FELICA_LOG_ERR("[MFDD] %s ERROR(), ret=[%d]",__func__, gfelica_hsel_pin);
-		return;
-	}
-	FELICA_LOG_DEBUG("[MFDD] %s gfelica_hsel_pin [%d]",__func__, gfelica_hsel_pin);
-			
-	if (system_rev >= g_uicc_initrev) 
-	{
-		gpio_tlmm_config(GPIO_CFG(gfelica_hsel_pin, GPIOMUX_FUNC_GPIO,
-				 GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_2MA),
-				 GPIO_CFG_ENABLE);
-		FELICA_LOG_DEBUG("[MFDD] %s gfelica_hsel_pin dcm [%d]",__func__, gpio_get_value(gfelica_hsel_pin));
-	}
-
-	gpio_set_value(gfelica_hsel_pin, 0);
-#endif	
-#else
 	felica_int_poll_init();
-#endif	//CONFIG_MACH_KLTE
 
 	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
 }
@@ -2886,10 +2750,7 @@ static void felica_deregister_device(void)
 {
 	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
 	felica_uid_exit();
-#if !defined(CONFIG_ARCH_MSM8974) && !defined(CONFIG_ARCH_MSM8974PRO)
-	felica_int_poll_exit();
-#endif
-#ifdef CONFIG_MACH_KLTEKDI
+#ifndef CONFIG_ARCH_MSM8974
 	felica_int_poll_exit();
 #endif
 	felica_ant_exit();
@@ -2903,38 +2764,31 @@ static void felica_deregister_device(void)
 }
 
 
-#if defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
-static struct of_device_id felica_of_match[] = 
-{
+#ifdef CONFIG_ARCH_MSM8974
+static struct of_device_id felica_of_match[] = {
 	{	.compatible = "felica,gpio-table",
 	},
 	{}
 };
 static int __devexit felica_gpio_remove(struct platform_device *pdev)
 {
-#ifdef CONFIG_MACH_KLTEKDI
-	felica_pon_exit();
-#else
 	felica_int_poll_exit();
-#endif	
 	return 0;
 }
-static struct platform_driver felica_of_driver = 
-{
+static struct platform_driver felica_of_driver = {
 	.remove = __devexit_p(felica_gpio_remove),
-	.driver = 
-		{
+	.driver = {
 		.name = FELICA_GPIO_DRIVER_NAME,
 		.owner = THIS_MODULE,
 		.of_match_table = felica_of_match,
-		},
+	},
 };
 
 static int __init felica_gpio_probe(struct platform_device *pdev)
 {
 	felica_gpio_pdev = pdev;
 	if (felica_gpio_pdev == NULL) {
-		FELICA_LOG_ERR("[MFDD] %s -EIO felica_gpio_pdev is NULL", \
+		FELICA_LOG_ERR("[MFDD] %s -EIO felica_i2c_client is NULL", \
 			__func__);
 		return -EIO;
 	}
@@ -2962,21 +2816,21 @@ static int __init felica_init(void)
 	}
 
 	felica_initialize_pin();
-#if !defined(CONFIG_ARCH_MSM8974) && !defined(CONFIG_ARCH_MSM8974PRO)
+#ifndef CONFIG_ARCH_MSM8974
 	felica_register_device();
 #endif
 	felica_nl_init();
 	felica_i2c_init();
 	uicc_init();
 	/* MFC UID registration */
-#if !defined(CONFIG_ARCH_MSM8974) && !defined(CONFIG_ARCH_MSM8974PRO)
+#ifndef CONFIG_ARCH_MSM8974
 	schedule_delayed_work(&pgint_irq->work, msecs_to_jiffies(10));
 #endif
 
 #ifdef CONFIG_NFC_FELICA
 
 	/* FELICA_INTU GPIO is changed Start*/
-#if defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
+#ifdef CONFIG_ARCH_MSM8974
 	felica_varying_gpio_intu = GPIO_PINID_NFC_INTU;
 #else
 	if (system_rev > 0 && system_rev < 15)
@@ -2986,16 +2840,14 @@ static int __init felica_init(void)
 #endif
 	FELICA_LOG_DEBUG("[MFDD] %s , system_rev=[%d]", __func__, system_rev);
 	/* FELICA_INTU GPIO is changed End */
-#if defined(CONFIG_MACH_KLTEKDI) || defined(CONFIG_MACH_KLTE_DCM) || defined(CONFIG_MACH_KLTE_SBM)
-	felica_int_poll_init();
-#endif // CONFIG_MACH_KLTE
+
 	snfc_register_device();
 	uartcc_init();
 
 #endif /* CONFIG_NFC_FELICA */
 
 	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
-#if defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
+#ifdef CONFIG_ARCH_MSM8974
 	return platform_driver_probe(&felica_of_driver, felica_gpio_probe);
 #else
 	return 0;
@@ -3163,13 +3015,8 @@ static ssize_t hsel_read(struct file *file, char __user *buf, size_t len,
 	ret = gpio_get_value(GPIO_PINID_NFC_HSEL);
 #elif defined(CONFIG_ARCH_APQ8064)
 	ret = ice_gpiox_get(GPIO_PINID_NFC_HSEL);
-#elif defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
-
-#if	defined(CONFIG_MACH_KLTEKDI)
+#elif defined(CONFIG_ARCH_MSM8974)
 	ret = gpio_get_value(GPIO_PINID_NFC_HSEL);
-#else // defined(CONFIG_MACH_KLTEKDI) 
-	ret = gpio_get_value(gfelica_hsel_pin);
-#endif //defined(CONFIG_MACH_KLTEKDI)
 #endif
 	if (0 > ret) {
 		FELICA_LOG_ERR("[MFDD] %s ERROR(gpio_get_value), ret=[%d]",
@@ -3230,12 +3077,8 @@ static ssize_t hsel_write(struct file *file, const char __user *data,\
 	gpio_set_value(GPIO_PINID_NFC_HSEL , hsel_val);
 #elif defined(CONFIG_ARCH_APQ8064)
 	ice_gpiox_set(GPIO_PINID_NFC_HSEL , hsel_val);
-#elif defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
-#if defined(CONFIG_MACH_KLTEKDI)
+#elif defined(CONFIG_ARCH_MSM8974)
 	gpio_set_value(GPIO_PINID_NFC_HSEL , hsel_val);
-#else //defined(CONFIG_MACH_KLTEKDI)
-	gpio_set_value(gfelica_hsel_pin , hsel_val);
-#endif //defined(CONFIG_MACH_KLTEKDI)
 #endif
 
 	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
@@ -3924,7 +3767,7 @@ static int rfs_poll_open(struct inode *inode, struct file *file)
 	if (uid_ret < 0) {
 		FELICA_LOG_ERR
 		    ("[MFDD] %s open fail=[%d]", __func__, uid_ret);
-//		return -EACCES;
+		return -EACCES;
 	}
 
 	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
@@ -4117,7 +3960,7 @@ static int cxd2235power_open(struct inode *inode, struct file *file)
 	if (uid_ret < 0) {
 		FELICA_LOG_ERR
 		    ("[MFDD] %s open fail=[%d]", __func__, uid_ret);
-//		return -EACCES;
+		return -EACCES;
 	}
 
 	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
@@ -4160,12 +4003,8 @@ static ssize_t cxd2235power_write(struct file *file, const char __user *data,
 	gpio_set_value(GPIO_PINID_NFC_PON , on);
 #elif defined(CONFIG_ARCH_APQ8064)
 	ice_gpiox_set(GPIO_PINID_NFC_PON, on);
-#elif defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
-#if defined(CONFIG_MACH_KLTEKDI) || defined(CONFIG_MACH_KLTE_DCM) || defined(CONFIG_MACH_KLTE_SBM)
-	gpio_set_value(gfelica_pon_pin , on);	// PON is same for FELICA and NFC.
-#else
+#elif defined(CONFIG_ARCH_MSM8974)
 	gpio_set_value(GPIO_PINID_NFC_PON , on);
-#endif	// CONFIG_MACH_KLTE
 #endif
 
 	FELICA_LOG_DEBUG("[MFDD] %s END on = %d", __func__, on);
@@ -4257,7 +4096,7 @@ static int snfc_rfs_open(struct inode *inode, struct file *file)
 	if (uid_ret < 0) {
 		FELICA_LOG_ERR
 		    ("[MFDD] %s open fail=[%d]", __func__, uid_ret);
-//		return -EACCES;
+		return -EACCES;
 	}
 
 	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
@@ -4399,7 +4238,7 @@ static int snfc_uart_open(struct inode *inode, struct file *file)
 	if (uid != gnfc_uid) {
 		FELICA_LOG_ERR(\
 		"[MFDD] %s END -EACCES, uid=[%d], gnfc_uid=[%d]\n", __func__, uid,gnfc_uid);
-//		return -EACCES;
+		return -EACCES;
 	}
 
 	file->private_data = dev_sem;
@@ -5113,11 +4952,17 @@ static ssize_t snfc_cen_sts_init(void)
 	int ret;
 	unsigned char address = gi2c_lockaddress;
 	unsigned char read_buff = 0;
+	struct i2c_msg read_msgs[2];
 
-	gread_msgs[0].addr = gi2c_address;
-	gread_msgs[0].buf = &address;
-	gread_msgs[1].addr = gi2c_address;
-	gread_msgs[1].buf = &read_buff;
+	read_msgs[0].flags = gread_msgs[0].flags;
+	read_msgs[0].len = gread_msgs[0].len;
+	read_msgs[1].flags = gread_msgs[1].flags;
+	read_msgs[1].len = gread_msgs[1].len;
+
+	read_msgs[0].addr = gi2c_address;
+	read_msgs[0].buf = &address;
+	read_msgs[1].addr = gi2c_address;
+	read_msgs[1].buf = &read_buff;
 
 	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
 	if (felica_i2c_client == NULL) {
@@ -5125,7 +4970,7 @@ static ssize_t snfc_cen_sts_init(void)
 		return -EIO;
 	}
 
-	#if defined(CONFIG_MACH_HLTEDCM) || defined(CONFIG_MACH_KLTEKDI)
+	#if defined(CONFIG_MACH_HLTEDCM)
 	//high
 	if (system_rev == HW_REV09_OR_10)
 	{
@@ -5134,13 +4979,13 @@ static ssize_t snfc_cen_sts_init(void)
 	}	
 	#endif
 	
-	ret = i2c_transfer(felica_i2c_client->adapter, &gread_msgs[0], 1);
+	ret = i2c_transfer(felica_i2c_client->adapter, &read_msgs[0], 1);
 	if (ret < 0) {
 		FELICA_LOG_ERR("[MFDD] %s ERROR(i2c_transfer[0]), ret=[%d]",
 			       __func__, ret);
 		return -EIO;
 	}
-	ret = i2c_transfer(felica_i2c_client->adapter, &gread_msgs[1], 1);
+	ret = i2c_transfer(felica_i2c_client->adapter, &read_msgs[1], 1);
 	if (ret < 0) {
 		FELICA_LOG_ERR("[MFDD] %s ERROR(i2c_transfer[1]), ret=[%d]",
 			       __func__, ret);
@@ -5249,7 +5094,7 @@ static int snfc_cen_open(struct inode *inode, struct file *file)
 
 	FELICA_LOG_DEBUG("[MFDD] %s START . system_rev=[%d]", __func__,system_rev);
 
-	#if defined(CONFIG_MACH_HLTEDCM) || defined(CONFIG_MACH_KLTEKDI)
+	#if defined(CONFIG_MACH_HLTEDCM)
 	//high
 	if (system_rev == HW_REV09_OR_10)
 	{
@@ -5291,7 +5136,7 @@ static int snfc_cen_open(struct inode *inode, struct file *file)
 			}
 			#endif
 
-		//	return -EACCES;
+			return -EACCES;
 		}
 	}
 	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
@@ -5390,7 +5235,7 @@ static int snfc_uid_check(void)
 		FELICA_LOG_ERR
 		    ("[MFDD] %s END, uid=[%d], gnfc_uid=[%d], gdiag_uid=[%d]", \
 		     __func__, uid, gnfc_uid, gdiag_uid);
-	//	return -1;
+		return -1;
 	}
 
 	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);

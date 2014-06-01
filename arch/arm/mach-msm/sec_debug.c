@@ -224,6 +224,8 @@ static unsigned pm8841_rev = 0;
 unsigned int sec_dbg_level;
 
 uint runtime_debug_val;
+static uint32_t tzapps_start_addr;
+static uint32_t tzapps_size;
 
 module_param_named(enable, enable, uint, 0644);
 module_param_named(enable_user, enable_user, uint, 0644);
@@ -1745,6 +1747,12 @@ void sec_debug_save_cpu_freq_voltage(int cpu, int flag, unsigned long value)
 {
 }
 #endif
+void sec_debug_secure_app_addr_size(uint32_t addr,uint32_t size)
+{
+	tzapps_start_addr = addr;
+	tzapps_size =  size;
+}
+
 int sec_debug_subsys_init(void)
 {
 #ifdef CONFIG_SEC_DEBUG_VERBOSE_SUMMARY_HTML
@@ -1772,6 +1780,9 @@ int sec_debug_subsys_init(void)
 	}
 
 	memset(secdbg_subsys, 0, sizeof(secdbg_subsys));
+	
+	secdbg_subsys->secure_app_start_addr = tzapps_start_addr;
+	secdbg_subsys->secure_app_size = tzapps_size;
 
 	secdbg_krait = &secdbg_subsys->priv.krait;
 

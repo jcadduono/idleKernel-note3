@@ -159,6 +159,14 @@ static int VibeOSKernelProcessData(void *data)
 	if (g_bstoprequested) {
 		VibeOSKernelLinuxStopTimer();
 
+#ifdef CONFIG_TACTILE_ASSIST
+		// stop all actuator
+		for (i = 0; i < NUM_ACTUATORS; i++)
+		{
+			ImmVibeSPI_ForceOut_AmpDisable(i);
+		}
+#endif
+
 		/* Reset watchdog counter */
 		g_nwatchdog_counter = 0;
 

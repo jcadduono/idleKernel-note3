@@ -3810,7 +3810,7 @@ int synaptics_rmi4_new_function(enum exp_fn fn_type,
 void synaptics_power_ctrl(struct synaptics_rmi4_data *rmi4_data, bool enable)
 {
 	int ret = 0;
-#if defined(CONFIG_SEC_H_PROJECT)
+#if defined(CONFIG_SEC_H_PROJECT)  || defined(CONFIG_MACH_JS01LTEDCM) 
 	static struct regulator *reg_l10;
 
 	if (!reg_l10) {

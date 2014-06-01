@@ -321,6 +321,9 @@ int vib_config_pwm_device(void)
 /*
 ** Called by the real-time loop to set PWM duty cycle
 */
+#ifdef CONFIG_TACTILE_ASSIST
+static bool g_bOutputDataBufferEmpty = 1;
+#endif
 static int32_t ImmVibeSPI_ForceOut_SetSamples(u_int8_t nActuatorIndex,
 						u_int16_t nOutputSignalBitDepth,
 						u_int16_t nBufferSizeInBytes,
@@ -329,6 +332,16 @@ static int32_t ImmVibeSPI_ForceOut_SetSamples(u_int8_t nActuatorIndex,
 	int8_t nforce;
 	static int8_t pre_nforce;
 	int ret;
+
+#ifdef CONFIG_TACTILE_ASSIST
+	if (g_bOutputDataBufferEmpty) {
+		nActuatorIndex = 0;
+		nOutputSignalBitDepth = 8;
+		nBufferSizeInBytes = 1;
+		pForceOutputBuffer[0] = 0;
+	}
+#endif
+
 	switch (nOutputSignalBitDepth) {
 	case 8:
 		/* pForceOutputBuffer is expected to contain 1 byte */

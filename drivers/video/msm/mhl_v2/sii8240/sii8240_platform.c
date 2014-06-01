@@ -168,9 +168,13 @@ static bool sii8240_vbus_present(void)
 		ret = false;
 #else
 	struct sii8240_platform_data *pdata = g_pdata;
-	if (pdata->gpio_ta_int > 0)
-		ret = gpio_get_value_cansleep(pdata->gpio_ta_int) ?
-								false : true;
+	if (pdata->gpio_ta_int > 0){
+#ifdef CONFIG_CHARGER_SMB358
+		msleep(300);
+#endif
+	        ret = gpio_get_value_cansleep(pdata->gpio_ta_int) ? 
+                                                                false : true;
+        }
 #endif
 	pr_info("VBUS : %s in %s\n", ret ? "IN" : "OUT", __func__);
 	return ret;
@@ -236,7 +240,7 @@ static void sii8240_charger_mhl_cb(bool otg_enable, int charger)
 		pdata->charging_type = POWER_SUPPLY_TYPE_MHL_1500;
 	} else if (charger == 0x03) {
 		pr_info("%s() USB charger\n", __func__);
-		pdata->charging_type = POWER_SUPPLY_TYPE_USB;
+		pdata->charging_type = POWER_SUPPLY_TYPE_MHL_USB;
 	} else
 		pdata->charging_type = POWER_SUPPLY_TYPE_BATTERY;
 

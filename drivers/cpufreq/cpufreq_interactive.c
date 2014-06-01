@@ -55,6 +55,7 @@ struct cpufreq_interactive_cpuinfo {
 	struct rw_semaphore enable_sem;
 	int governor_enabled;
 	int prev_load;
+	int minfreq_boost;
 };
 
 static DEFINE_PER_CPU(struct cpufreq_interactive_cpuinfo, cpuinfo);
@@ -141,6 +142,8 @@ static unsigned int up_threshold_any_cpu_freq = 1728000;
 static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 		unsigned int event);
 
+#define DYN_DEFER (1)
+		
 #ifndef CONFIG_CPU_FREQ_DEFAULT_GOV_INTERACTIVE
 static
 #endif
@@ -174,6 +177,22 @@ static inline cputime64_t get_cpu_idle_time_jiffy(unsigned int cpu,
 	return jiffies_to_usecs(idle_time);
 }
 
+#ifdef DYN_DEFER
+static inline void timer_set_nondeferrable(struct timer_list *timer)
+{
+       timer->base =
+               ((struct tvec_base *)((unsigned long)timer->base &
+                       ~TBASE_DEFERRABLE_FLAG));
+}
+
+static inline void timer_set_deferrable(struct timer_list *timer)
+{
+       timer->base =
+               ((struct tvec_base *)((unsigned long)timer->base |
+                       TBASE_DEFERRABLE_FLAG));
+}
+#endif
+
 static inline cputime64_t get_cpu_idle_time(unsigned int cpu,
 					    cputime64_t *wall)
 {
@@ -200,6 +219,14 @@ static void cpufreq_interactive_timer_resched(
 	pcpu->cputime_speedadj = 0;
 	pcpu->cputime_speedadj_timestamp = pcpu->time_in_idle_timestamp;
 	expires = jiffies + usecs_to_jiffies(timer_rate);
+	
+#ifdef DYN_DEFER
+       if (pcpu->target_freq > pcpu->policy->min)
+               timer_set_nondeferrable(&pcpu->cpu_timer);
+       else
+               timer_set_deferrable(&pcpu->cpu_timer);
+#endif
+
 	mod_timer_pinned(&pcpu->cpu_timer, expires);
 
 	if (timer_slack_val >= 0 && pcpu->target_freq > pcpu->policy->min) {
@@ -498,11 +525,17 @@ static void cpufreq_interactive_timer(unsigned long data)
 	 * Do not scale below floor_freq unless we have been at or above the
 	 * floor frequency for the minimum sample time since last validated.
 	 */
-	if (sampling_down_factor && pcpu->policy->cur == pcpu->policy->max)
+	if (sampling_down_factor && pcpu->policy->cur == pcpu->policy->max) {
 		mod_min_sample_time = sampling_down_factor;
-	else
+		pcpu->minfreq_boost=0;
+	} else {
 		mod_min_sample_time = min_sample_time;
+	}
 
+	if (pcpu->minfreq_boost) {
+		mod_min_sample_time = 0;
+		pcpu->minfreq_boost = 0;
+	}
 	if (new_freq < pcpu->floor_freq) {
 		if (now - pcpu->floor_validate_time < mod_min_sample_time) {
 			trace_cpufreq_interactive_notyet(
@@ -1383,6 +1416,7 @@ static int cpufreq_governor_interactive(struct cpufreq_policy *policy,
 			del_timer_sync(&pcpu->cpu_timer);
 			del_timer_sync(&pcpu->cpu_slack_timer);
 			cpufreq_interactive_timer_start(j);
+			pcpu->minfreq_boost = 1;
 			up_write(&pcpu->enable_sem);
 		}
 		break;

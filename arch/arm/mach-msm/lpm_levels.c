@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -359,7 +359,12 @@ static void lpm_system_prepare(struct lpm_system_state *system_state,
 	const struct cpumask *nextcpu;
 
 	spin_lock(&system_state->sync_lock);
-	if (num_powered_cores != system_state->num_cores_in_sync) {
+#if defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
+	if (index < 0 || num_powered_cores != system_state->num_cores_in_sync)
+#else
+	if (num_powered_cores != system_state->num_cores_in_sync)
+#endif
+	{
 		spin_unlock(&system_state->sync_lock);
 		return;
 	}
@@ -436,8 +441,14 @@ static void lpm_system_unprepare(struct lpm_system_state *system_state,
 			system_lvl->num_cpu_votes--;
 	}
 
+#if defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
+	if (!first_core_up || index < 0)
+#else
 	if (!first_core_up)
+#endif
+	{
 		goto unlock_and_return;
+	}
 
 	if (default_l2_mode != system_state->system_level[index].l2_mode)
 		lpm_set_l2_mode(system_state, default_l2_mode);
@@ -447,6 +458,9 @@ static void lpm_system_unprepare(struct lpm_system_state *system_state,
 		msm_mpm_exit_sleep(from_idle);
 	}
 unlock_and_return:
+#if defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
+	system_state->last_entered_cluster_index = -1;
+#endif
 	spin_unlock(&system_state->sync_lock);
 }
 
@@ -745,8 +759,12 @@ static void lpm_enter_low_power(struct lpm_system_state *system_state,
 
 	idx = lpm_system_select(system_state, cpu_index, from_idle);
 
+#if !(defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO))
 	if (idx >= 0)
+#endif
+	{
 		lpm_system_prepare(system_state, idx, from_idle);
+	}
 
 	msm_cpu_pm_enter_sleep(cpu_level->mode, from_idle);
 
@@ -1064,6 +1082,9 @@ static int lpm_system_probe(struct platform_device *pdev)
 	}
 	sys_state.system_level = level;
 	sys_state.num_system_levels = num_levels;
+#if defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
+	sys_state.last_entered_cluster_index = -1;
+#endif
 	return ret;
 fail:
 	kfree(level);

@@ -1163,11 +1163,6 @@ static int __devinit mdss_dsi_ctrl_probe(struct platform_device *pdev)
 		return -ENOTSUPP;
 	}
 
-	if (get_lcd_attached() == 0) {
-		pr_err("%s : lcd is not attached..\n",__func__);
-		return -ENODEV;
-	}
-
 	ctrl_pdata = platform_get_drvdata(pdev);
 	if (!ctrl_pdata) {
 		ctrl_pdata = devm_kzalloc(&pdev->dev,

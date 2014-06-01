@@ -708,6 +708,9 @@ void handle_IPI(int ipinr, struct pt_regs *regs)
 
 void smp_send_reschedule(int cpu)
 {
+#if defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
+	WARN_ON(cpu_is_offline(cpu));
+#endif
 	smp_cross_call(cpumask_of(cpu), IPI_RESCHEDULE);
 }
 

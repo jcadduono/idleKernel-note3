@@ -489,6 +489,9 @@ static int w1_gpio_msm_suspend(struct platform_device *pdev, pm_message_t state)
 
 	gpio_tlmm_config(GPIO_CFG(pdata->pin, 0, GPIO_CFG_INPUT, GPIO_CFG_NO_PULL, GPIO_CFG_2MA), 1);
 	gpio_direction_input(pdata->pin);
+#ifdef CONFIG_W1_WORKQUEUE
+	cancel_delayed_work_sync(&w1_gdev->w1_dwork);
+#endif
 	return 0;
 }
 
@@ -501,6 +504,9 @@ static int w1_gpio_msm_resume(struct platform_device *pdev)
 
 	gpio_tlmm_config(GPIO_CFG(pdata->pin, 0, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_2MA), 1);
 	gpio_direction_output(pdata->pin, 1);
+#ifdef CONFIG_W1_WORKQUEUE
+	schedule_delayed_work(&w1_gdev->w1_dwork, HZ * 2);
+#endif
 	return 0;
 }
 
