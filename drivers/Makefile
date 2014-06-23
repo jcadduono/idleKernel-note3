@@ -159,3 +159,6 @@ obj-$(CONFIG_SENSORS_FINGERPRINT)	+= fingerprint/
 
 obj-$(CONFIG_EXTCON)		+= extcon/
 obj-$(CONFIG_IR_REMOCON_MC96)	+= irda/
+
+# SecFilter Driver
+obj-$(CONFIG_SEC_NET_FILTER)	+= secfilter/
