@@ -81,6 +81,7 @@
 /dev/usb_accessory        0660   root       usb
 /dev/tun                  0660   system     vpn
 /dev/vfsspi               0660   system     system
+/dev/url                  0660   secnetfilter    secnetfilter
 
 
 

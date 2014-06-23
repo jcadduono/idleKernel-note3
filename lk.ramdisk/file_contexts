@@ -241,6 +241,7 @@
 
 ## Knox Sensitive data protection, DEK engine driver access
 /dev/dek_evt	u:object_r:knox_dar_device:s0
+/dev/dek_kek	u:object_r:knox_dar_device:s0
 /dev/dek_log	u:object_r:knox_dar_device:s0
 /dev/dek_req	u:object_r:knox_dar_device:s0
 
@@ -257,6 +258,7 @@
 /dev/socket/charon		u:object_r:charon_socket:s0
 /dev/socket/dumpstate	u:object_r:dumpstate_socket:s0
 /dev/socket/cs_socket	u:object_r:cs_socket:s0
+/dev/socket/msockets(/.*)?	u:object_r:msockets_socket:s0
 /dev/socket/mtpd		u:object_r:mtpd_socket:s0
 /dev/socket/dir_enc_report	u:object_r:vold_socket:s0
 /dev/socket/drsd        u:object_r:drsd_socket:s0
