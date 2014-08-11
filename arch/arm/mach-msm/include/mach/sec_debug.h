@@ -38,6 +38,9 @@ extern void *restart_reason_ddr_address;
 extern int sec_debug_init(void);
 extern int sec_debug_dump_stack(void);
 extern void sec_debug_hw_reset(void);
+#ifdef CONFIG_SEC_PERIPHERAL_SECURE_CHK
+extern void sec_peripheral_secure_check_fail(void);
+#endif
 extern void sec_debug_check_crash_key(unsigned int code, int value);
 extern void sec_getlog_supply_fbinfo(void *p_fb, u32 res_x, u32 res_y, u32 bpp,
 		u32 frames);

@@ -160,11 +160,15 @@ endif
 endif
 ifeq ($(CONFIG_SEC_JS_PROJECT),y)
 ifeq ($(CONFIG_SEC_LOCALE_JPN),y)
+     ifeq ($(CONFIG_MACH_JS01LTEZT),y)
+	dtb-y	+= msm8974-sec-js01ltetw-r08.dtb
+     else
 	dtb-$(CONFIG_SEC_JS_PROJECT)	+= msm8974-sec-js01ltejpn-r04.dtb
 	dtb-$(CONFIG_SEC_JS_PROJECT)	+= msm8974-sec-js01ltejpn-r05.dtb
 	dtb-$(CONFIG_SEC_JS_PROJECT)	+= msm8974-sec-js01ltejpn-r06.dtb
 	dtb-$(CONFIG_SEC_JS_PROJECT)	+= msm8974-sec-js01ltejpn-r07.dtb
 	dtb-$(CONFIG_SEC_JS_PROJECT)	+= msm8974-sec-js01ltejpn-r08.dtb
+     endif
 endif
 endif
 	dtb-$(CONFIG_SEC_KACTIVE_PROJECT)	+= msm8974pro-ac-sec-kactivelte-r00.dtb

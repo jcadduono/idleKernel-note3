@@ -18,6 +18,7 @@
 		status = "disable";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
 		qcom,rst-gpio = <&pm8941_gpios 19 0>;
+		qcom,enable-gpio = <&pm8941_gpios 14 0>;
 		qcom,cont-splash-enabled = <1>;
 		qcom,mdss-pan-res = <1080 1920>;
 		qcom,mdss-pan-size = <62 111>; /* <Width> <Height> real size of panel in mm */

@@ -671,12 +671,12 @@ static void remove_voice_sysfs(struct ssp_data *data)
 
 static DEVICE_ATTR(mcu_rev, S_IRUGO, mcu_revision_show, NULL);
 static DEVICE_ATTR(mcu_name, S_IRUGO, mcu_model_name_show, NULL);
-static DEVICE_ATTR(mcu_update, S_IRUGO, mcu_update_kernel_bin_show, NULL);
-static DEVICE_ATTR(mcu_update2, S_IRUGO,
+static DEVICE_ATTR(mcu_update, S_IRUSR|S_IRGRP, mcu_update_kernel_bin_show, NULL);
+static DEVICE_ATTR(mcu_update2, S_IRUSR|S_IRGRP,
 	mcu_update_kernel_crashed_bin_show, NULL);
-static DEVICE_ATTR(mcu_update_ums, S_IRUGO, mcu_update_ums_bin_show, NULL);
-static DEVICE_ATTR(mcu_reset, S_IRUGO, mcu_reset_show, NULL);
-static DEVICE_ATTR(mcu_dump, S_IRUGO, mcu_dump_show, NULL);
+static DEVICE_ATTR(mcu_update_ums, S_IRUSR|S_IRGRP, mcu_update_ums_bin_show, NULL);
+static DEVICE_ATTR(mcu_reset, S_IRUSR|S_IRGRP, mcu_reset_show, NULL);
+static DEVICE_ATTR(mcu_dump, S_IRUSR|S_IRGRP, mcu_dump_show, NULL);
 
 static DEVICE_ATTR(mcu_test, S_IRUGO | S_IWUSR | S_IWGRP,
 	mcu_factorytest_show, mcu_factorytest_store);

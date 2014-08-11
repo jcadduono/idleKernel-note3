@@ -358,9 +358,6 @@ int tima_is_pg_protected(unsigned long va)
 	unsigned long  par;
 	unsigned long flags;
 
-	if (tima_switch_count < 0x12000) 
-		return 0;
-
 	/* Translate the page use writable priv.
 	Failing means a read-only page 
 	(tranlation was confirmed by previous step)*/
@@ -380,6 +377,60 @@ int tima_is_pg_protected(unsigned long va)
 }
 #endif
 
+#ifdef	CONFIG_TIMA_RKP
+#define INS_STR_R1	0xe5801000
+#define INS_STR_R3	0xe5a03800
+extern void* cpu_v7_set_pte_ext_proc_end;
+static unsigned int rkp_fixup(unsigned long addr, struct pt_regs *regs) {
+	
+	unsigned long inst = *((unsigned long*) regs->ARM_pc);
+	unsigned long reg_val = 0;
+	unsigned long emulate = 0;
+	
+	if (regs->ARM_pc <  (long) cpu_v7_set_pte_ext 
+		|| regs->ARM_pc > (long) &cpu_v7_set_pte_ext_proc_end) {
+		printk(KERN_ERR
+			"RKP -> Inst %lx out of cpu_v7_set_pte_ext range from %lx to %lx\n",
+			(unsigned long) regs->ARM_pc, (long) cpu_v7_set_pte_ext,
+			(long) &cpu_v7_set_pte_ext_proc_end);
+		return false;
+	}
+	if (inst == INS_STR_R1)
+	{
+		reg_val = regs->ARM_r1;
+		emulate = 1;
+	}
+	else if (inst == INS_STR_R3)
+	{
+		reg_val = regs->ARM_r3;
+		emulate = 1;
+	}
+	if (emulate) {
+		printk(KERN_ERR"Emulating RKP instruction %lx at %p\n", 
+		inst, (unsigned long*) regs->ARM_pc);
+#ifndef	CONFIG_TIMA_RKP_COHERENT_TT
+		asm volatile("mcr     p15, 0, %0, c7, c14, 1\n"
+		"dsb\n"
+                "isb\n"
+		: : "r" (addr));
+#endif
+		tima_send_cmd2(__pa(addr), reg_val, 0x3f808221);
+#ifndef	CONFIG_TIMA_RKP_COHERENT_TT
+		asm volatile("mcr     p15, 0, %0, c7, c6, 1\n" 
+		"dsb\n"
+                "isb\n"
+		: : "r" (addr));
+#endif
+		regs->ARM_pc += 4;
+		return true;
+	}
+	printk(KERN_ERR"CANNOT Emulate RKP instruction %lx at %p\n", 
+		inst, (unsigned long*) regs->ARM_pc);
+	return false;		
+}
+#endif
+
+
 /*
  * Oops.  The kernel tried to access some page that wasn't present.
  */
@@ -393,16 +444,12 @@ __do_kernel_fault(struct mm_struct *mm, unsigned long addr, unsigned int fsr,
 	if (fixup_exception(regs))
 		return;
 #ifdef	CONFIG_TIMA_RKP
-	printk(KERN_ERR"TIMA:====> %lx\n", addr);
 	if (addr >= 0xc0000000 && (fsr & FSR_WRITE)) {
-		printk(KERN_ERR"TIMA:==> Handling fault for %lx\n", addr);
-		tima_send_cmd(addr, 0x3f821221);
-		__asm__ ("mcr    p15, 0, %0, c8, c3, 0\n"
-			"isb"
-			::"r"(0));
-		return;
+		if (rkp_fixup(addr, regs)) {
+			return;
+		}
 	}
-#endif
+#endif	
 
 	/*
 	 * No handler, we'll have to terminate things with extreme prejudice.
@@ -415,6 +462,9 @@ __do_kernel_fault(struct mm_struct *mm, unsigned long addr, unsigned int fsr,
 
 	show_pte(mm, addr);
 #ifdef CONFIG_TIMA_RKP
+	if (tima_is_pg_protected(addr) == 1) {
+		printk(KERN_ERR"RKP ==> Address %lx is RO by RKP\n", addr);
+	}
 	tima_send_cmd(addr, 0x3f80e221);
 #endif
 	die("Oops", regs, fsr);

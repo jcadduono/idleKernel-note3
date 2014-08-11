@@ -1498,6 +1498,12 @@ config SEC_JS_PROJECT
 	help
 	  Support for Samsung JS project.
 
+config SEC_JSZT_PROJECT
+	default n
+	bool "Samsung JSZT project"
+	help
+	  Support for Samsung JSZT project.
+
 config MACH_H
 	default n
 	bool "Samsung model H"
@@ -1612,6 +1618,13 @@ config MACH_JS01LTEDCM
 	select SEC_JS_PROJECT
 	help
 	  Support for Samsung JS01LTEDCM device.
+
+config MACH_JS01LTEZT
+	default n
+	bool "Samsung model JS01LTEZT"
+	select SEC_JSZT_PROJECT
+	help
+	  Support for Samsung JS01LTEZT device.
 
 config MACH_HLTESKT
 	default n
@@ -3532,6 +3545,11 @@ config SEC_SSR_DEBUG_LEVEL_CHK
         bool "SSR DEBUG LEVEL check"
         help
           To check the level of debug for SSR.
+
+config SEC_PERIPHERAL_SECURE_CHK
+        bool "PERIPHERAL SECURE check"
+        help
+          To check the authentication of peripheral image.
 
 config MSM_DCVS
 	bool "Use MSM DCVS for CPU/GPU Frequency control"

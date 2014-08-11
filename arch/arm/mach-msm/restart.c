@@ -373,6 +373,10 @@ static void msm_restart_prepare(const char *cmd)
 		} else if (strlen(cmd) == 0) {
 			printk(KERN_NOTICE "%s : value of cmd is NULL.\n", __func__);
 			__raw_writel(0x12345678, restart_reason);
+#ifdef CONFIG_SEC_PERIPHERAL_SECURE_CHK
+		} else if (!strncmp(cmd, "peripheral_hw_reset", 19)) {
+			__raw_writel(0x77665507, restart_reason);
+#endif
 		} else {
 			__raw_writel(0x77665501, restart_reason);
 		}

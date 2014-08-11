@@ -1471,6 +1471,9 @@ static ssize_t es325_route_status_show(struct device *dev, struct device_attribu
 
 	u8 ack_msg[4];
 
+	if (es325_priv.wakeup_cnt == 0)
+		return 0;
+
 	/* Read route status */
 	if (es325_request_response(es325, route_st_req_msg, 4, 1, ack_msg, 4, 1, 0, 0) < 0) {
 		rc = rc + snprintf(buf+rc, PAGE_SIZE - rc,
@@ -1655,6 +1658,9 @@ static ssize_t es325_route_config_set(struct device *dev, struct device_attribut
 {
 	long route_index;
 	int rc;
+	
+	if (es325_priv.wakeup_cnt == 0)
+		return 0;
 
 	dev_info(dev, "=[ES325]=%s():buf = %s\n", __func__, buf);
 	rc = kstrtol(buf, 10, &route_index);
@@ -1687,6 +1693,9 @@ static ssize_t es325_fw_version_show(struct device *dev, struct device_attribute
 	char versionbuffer[SIZE_OF_VERBUF];
 	char *verbuf = versionbuffer;
 	char cmd[4];
+	
+	if (es325_priv.wakeup_cnt == 0)
+		return 0;
 
 	memset(verbuf,0,SIZE_OF_VERBUF);
 	memcpy(cmd, first_char_msg, 4);
@@ -1729,6 +1738,9 @@ static ssize_t es325_txhex_set(struct device *dev, struct device_attribute *attr
 	int offset = 0;
 	u8 resp[4];
 	int rc;
+	
+	if (es325_priv.wakeup_cnt == 0)
+		return 0;
 
 	dev_dbg(dev, "+[ES325]=%s()\n", __func__);
 	dev_dbg(dev, "=[ES325]=%s(): count=%i\n", __func__, count);
@@ -1765,6 +1777,9 @@ static DEVICE_ATTR(txhex, 0644, es325_txhex_show, es325_txhex_set);
 static ssize_t es325_clock_on_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	char status[4];
+	
+	if (es325_priv.wakeup_cnt == 0)
+		return 0;
 
 	dev_dbg(dev, "=[ES325]=%s\n", __func__);
 	if(es325_priv.clock_on)
@@ -1783,6 +1798,9 @@ static ssize_t es325_slim_ch_show(struct device *dev, struct device_attribute *a
 	struct es325_slim_dai_data* dai = priv->dai;
 	int length = 0;
 	int i, j;
+	
+	if (es325_priv.wakeup_cnt == 0)
+		return 0;
 
 	for(i = 0; i < ES325_NUM_CODEC_SLIM_DAIS; i++) {
 		length += sprintf(buf+length,"=dai[%d]=rate[%d]=ch_num=",i, dai[i].rate);
@@ -1801,6 +1819,9 @@ static ssize_t es325_reg_show(struct device *dev, struct device_attribute *attr,
 	int length = 0;
 	int i;
 	int size = 0;
+
+	if (es325_priv.wakeup_cnt == 0)
+		return 0;
 
 	length += sprintf(buf+length,"es325_reg : algo\n");
 	size = sizeof(es325_algo_paramid)/sizeof(unsigned short); /* 127 items */
@@ -1821,6 +1842,9 @@ static ssize_t es325_reg_write(struct device *dev,
 	char tempbuf[32];
 	char *start = tempbuf;
 	unsigned long reg, value;
+	
+	if (es325_priv.wakeup_cnt == 0)
+		return 0;
 
 	memcpy(tempbuf, buf, size);
 	tempbuf[size] = 0;
@@ -1846,6 +1870,9 @@ static ssize_t es325_cmd_reg_show(struct device *dev, struct device_attribute *a
 	int i;
 	int size = 0;
 
+	if (es325_priv.wakeup_cnt == 0)
+		return 0;
+	
 	/* removed 0x2001(first), 0x20d4(end) register read, because of error */
 	size = sizeof(es325_cmd_access)/sizeof(struct es325_cmd_access); /* 213 items */
 	for(i = ES325_POWER_STATE + 1; i < (size + ES325_POWER_STATE -1); i++)

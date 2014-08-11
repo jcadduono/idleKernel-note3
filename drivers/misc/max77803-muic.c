@@ -87,10 +87,13 @@ enum {
 	ADC_DOCK_VOL_UP		= 0x0b, /* 0x01011 17.26K ohm */
 	ADC_DOCK_PLAY_PAUSE_KEY = 0x0d,
 	ADC_VZW_USB_DOCK	= 0x0e, /* 0x01110 28.7K ohm VZW Dock */
+	ADC_INCOMPATIBLE	= 0x0f, /* 0x01111 34K ohm */
 	ADC_SMARTDOCK		= 0x10, /* 0x10000 40.2K ohm */
 	ADC_INCOMPATIBLE2_CHG	= 0x11, /* 0x10001 49.9K ohm */
 	ADC_AUDIODOCK		= 0x12, /* 0x10010 64.9K ohm */
+	ADC_LANHUB		= 0x13, /* 0x10011 80.07K ohm */
 	ADC_CHARGING_CABLE	= 0x14, /* 0x10100 102K ohm */
+	ADC_HMT			= 0x15, /* 0x10101 121K ohm */
 	ADC_CEA936ATYPE1_CHG	= 0x17,	/* 0x10111 200K ohm */
 	ADC_JIG_USB_OFF		= 0x18, /* 0x11000 255K ohm */
 	ADC_JIG_USB_ON		= 0x19, /* 0x11001 301K ohm */
@@ -2240,14 +2243,22 @@ static int max77803_muic_handle_attach(struct max77803_muic_info *info,
 			break;
 		}
 		break;
+	case ADC_INCOMPATIBLE:
+		if (vbvolt) {
+			info->cable_type = CABLE_TYPE_INCOMPATIBLE_MUIC;
+			ret = max77803_muic_set_charging_type(info, !vbvolt);
+		}
+		break;
 	default:
-		dev_warn(info->dev, "%s: unsupported adc=0x%x\n", __func__, adc);
-
-		info->cable_type = CABLE_TYPE_INCOMPATIBLE_MUIC;
-
-		ret = max77803_muic_set_charging_type(info, !vbvolt);
-		if (ret)
-			info->cable_type = CABLE_TYPE_NONE_MUIC;
+		if (vbvolt) {
+			dev_warn(info->dev, "%s: unsupported adc=0x%x\n", __func__, adc);
+			info->cable_type = CABLE_TYPE_TA_MUIC;
+			ret = max77803_muic_set_charging_type(info, !vbvolt);
+			if (ret)
+				info->cable_type = CABLE_TYPE_NONE_MUIC;
+		} else {
+			dev_warn(info->dev, "%s: unsupported adc=0x%x\n", __func__, adc);
+		}
 		break;
 	}
 	return ret;
@@ -2484,12 +2495,11 @@ static int max77803_muic_filter_dev(struct max77803_muic_info *info,
 			pr_info("%s:%s ADC_GND & !adclow = OTG\n", DEV_NAME,
 					__func__);
 		break;
-	case (ADC_CEA936ATYPE1_CHG) ... (ADC_JIG_UART_ON):
-		if(info->cable_type != CABLE_TYPE_NONE_MUIC
-			&& chgtyp == CHGTYP_NO_VOLTAGE
-			&& info->chgtyp != chgtyp) {
-			intr = INT_DETACH;
-		}
+	case ADC_VZW_USB_DOCK:
+	case ADC_INCOMPATIBLE2_CHG:
+	case ADC_LANHUB:
+	case ADC_HMT:
+		intr = INT_DETACH;
 		break;
 	case ADC_OPEN:
 		if (!adcerr) {

@@ -354,6 +354,9 @@ ENTRY(cpu_v7_tima_set_pte_ext)
 ENDPROC(cpu_v7_tima_set_pte_ext)
 #endif
 
+#ifdef	CONFIG_TIMA_RKP
+	.global cpu_v7_set_pte_ext_proc_end
+#endif
 ENTRY(cpu_v7_set_pte_ext)
 #ifdef CONFIG_MMU
 	str	r1, [r0]			@ linux version
@@ -390,6 +393,9 @@ ENTRY(cpu_v7_set_pte_ext)
 	mcr	p15, 0, r0, c7, c10, 1		@ flush_pte
 #endif
 	mov	pc, lr
+#ifdef	CONFIG_TIMA_RKP
+cpu_v7_set_pte_ext_proc_end:
+#endif
 ENDPROC(cpu_v7_set_pte_ext)
 
 	/*

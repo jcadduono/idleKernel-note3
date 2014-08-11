@@ -66,7 +66,15 @@ enum uart_core_type {
 	BLSP_HSUART,
 };
 
+#if defined(CONFIG_MACH_HLTEDCM)|| defined(CONFIG_MACH_HLTEKDI)
+#define CONFIG_DUMP_UART_PACKET_DISABLE 1
+#endif
+
+#if defined(CONFIG_DUMP_UART_PACKET_DISABLE)
+#define DUMP_UART_PACKET 0
+#else
 #define DUMP_UART_PACKET 1
+#endif
 #define FULL_DUMP_UART_PACKET 0
 
 #if DUMP_UART_PACKET

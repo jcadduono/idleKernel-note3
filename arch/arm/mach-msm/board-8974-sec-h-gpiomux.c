@@ -72,14 +72,14 @@ static struct gpiomux_setting mdm2ap_errfatal_cfg = {
 	.dir = GPIOMUX_IN,
 };
 #endif
-
+#if !defined(CONFIG_MACH_JS01LTEDCM)
 static struct gpiomux_setting mdm2ap_pblrdy = {
 	.func = GPIOMUX_FUNC_GPIO,
 	.drv = GPIOMUX_DRV_8MA,
 	.pull = GPIOMUX_PULL_NONE,
 	.dir = GPIOMUX_IN,
 };
-
+#endif
 
 static struct gpiomux_setting ap2mdm_soft_reset_cfg = {
 	.func = GPIOMUX_FUNC_GPIO,
@@ -138,6 +138,7 @@ static struct msm_gpiomux_config mdm_configs[] __initdata = {
 			[GPIOMUX_SUSPENDED] = &ap2mdm_wakeup,
 		}
 	},
+#if !defined(CONFIG_MACH_JS01LTEDCM)	
 	/* MDM2AP_PBL_READY*/
 	{
 		.gpio = 80,
@@ -145,6 +146,7 @@ static struct msm_gpiomux_config mdm_configs[] __initdata = {
 			[GPIOMUX_SUSPENDED] = &mdm2ap_pblrdy,
 		}
 	},
+#endif 	
 };
 
 #ifdef CONFIG_W1_SLAVE_DS28EL15
@@ -498,7 +500,7 @@ static struct msm_gpiomux_config hap_lvl_shft_config[] __initdata = {
 
 #if defined(CONFIG_BCM2079X_NFC_I2C) || defined(CONFIG_NFC_PN547)
 static struct msm_gpiomux_config msm_nfc_configs[] __initdata = {
-#if !defined(CONFIG_MACH_H3GDUOS)
+#if !defined(CONFIG_MACH_H3GDUOS) && !defined(CONFIG_MACH_JS01LTEZT)
 	{
 		.gpio      = 59,		/* NFC IRQ */
 		.settings = {
@@ -1286,12 +1288,14 @@ static struct msm_gpiomux_config msm_sensor_configs[] __initdata = {
 			[GPIOMUX_SUSPENDED] = &gpio_suspend_config[2],
 		},
 	},
+#if !defined(CONFIG_MACH_JS01LTEDCM)	
 	{
 		.gpio = 129, /* 8M_AVDD_LDO_EN */
 		.settings = {
 			[GPIOMUX_SUSPENDED] = &gpio_suspend_config[3],
 		},
 	},
+#endif	
 };
 
 static struct gpiomux_setting sd_card_det_active_config = {

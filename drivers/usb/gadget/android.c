@@ -3204,7 +3204,13 @@ static struct usb_composite_driver android_usb_driver = {
 	.dev		= &device_desc,
 	.strings	= dev_strings,
 	.unbind		= android_usb_unbind,
-#if defined(CONFIG_SEC_LT03_PROJECT) || defined(CONFIG_SEC_MONDRIAN_PROJECT)
+#if defined(CONFIG_SEC_LT03_PROJECT) || defined(CONFIG_SEC_MONDRIAN_PROJECT)\
+	|| defined(CONFIG_SEC_KS01_PROJECT) || defined(CONFIG_SEC_PICASSO_PROJECT)\
+	|| defined(CONFIG_SEC_KACTIVE_PROJECT) || defined(CONFIG_SEC_FRESCO_PROJECT)\
+	|| defined(CONFIG_SEC_KSPORTS_PROJECT) || defined(CONFIG_SEC_JACTIVE_PROJECT)\
+	|| defined(CONFIG_SEC_S_PROJECT) || defined(CONFIG_SEC_PATEK_PROJECT)\
+	|| defined(CONFIG_SEC_CHAGALL_PROJECT) || defined(CONFIG_SEC_KLIMT_PROJECT)\
+	|| defined(CONFIG_MACH_JS01LTEDCM)
 	.max_speed	= USB_SPEED_HIGH
 #else
 	.max_speed	= USB_SPEED_SUPER
