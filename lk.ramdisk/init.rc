@@ -412,6 +412,9 @@ on boot
     chown system radio /sys/class/sec/switch/adc
     chown system radio /sys/class/sec/switch/otg_test
 
+# Mobicore
+    mkdir /data/app/mcRegistry 0775 system system
+
 # Vibetonz
     chmod 0660 /dev/tspdrv
     chown vibe vibe /dev/tspdrv
