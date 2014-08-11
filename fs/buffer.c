@@ -996,6 +996,7 @@ grow_dev_page(struct block_device *bdev, sector_t block,
 	spin_unlock(&inode->i_mapping->private_lock);
 done:
 	ret = (block < end_block) ? 1 : -ENXIO;
+
 failed:
 	unlock_page(page);
 	page_cache_release(page);
