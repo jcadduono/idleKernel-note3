@@ -1,5 +1,13 @@
 #!/system/bin/sh
 
+#
+# replace (u)random with erandom
+#
+rm -f /dev/urandom
+ln -s /dev/erandom /dev/urandom
+rm -f /dev/random
+ln -s /dev/erandom /dev/random
+
 [ ! -d "/data/data/leankernel" ] && mkdir /data/data/leankernel
 chmod 755 /data/data/leankernel
 #
