@@ -55,6 +55,10 @@
 
 #define FACTORY_DATA_MAX	100
 
+#undef pr_info
+#define pr_info(fmt, ...) \
+        no_printk(KERN_INFO pr_fmt(fmt), ##__VA_ARGS__)
+
 #if SSP_DBG
 #define SSP_FUNC_DBG 1
 #define SSP_DATA_DBG 0
@@ -64,7 +68,7 @@
 
 
 #define ssp_dbg(dev, format, ...) do { \
-	printk(KERN_INFO dev, format, ##__VA_ARGS__); \
+	no_printk(KERN_DEBUG dev, format, ##__VA_ARGS__); \
 	} while (0)
 #else
 #define ssp_dbg(dev, format, ...)
