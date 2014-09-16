@@ -32,10 +32,10 @@ if [ -f $CFILE ]; then
   echo `cat $CFILE` > $SFILE/interactive/screen_off_maxfreq
 fi
 #
-# brightness tweak
+# scaling_max_freq
 #
-CFILE="/data/data/leankernel/btweak"
-SFILE="/sys/devices/virtual/graphics/fb0/btweak"
+CFILE="/data/data/leankernel/scaling_max_freq"
+SFILE="/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq"
 [ -f $CFILE ] && echo `cat $CFILE` > $SFILE
 #
 # gpu governor
