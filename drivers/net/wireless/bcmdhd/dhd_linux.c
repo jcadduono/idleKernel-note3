@@ -741,6 +741,19 @@ static void dhd_sched_rxf(dhd_pub_t *dhdp, void *skb);
 static void dhd_os_rxflock(dhd_pub_t *pub);
 static void dhd_os_rxfunlock(dhd_pub_t *pub);
 
+/** priv_link is the link between netdev and the dhdif and dhd_info structs. */
+typedef struct dhd_dev_priv {
+        dhd_info_t * dhd; /* cached pointer to dhd_info in netdevice priv */
+        dhd_if_t   * ifp; /* cached pointer to dhd_if in netdevice priv */
+        int          ifidx; /* interface index */
+} dhd_dev_priv_t;
+
+#define DHD_DEV_PRIV_SIZE       (sizeof(dhd_dev_priv_t))
+#define DHD_DEV_PRIV(dev)       ((dhd_dev_priv_t *)DEV_PRIV(dev))
+#define DHD_DEV_INFO(dev)       (((dhd_dev_priv_t *)DEV_PRIV(dev))->dhd)
+#define DHD_DEV_IFP(dev)        (((dhd_dev_priv_t *)DEV_PRIV(dev))->ifp)
+#define DHD_DEV_IFIDX(dev)      (((dhd_dev_priv_t *)DEV_PRIV(dev))->ifidx)
+
 static inline int dhd_rxf_enqueue(dhd_pub_t *dhdp, void* skb)
 {
 	uint32 store_idx;
