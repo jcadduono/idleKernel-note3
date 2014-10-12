@@ -354,6 +354,7 @@ struct cypress_touchkey_info {
 	bool	support_fw_update;
 	bool	do_checksum;
 	struct wake_lock fw_wakelock;
+	atomic_t keypad_enable;
 };
 
 #ifdef TK_INFORM_CHARGER
