@@ -32,6 +32,9 @@
 #include <linux/regulator/consumer.h>
 #include <linux/qpnp/pin.h>
 
+#undef dev_info
+#define dev_info(dev, fmt, arg...) dev_dbg(dev, fmt, ##arg)
+
 #define DRIVER_NAME "synaptics_rmi4_i2c"
 #undef USE_SENSOR_SLEEP
 

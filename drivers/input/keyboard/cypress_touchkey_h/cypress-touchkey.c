@@ -42,6 +42,10 @@
 #include "issp_extern.h"
 #include "coreriver_extern.h"
 #include <linux/mfd/pm8xxx/pm8921.h>
+
+#undef dev_info
+#define dev_info(dev, fmt, arg...) dev_dbg(dev, fmt, ##arg)
+
 /*
 #define CYPRESS_GEN		0X00
 #define CYPRESS_FW_VER		0X01
