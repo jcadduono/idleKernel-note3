@@ -43,6 +43,12 @@ SFILE="/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq"
 CFILE="/data/data/leankernel/gpu_governor"
 SFILE="/sys/devices/fdb00000.qcom,kgsl-3d0/devfreq/fdb00000.qcom,kgsl-3d0/governor"
 [ -f $CFILE ] && echo `cat $CFILE` > $SFILE
+#
+# MMC CRC
+#
+CFILE="/data/data/leankernel/use_spi_crc"
+SFILE="/sys/module/mmc_core/parameters/use_spi_crc"
+[ -f $CFILE ] && echo `cat $CFILE` > $SFILE
 
 # daemonsu support - probably not needed
 if [ -f "/system/xbin/daemonsu" ]; then
