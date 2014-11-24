@@ -484,3 +484,4 @@ obj-$(CONFIG_SEC_V2_PROJECT) += board-vienna-motor.o
 
 obj-$(CONFIG_SEC_THERMISTOR) += sec_thermistor.o msm8974-thermistor.o
 obj-$(CONFIG_GSM_MODEM_SPRD6500) += board-sprd6500-spi.o board-sprd6500-modems.o
+obj-$(CONFIG_HAS_MACH_MEMUTILS) += memutils/
