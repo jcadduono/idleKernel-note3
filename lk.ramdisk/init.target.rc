@@ -51,6 +51,10 @@ on fs
     # these partition flashed on the device. Failure to mount any partition in fstab file
     # results in failure to launch late-start class.
 
+    wait /dev/block/platform/msm_sdcc.1/by-name/system
+    mount ext4 /dev/block/platform/msm_sdcc.1/by-name/system /system ro errors=panic
+    mount f2fs /dev/block/platform/msm_sdcc.1/by-name/system /system ro inline_xattr
+    wait /dev/block/platform/msm_sdcc.1/by-name/userdata
     mount ext4 /dev/block/platform/msm_sdcc.1/by-name/userdata /data nosuid nodev noatime noauto_da_alloc,discard,journal_async_commit
     mount f2fs /dev/block/platform/msm_sdcc.1/by-name/userdata /data noatime nosuid nodev discard,inline_xattr
     wait /dev/block/platform/msm_sdcc.1/by-name/cache
