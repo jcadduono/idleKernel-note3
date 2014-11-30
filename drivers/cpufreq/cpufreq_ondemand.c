@@ -56,6 +56,8 @@ static unsigned int min_sampling_rate;
 #define MIN_LATENCY_MULTIPLIER			(100)
 #define TRANSITION_LATENCY_LIMIT		(10 * 1000 * 1000)
 
+extern bool cpuboost_enable;
+
 static void do_dbs_timer(struct work_struct *work);
 static int cpufreq_governor_dbs(struct cpufreq_policy *policy,
 				unsigned int event);
@@ -466,6 +468,7 @@ static void dbs_check_cpu(struct cpu_dbs_info_s *this_dbs_info)
 
 	struct cpufreq_policy *policy;
 	unsigned int j;
+	if (cpuboost_enable) cpuboost_enable = false;
 
 	this_dbs_info->freq_lo = 0;
 	policy = this_dbs_info->cur_policy;
