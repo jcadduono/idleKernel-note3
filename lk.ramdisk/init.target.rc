@@ -45,7 +45,7 @@ on fs
     write /sys/devices/msm_sdcc.1/mmc_host/mmc1/power/control on
     write /sys/devices/msm_sdcc.3/mmc_host/mmc2/power/control on
 
-    mount_all fstab.qcom
+    mount_all fstab.lk
 
     # Keeping following partitions outside fstab file. As user may not have
     # these partition flashed on the device. Failure to mount any partition in fstab file
