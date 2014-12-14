@@ -108,3 +108,5 @@ static inline int arch_get_random_int(unsigned int *v)
 #endif /* __KERNEL___ */
 
 #endif /* _LINUX_RANDOM_H */
+
+void erandom_get_random_bytes(char *buf, size_t count);
