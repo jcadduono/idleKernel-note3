@@ -373,7 +373,7 @@ KBUILD_CFLAGS   := -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \
 		   -Werror-implicit-function-declaration \
 		   -Wno-format-security \
                    -mtune=cortex-a15 \
-                   -fmodulo-sched -fmodulo-sched-allow-regmoves \
+                   -fmodulo-sched -fmodulo-sched-allow-regmoves -fno-tree-vectorize -ffast-math \
                    -funswitch-loops -fpredictive-commoning -fgcse-after-reload \
 		   -Wno-sizeof-pointer-memaccess \
 		   -fno-delete-null-pointer-checks
