@@ -119,6 +119,10 @@ else
 		dtb-y += msm8974-sec-hlte-r06.dtb
 		dtb-y += msm8974-sec-hlte-r07.dtb
 		dtb-y += msm8974-sec-hlte-r09.dtb
+		dtb-y += msm8974-sec-hltekor-r04.dtb
+		dtb-y += msm8974-sec-hltekor-r05.dtb
+		dtb-y += msm8974-sec-hltekor-r06.dtb
+		dtb-y += msm8974-sec-hltekor-r07.dtb
 	endif
 endif
 endif
