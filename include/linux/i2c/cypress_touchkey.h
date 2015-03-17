@@ -29,6 +29,7 @@ extern struct class *sec_class;
 #include <linux/earlysuspend.h>
 #include <linux/mutex.h>
 
+#define CONFIG_GLOVE_TOUCH
 #if defined(CONFIG_GLOVE_TOUCH)
 #define TK_BIT_GLOVE 0x40
 #endif

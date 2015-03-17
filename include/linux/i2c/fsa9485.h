@@ -72,7 +72,11 @@
 #define DEV_T1_CHARGER_MASK	(DEV_DEDICATED_CHG | DEV_CAR_KIT)
 
 /* Device Type 2 */
+#define DEV_INCOMPATIBLE	(1 << 11)
+#define DEV_CHARGING_CABLE	(1 << 10)
+#ifdef CONFIG_MUIC_FSA9485_SUPPORT_LANHUB
 #define DEV_LANHUB		(1 << 9)
+#endif
 #define DEV_AUDIO_DOCK		(1 << 8)
 #define DEV_SMARTDOCK		(1 << 7)
 #define DEV_AV			(1 << 6)
@@ -120,7 +124,10 @@
 #define	ADC_DOCK_VOL_DN		0x0a
 #define	ADC_DOCK_VOL_UP		0x0b
 #define	ADC_DOCK_PLAY_PAUSE_KEY 0x0d
+#ifdef CONFIG_MUIC_FSA9485_SUPPORT_LANHUB
 #define ADC_LANHUB		0x13
+#endif
+#define ADC_CHARGING_CABLE	0x14
 #define	ADC_CEA936ATYPE1_CHG	0x17
 #define	ADC_JIG_USB_OFF		0x18
 #define	ADC_JIG_USB_ON		0x19
@@ -138,18 +145,22 @@ enum cable_type_t {
 	CABLE_TYPE_AC,
 	CABLE_TYPE_MISC,
 	CABLE_TYPE_CARDOCK,
+#ifdef CONFIG_MUIC_FSA9485_SUPPORT_LANHUB
 	CABLE_TYPE_LANHUB,
+#endif
 	CABLE_TYPE_UARTOFF,
 	CABLE_TYPE_JIG,
 	CABLE_TYPE_UNKNOWN,
 	CABLE_TYPE_CDP,
 	CABLE_TYPE_SMART_DOCK,
 	CABLE_TYPE_OTG,
+	CABLE_TYPE_CHARGING_CABLE,
 	CABLE_TYPE_AUDIO_DOCK,
 #ifdef CONFIG_WIRELESS_CHARGING
 	CABLE_TYPE_WPC,
 #endif
 	CABLE_TYPE_INCOMPATIBLE,
+	CABLE_TYPE_DESK_DOCK,
 };
 
 
@@ -179,6 +190,7 @@ enum {
 	FSA9485_DETACHED_DOCK = 0,
 	FSA9485_ATTACHED_DESK_DOCK,
 	FSA9485_ATTACHED_CAR_DOCK,
+	FSA9485_ATTACHED_DESK_DOCK_NO_VBUS,
 };
 
 #define UART_SEL_SW	    58
@@ -193,6 +205,7 @@ struct fsa9485_platform_data {
 
 	void (*cfg_gpio) (void);
 	void (*otg_cb) (bool attached);
+	void (*charge_cb) (bool attached);
 	void (*usb_cb) (bool attached);
 	void (*uart_cb) (bool attached);
 	void (*charger_cb) (bool attached);
@@ -205,8 +218,10 @@ struct fsa9485_platform_data {
 	void (*dock_cb) (int attached);
 	int  (*dock_init) (void);
 	void (*usb_cdp_cb) (bool attached);
+#ifdef CONFIG_MUIC_FSA9485_SUPPORT_LANHUB
 	void (*lanhub_cb) (bool attached);
 	void (*lanhubta_cb) (bool attached);
+#endif
 	void (*smartdock_cb) (bool attached);
 	void (*audio_dock_cb) (bool attached);
 };
@@ -228,5 +243,7 @@ extern void fsa9485_checkandhookaudiodockfornoise(int value);
 #endif
 extern struct class *sec_class;
 extern struct fsa9485_platform_data fsa9485_pdata;
+extern int check_jig_state(void);
+extern int poweroff_charging;
 
 #endif /* _FSA9485_H_ */

@@ -335,6 +335,10 @@ long msm_isp_ioctl(struct v4l2_subdev *sd,
 	long rc = 0;
 	struct vfe_device *vfe_dev = v4l2_get_subdevdata(sd);
 
+	if (!vfe_dev) {
+		pr_err("%s: vfe_dev NULL\n", __func__);
+		return -EINVAL;
+	}
 	/* Use real time mutex for hard real-time ioctls such as
 	 * buffer operations and register updates.
 	 * Use core mutex for other ioctls that could take

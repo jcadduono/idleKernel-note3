@@ -94,17 +94,81 @@ static void fc8300_data(HANDLE handle, DEVICEID devid, u8 buf_int_status)
 #ifdef BBM_AUX_INT
 static void fc8300_aux_int(HANDLE handle, DEVICEID devid, u8 aux_int_status)
 {
+	if (aux_int_status & AUX_INT_TMCC_INT_SRC)
+		;
+
+	if (aux_int_status & AUX_INT_TMCC_INDTPS_SRC)
+		;
+
+	if (aux_int_status & AUX_INT_AC_PREFRM_SRC)
+		;
+
+	if (aux_int_status & AUX_INT_AC_EWISTAFLAG_SRC)
+		;
+
+	if (aux_int_status & AUX_INT_SYNC_RELATED_INT) {
+		u8 sync = 0;
+		bbm_byte_read(handle, DIV_MASTER, BBM_SYS_MD_INT_CLR, &sync);
+
+		if (sync) {
+			bbm_byte_write(handle, DIV_MASTER, BBM_SYS_MD_INT_CLR,
+									sync);
+
+			if (sync & SYS_MD_NO_OFDM_DETECT)
+				;
+
+			if (sync & SYS_MD_RESYNC_OCCUR)
+				;
+
+			if (sync & SYS_MD_TMCC_LOCK)
+				;
+
+			if (sync & SYS_MD_A_LAYER_BER_UPDATE)
+				;
+
+			if (sync & SYS_MD_B_LAYER_BER_UPDATE)
+				;
+
+			if (sync & SYS_MD_C_LAYER_BER_UPDATE)
+				;
+
+			if (sync & SYS_MD_BER_UPDATE)
+				;
+		}
+	}
+
+	if (aux_int_status & AUX_INT_GPIO_INT_CLEAR)
+		;
+
+	if (aux_int_status & AUX_INT_FEC_RELATED_INT) {
+		u8 fec = 0;
+		bbm_byte_read(handle, DIV_MASTER, BBM_FEC_INT_CLR, &fec);
+
+		if (fec) {
+			bbm_byte_write(handle, DIV_MASTER, BBM_FEC_INT_CLR,
+								fec);
+
+			if (fec & FEC_INT_IRQ_A_TS_ERROR)
+				;
+
+			if (fec & FEC_INT_IRQ_B_TS_ERROR)
+				;
+
+			if (fec & FEC_INT_IRQ_C_TS_ERROR)
+				;
+		}
+	}
+
 	if (aux_int_status & AUX_INT_AUTO_SWITCH) {
 		u8 auto_switch = 0;
 		bbm_byte_read(handle, DIV_MASTER, BBM_OSS_MNT, &auto_switch);
 
-		if (auto_switch & AUTO_SWITCH_1_SEG) { /* 1-SEG */
+		if (auto_switch & AUTO_SWITCH_1_SEG) /* 1-SEG */
 			;
-		} else { /* 12-SEG */
+		else /* 12-SEG */
 			;
 		}
 	}
-}
 #endif
 
 void fc8300_isr(HANDLE handle)

@@ -31,7 +31,7 @@ static struct regulator_init_data safeout1_init_data = {
        .constraints    = {
                .name           = "safeout1 range",
                .valid_ops_mask = REGULATOR_CHANGE_STATUS,
-               .always_on      = 0,
+               .always_on      = 1,
                .boot_on        = 1,
                .state_mem      = {
                        .enabled = 1,
@@ -81,7 +81,7 @@ int max77804k_muic_set_safeout(int path)
 
 	pr_info("%s: MUIC safeout path=%d\n", __func__, path);
 
-	if (path == CP_USB_MODE) {
+	if (path == PATH_USB_CP) {
 		regulator = regulator_get(NULL, "safeout1");
 		if (IS_ERR(regulator))
 			return -ENODEV;

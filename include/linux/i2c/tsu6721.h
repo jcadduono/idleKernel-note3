@@ -20,58 +20,28 @@
 
 #ifndef _TSU6721_H_
 #define _TSU6721_H_
-
-
-enum cable_type_t {
-        CABLE_TYPE_NONE = 0,
-        CABLE_TYPE_USB,
-        CABLE_TYPE_AC,
-        CABLE_TYPE_MISC,
-        CABLE_TYPE_CARDOCK,
-        CABLE_TYPE_UARTOFF,
-        CABLE_TYPE_JIG,
-        CABLE_TYPE_UNKNOWN,
-        CABLE_TYPE_CDP,
-        CABLE_TYPE_SMART_DOCK,
-        CABLE_TYPE_OTG,
-        CABLE_TYPE_AUDIO_DOCK,
-#ifdef CONFIG_WIRELESS_CHARGING
-        CABLE_TYPE_WPC,
-#endif
-        CABLE_TYPE_INCOMPATIBLE,
-        CABLE_TYPE_DESK_DOCK,
-};
-
-
+#include <linux/i2c/muic.h>
 
 enum {
 	TSU6721_DETACHED,
 	TSU6721_ATTACHED
 };
 
-enum {
-	DISABLE,
-	ENABLE
-};
-
-enum {
-	DOCK_UI_DESK = 1,
-	DOCK_UI_CAR
-};
+extern struct switch_dev switch_dock;
 
 struct tsu6721_platform_data {
-	void (*callback)(enum cable_type_t cable_type, int attached);
-	void (*oxp_callback)(int state);
-	void (*mhl_sel) (bool onoff);
+	void	(*callback)(enum cable_type_t cable_type, int attached);
+	void	(*oxp_callback)(int state);
+	void	(*mhl_sel) (bool onoff);
 	int	(*dock_init) (void);
-	int gpio_int;
-	u32 irq_gpio_flags;
-	int gpio_sda;
-	u32 sda_gpio_flags;
-	int gpio_scl;
-	u32 scl_gpio_flags;
-	int gpio_uart_on;
-	u32 uarton_gpio_flags;
+	int	gpio_int;
+	u32	irq_gpio_flags;
+	int	gpio_sda;
+	u32	sda_gpio_flags;
+	int	gpio_scl;
+	u32	scl_gpio_flags;
+	int	gpio_uart_on;
+	u32	uarton_gpio_flags;
 };
 
 extern int poweroff_charging;

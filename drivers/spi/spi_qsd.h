@@ -225,37 +225,37 @@ static const struct {
 	mode_t mode;
 	int offset;
 } debugfs_spi_regs[] = {
-	{"config",                S_IRUGO | S_IWUSR, SPI_CONFIG},
-	{"io_control",            S_IRUGO | S_IWUSR, SPI_IO_CONTROL},
-	{"io_modes",              S_IRUGO | S_IWUSR, SPI_IO_MODES},
+	{"config",                S_IRUSR | S_IRGRP | S_IWUSR, SPI_CONFIG},
+	{"io_control",            S_IRUSR | S_IRGRP | S_IWUSR, SPI_IO_CONTROL},
+	{"io_modes",              S_IRUSR | S_IRGRP | S_IWUSR, SPI_IO_MODES},
 	{"sw_reset",                        S_IWUSR, SPI_SW_RESET},
-	{"time_out_current",      S_IRUGO,           SPI_TIME_OUT_CURRENT},
-	{"mx_output_count",       S_IRUGO | S_IWUSR, SPI_MX_OUTPUT_COUNT},
-	{"mx_output_cnt_current", S_IRUGO,           SPI_MX_OUTPUT_CNT_CURRENT},
-	{"mx_input_count",        S_IRUGO | S_IWUSR, SPI_MX_INPUT_COUNT},
-	{"mx_input_cnt_current",  S_IRUGO,           SPI_MX_INPUT_CNT_CURRENT},
-	{"mx_read_count",         S_IRUGO | S_IWUSR, SPI_MX_READ_COUNT},
-	{"mx_read_cnt_current",   S_IRUGO,           SPI_MX_READ_CNT_CURRENT},
-	{"operational",           S_IRUGO | S_IWUSR, SPI_OPERATIONAL},
-	{"error_flags",           S_IRUGO | S_IWUSR, SPI_ERROR_FLAGS},
-	{"error_flags_en",        S_IRUGO | S_IWUSR, SPI_ERROR_FLAGS_EN},
-	{"deassert_wait",         S_IRUGO | S_IWUSR, SPI_DEASSERT_WAIT},
-	{"output_debug",          S_IRUGO,           SPI_OUTPUT_DEBUG},
-	{"input_debug",           S_IRUGO,           SPI_INPUT_DEBUG},
-	{"test_ctrl",             S_IRUGO | S_IWUSR, SPI_TEST_CTRL},
+	{"time_out_current",      S_IRUSR | S_IRGRP,           SPI_TIME_OUT_CURRENT},
+	{"mx_output_count",       S_IRUSR | S_IRGRP | S_IWUSR, SPI_MX_OUTPUT_COUNT},
+	{"mx_output_cnt_current", S_IRUSR | S_IRGRP,           SPI_MX_OUTPUT_CNT_CURRENT},
+	{"mx_input_count",        S_IRUSR | S_IRGRP | S_IWUSR, SPI_MX_INPUT_COUNT},
+	{"mx_input_cnt_current",  S_IRUSR | S_IRGRP,           SPI_MX_INPUT_CNT_CURRENT},
+	{"mx_read_count",         S_IRUSR | S_IRGRP | S_IWUSR, SPI_MX_READ_COUNT},
+	{"mx_read_cnt_current",   S_IRUSR | S_IRGRP,           SPI_MX_READ_CNT_CURRENT},
+	{"operational",           S_IRUSR | S_IRGRP | S_IWUSR, SPI_OPERATIONAL},
+	{"error_flags",           S_IRUSR | S_IRGRP | S_IWUSR, SPI_ERROR_FLAGS},
+	{"error_flags_en",        S_IRUSR | S_IRGRP | S_IWUSR, SPI_ERROR_FLAGS_EN},
+	{"deassert_wait",         S_IRUSR | S_IRGRP | S_IWUSR, SPI_DEASSERT_WAIT},
+	{"output_debug",          S_IRUSR | S_IRGRP,           SPI_OUTPUT_DEBUG},
+	{"input_debug",           S_IRUSR | S_IRGRP,           SPI_INPUT_DEBUG},
+	{"test_ctrl",             S_IRUSR | S_IRGRP | S_IWUSR, SPI_TEST_CTRL},
 	{"output_fifo",                     S_IWUSR, SPI_OUTPUT_FIFO},
 	{"input_fifo" ,           S_IRUSR,           SPI_INPUT_FIFO},
-	{"spi_state",             S_IRUGO | S_IWUSR, SPI_STATE},
+	{"spi_state",             S_IRUSR | S_IRGRP | S_IWUSR, SPI_STATE},
 #if defined(CONFIG_SPI_QSD) || defined(CONFIG_SPI_QSD_MODULE)
-	{"fifo_word_cnt",         S_IRUGO,           SPI_FIFO_WORD_CNT},
+	{"fifo_word_cnt",         S_IRUSR | S_IRGRP,           SPI_FIFO_WORD_CNT},
 #else
-	{"qup_config",            S_IRUGO | S_IWUSR, QUP_CONFIG},
-	{"qup_error_flags",       S_IRUGO | S_IWUSR, QUP_ERROR_FLAGS},
-	{"qup_error_flags_en",    S_IRUGO | S_IWUSR, QUP_ERROR_FLAGS_EN},
-	{"mx_write_cnt",          S_IRUGO | S_IWUSR, QUP_MX_WRITE_COUNT},
-	{"mx_write_cnt_current",  S_IRUGO,           QUP_MX_WRITE_CNT_CURRENT},
-	{"output_fifo_word_cnt",  S_IRUGO,           SPI_OUTPUT_FIFO_WORD_CNT},
-	{"input_fifo_word_cnt",   S_IRUGO,           SPI_INPUT_FIFO_WORD_CNT},
+	{"qup_config",            S_IRUSR | S_IRGRP | S_IWUSR, QUP_CONFIG},
+	{"qup_error_flags",       S_IRUSR | S_IRGRP | S_IWUSR, QUP_ERROR_FLAGS},
+	{"qup_error_flags_en",    S_IRUSR | S_IRGRP | S_IWUSR, QUP_ERROR_FLAGS_EN},
+	{"mx_write_cnt",          S_IRUSR | S_IRGRP | S_IWUSR, QUP_MX_WRITE_COUNT},
+	{"mx_write_cnt_current",  S_IRUSR | S_IRGRP,           QUP_MX_WRITE_CNT_CURRENT},
+	{"output_fifo_word_cnt",  S_IRUSR | S_IRGRP,           SPI_OUTPUT_FIFO_WORD_CNT},
+	{"input_fifo_word_cnt",   S_IRUSR | S_IRGRP,           SPI_INPUT_FIFO_WORD_CNT},
 #endif
 };
 #endif
@@ -291,6 +291,10 @@ struct msm_spi_bam {
 	struct msm_spi_bam_pipe  prod;
 	struct msm_spi_bam_pipe  cons;
 	bool                     deregister_required;
+	u32			 curr_rx_bytes_recvd;
+	u32			 curr_tx_bytes_sent;
+	u32			 bam_rx_len;
+	u32			 bam_tx_len;
 };
 
 struct msm_spi {
@@ -300,9 +304,6 @@ struct msm_spi {
 	struct device           *dev;
 	spinlock_t               queue_lock;
 	struct mutex             core_lock;
-	struct list_head         queue;
-	struct workqueue_struct *workqueue;
-	struct work_struct       work_data;
 	struct spi_message      *cur_msg;
 	struct spi_transfer     *cur_transfer;
 	struct completion        transfer_complete;
@@ -391,6 +392,8 @@ struct msm_spi {
 	struct spi_cs_gpio       cs_gpios[ARRAY_SIZE(spi_cs_rsrcs)];
 	enum msm_spi_qup_version qup_ver;
 	int			 max_trfr_len;
+	int			 num_xfrs_grped;
+	u16			 xfrs_delay_usec;
 };
 
 /* Forward declaration */

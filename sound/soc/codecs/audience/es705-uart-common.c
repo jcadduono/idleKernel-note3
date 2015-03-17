@@ -10,7 +10,7 @@
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  */
-#define DEBUG
+//#define DEBUG
 #include <linux/module.h>
 #include <linux/delay.h>
 #include <linux/platform_device.h>
@@ -26,11 +26,14 @@
 #include "es705.h"
 #include "es705-uart-common.h"
 
+#define MAX_EAGAIN_RETRY	20
+#define EAGAIN_RETRY_DELAY	1000
 int es705_uart_read(struct es705_priv *es705, void *buf, int len)
 {
 	int rc;
 	mm_segment_t oldfs;
 	loff_t pos = 0;
+	int retry = MAX_EAGAIN_RETRY;
 
 	dev_dbg(es705->dev, "%s(): size %d\n", __func__, len);
 
@@ -44,7 +47,11 @@ int es705_uart_read(struct es705_priv *es705, void *buf, int len)
 	do {
 		rc = vfs_read(es705->uart_dev.file,
 				(char __user *)buf, len, &pos);
-	} while (rc == -EAGAIN);
+		if (rc == -EAGAIN) {
+			usleep_range(EAGAIN_RETRY_DELAY, EAGAIN_RETRY_DELAY);
+			retry--;
+		}
+	} while (rc == -EAGAIN && retry);
 
 	/* restore old fs context */
 	set_fs(oldfs);
@@ -94,7 +101,7 @@ err_out:
 	/* restore old fs context */
 	set_fs(oldfs);
 	dev_dbg(es705->dev, "%s(): write bytes %d\n", __func__, bytes_wr);
-	return bytes_wr < 0 ? bytes_wr : 0;
+	return bytes_wr;
 }
 
 int es705_uart_write_then_read(struct es705_priv *es705, const void *buf,
@@ -104,16 +111,16 @@ int es705_uart_write_then_read(struct es705_priv *es705, const void *buf,
 	u32 response = 0;
 
 	rc = es705_uart_write(es705, buf, len);
-	if (!rc) {
-		msleep(20);
+	if (rc > 0) {
 		rc = es705_uart_read(es705, &response, len);
+		response = le32_to_cpu(response);
 		if (rc < 0) {
 			dev_err(es705->dev, "%s(): UART read fail\n",
 				__func__);
 		} else if (match && *rspn != response) {
-				dev_err(es705->dev, "%s(): unexpected response 0x%08x\n",
-					__func__, response);
-				rc = -EIO;
+			dev_err(es705->dev, "%s(): unexpected response 0x%08x\n",
+				__func__, be32_to_cpu(response));
+			rc = -EIO;
 		} else {
 			*rspn = response;
 		}
@@ -133,13 +140,10 @@ int es705_uart_cmd(struct es705_priv *es705, u32 cmd, int sr, u32 *resp)
 	if (err < 0 || sr)
 		goto es705_uart_cmd_exit;
 
-	/* Maximum response time is 10ms */
-	usleep_range(10000, 10000);
-
 	err = es705_uart_read(es705, &rv, sizeof(rv));
 	if (err > 0) {
-	dev_dbg(es705->dev, "%s(): response=0x%08x\n", __func__, rv);
 		*resp = be32_to_cpu(rv);
+		dev_dbg(es705->dev, "%s(): response=0x%08x\n", __func__, *resp);
 	} else if (err == 0) {
 		dev_dbg(es705->dev, "%s(): No response\n", __func__);
 	} else {
@@ -166,8 +170,14 @@ int es705_configure_tty(struct tty_struct *tty, u32 bps, int stop)
 		termios.c_cflag |= CSTOPB;
 
 	/* set uart port to raw mode (see termios man page for flags) */
-	termios.c_iflag &= ~(IGNBRK | BRKINT | PARMRK | ISTRIP
-		| INLCR | IGNCR | ICRNL | IXON);
+    termios.c_iflag &= ~(PARMRK    /* disable mark parity errors */ 
+                            | ISTRIP    /* disable clear high bit of input characters */  
+                            | INLCR           /* disable translate NL to CR */ 
+                            | IGNCR           /* disable ignore CR */ 
+                            | ICRNL           /* disable translate CR to NL */ 
+                            | IXON);    /* disable enable XON/XOFF flow control */ 
+	termios.c_iflag |= IGNBRK;    /* enable ignore break */
+
 	termios.c_oflag &= ~(OPOST);
 	termios.c_lflag &= ~(ECHO | ECHONL | ICANON | ISIG | IEXTEN);
 
@@ -229,8 +239,8 @@ int es705_uart_open(struct es705_priv *es705)
 	} while (time_before(jiffies, timeout) && err == -ENOENT);
 
 	if (IS_ERR_OR_NULL(fp)) {
-		dev_err(es705->dev,
-			"%s(): UART device node open failed\n", __func__);
+		dev_err(es705->dev, "%s(): UART device node open failed, err = %ld\n",
+			__func__, err);
 		return -ENODEV;
 	}
 
@@ -243,8 +253,6 @@ int es705_uart_open(struct es705_priv *es705)
 	es705_priv.uart_dev.tty =
 		((struct tty_file_private *)fp->private_data)->tty;
 
-	/* set baudrate to FW baud (common case) */
-	es705_set_tty_baud_rate(es705->uart_fw_download_rate);
 	es705->uart_state = UART_OPEN;
 	return 0;
 }

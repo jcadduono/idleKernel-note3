@@ -35,6 +35,8 @@
 #define HDCP_KEYS_STATE_PROD_AKSV	6
 #define HDCP_KEYS_STATE_RESERVED	7
 
+#define HDCP_INT_CLR (BIT(1) | BIT(5) | BIT(7) | BIT(9) | BIT(13))
+
 #ifdef CONFIG_VIDEO_MHL_V2
 struct hdmi_hdcp_ctrl *hdcp_ctrl_global = NULL;
 EXPORT_SYMBOL(hdcp_ctrl_global);
@@ -186,7 +188,7 @@ static void hdmi_hdcp_hw_ddc_clean(struct hdmi_hdcp_ctrl *hdcp_ctrl)
 	}
 } /* hdmi_hdcp_hw_ddc_clean */
 
-int hdmi_hdcp_authentication_part1(struct hdmi_hdcp_ctrl *hdcp_ctrl)
+static int hdmi_hdcp_authentication_part1(struct hdmi_hdcp_ctrl *hdcp_ctrl)
 {
 	int rc;
 	u32 qfprom_aksv_lsb, qfprom_aksv_msb;
@@ -516,7 +518,7 @@ int hdmi_hdcp_authentication_part1(struct hdmi_hdcp_ctrl *hdcp_ctrl)
 	/* Write R0' to HDCP registers and check to see if it is a match */
 	INIT_COMPLETION(hdcp_ctrl->r0_checked);
 	DSS_REG_W(io, HDMI_HDCP_RCVPORT_DATA2_0, (((u32)buf[1]) << 8) | buf[0]);
-	timeout_count = wait_for_completion_interruptible_timeout(
+	timeout_count = wait_for_completion_timeout(
 		&hdcp_ctrl->r0_checked, HZ*2);
 	link0_status = DSS_REG_R(io, HDMI_HDCP_LINK0_STATUS);
 	is_match = link0_status & BIT(12);
@@ -559,10 +561,6 @@ error:
 			while (!(bcaps & BIT(5)) && timeout_count) {
 				msleep(100);
 				timeout_count--;
-				if (hdmi_hpd_status() == false) {
-					DEV_INFO("%s: hdmi_hpd_status == false\n", __func__);
-					continue;
-				}
 				/* Read BCAPS at offset 0x40 */
 				memset(&ddc_data, 0, sizeof(ddc_data));
 				ddc_data.dev_addr = 0x74;
@@ -592,6 +590,33 @@ error:
 	return rc;
 } /* hdmi_hdcp_authentication_part1 */
 
+#ifdef CONFIG_VIDEO_MHL_V2
+static int hdcp_return_value;
+static void hdmi_hdcp_auth_part1_work(struct work_struct *work)
+{
+	struct delayed_work *dw = to_delayed_work(work);
+	struct hdmi_hdcp_ctrl *hdcp_ctrl = container_of(dw,
+		struct hdmi_hdcp_ctrl, hdcp_auth_work);
+
+	if (!hdcp_ctrl) {
+		DEV_ERR("%s: invalid input\n", __func__);
+		return;
+	}
+
+	hdcp_return_value =
+		hdmi_hdcp_authentication_part1(hdcp_ctrl);
+}
+
+int hdmi_hdcp_authentication_part1_start(struct hdmi_hdcp_ctrl *hdcp_ctrl)
+{
+	queue_delayed_work(hdcp_ctrl->init_data.workq,
+		&hdcp_ctrl->hdcp_auth_work, 0);
+
+	flush_delayed_work(&hdcp_ctrl->hdcp_auth_work);
+	return hdcp_return_value;
+}
+#endif
+
 #define READ_WRITE_V_H(off, name, reg) \
 do { \
 	ddc_data.offset = (off); \
@@ -610,6 +635,8 @@ do { \
 			(buf[3] << 24 | buf[2] << 16 | buf[1] << 8 | buf[0])); \
 } while (0);
 
+
+#ifndef CONFIG_VIDEO_MHL_V2
 static int hdmi_hdcp_transfer_v_h(struct hdmi_hdcp_ctrl *hdcp_ctrl)
 {
 	char what[20];
@@ -939,6 +966,7 @@ static void hdmi_hdcp_notify_topology(struct hdmi_hdcp_ctrl *hdcp_ctrl)
 	DEV_DBG("%s Event Sent: %s msgID = %s srcID = %s\n", __func__,
 			envp[0], envp[1], envp[2]);
 }
+#endif
 
 static void hdmi_hdcp_int_work(struct work_struct *work)
 {
@@ -961,6 +989,7 @@ static void hdmi_hdcp_int_work(struct work_struct *work)
 	}
 } /* hdmi_hdcp_int_work */
 
+#ifndef CONFIG_VIDEO_MHL_V2
 static void hdmi_hdcp_auth_work(struct work_struct *work)
 {
 	int rc;
@@ -1041,6 +1070,7 @@ error:
 	}
 	return;
 } /* hdmi_hdcp_auth_work */
+#endif
 
 int hdmi_hdcp_authenticate(void *input)
 {
@@ -1087,7 +1117,10 @@ static int hdmi_msm_if_abort_reauth(struct hdmi_hdcp_ctrl *hdcp_ctrl)
 	}
 
 	if (++hdcp_ctrl->auth_retries == AUTH_RETRIES_TIME) {
-		hdmi_hdcp_off(hdcp_ctrl);
+		mutex_lock(hdcp_ctrl->init_data.mutex);
+		hdcp_ctrl->hdcp_state = HDCP_STATE_INACTIVE;
+		mutex_unlock(hdcp_ctrl->init_data.mutex);
+
 		hdcp_ctrl->auth_retries = 0;
 		ret = -ERANGE;
 	}
@@ -1114,13 +1147,6 @@ int hdmi_hdcp_reauthenticate(void *input)
 		return 0;
 	}
 
-	ret = hdmi_msm_if_abort_reauth(hdcp_ctrl);
-
-	if (ret) {
-		DEV_ERR("%s: abort reauthentication!\n", __func__);
-		return ret;
-	}
-
 	/*
 	 * Disable HPD circuitry.
 	 * This is needed to reset the HDCP cipher engine so that when we
@@ -1145,6 +1171,13 @@ int hdmi_hdcp_reauthenticate(void *input)
 	DSS_REG_W(hdcp_ctrl->init_data.core_io, HDMI_HPD_CTRL,
 		DSS_REG_R(hdcp_ctrl->init_data.core_io,
 		HDMI_HPD_CTRL) | BIT(28));
+
+	ret = hdmi_msm_if_abort_reauth(hdcp_ctrl);
+
+	if (ret) {
+		DEV_ERR("%s: abort reauthentication!\n", __func__);
+		return ret;
+	}
 
 	/* Restart authentication attempt */
 	DEV_DBG("%s: %s: Scheduling work to start HDCP authentication",
@@ -1178,15 +1211,14 @@ void hdmi_hdcp_off(void *input)
 	}
 
 	/*
-	 * Need to set the state to inactive here so that any ongoing
-	 * reauth works will know that the HDCP session has been turned off
+	 * Disable HDCP interrupts.
+	 * Also, need to set the state to inactive here so that any ongoing
+	 * reauth works will know that the HDCP session has been turned off.
 	 */
 	mutex_lock(hdcp_ctrl->init_data.mutex);
+	DSS_REG_W(io, HDMI_HDCP_INT_CTRL, 0);
 	hdcp_ctrl->hdcp_state = HDCP_STATE_INACTIVE;
 	mutex_unlock(hdcp_ctrl->init_data.mutex);
-
-	/* Disable HDCP interrupts */
-	DSS_REG_W(io, HDMI_HDCP_INT_CTRL, 0);
 
 	/*
 	 * Cancel any pending auth/reauth attempts.
@@ -1232,7 +1264,7 @@ int hdmi_hdcp_isr(void *input)
 	if (HDCP_STATE_INACTIVE == hdcp_ctrl->hdcp_state) {
 		DEV_ERR("%s: HDCP inactive. Just clear int and return.\n",
 			__func__);
-		DSS_REG_W(io, HDMI_HDCP_INT_CTRL, hdcp_int_val);
+		DSS_REG_W(io, HDMI_HDCP_INT_CTRL, HDCP_INT_CLR);
 		return 0;
 	}
 
@@ -1421,7 +1453,11 @@ void *hdmi_hdcp_init(struct hdmi_hdcp_init_data *init_data)
 		goto error;
 	}
 
+#ifdef CONFIG_VIDEO_MHL_V2
+	INIT_DELAYED_WORK(&hdcp_ctrl->hdcp_auth_work, hdmi_hdcp_auth_part1_work);
+#else
 	INIT_DELAYED_WORK(&hdcp_ctrl->hdcp_auth_work, hdmi_hdcp_auth_work);
+#endif
 	INIT_WORK(&hdcp_ctrl->hdcp_int_work, hdmi_hdcp_int_work);
 
 	hdcp_ctrl->hdcp_state = HDCP_STATE_INACTIVE;

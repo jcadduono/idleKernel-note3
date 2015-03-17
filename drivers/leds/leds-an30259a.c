@@ -75,9 +75,6 @@
 #define LED_IMAX_SHIFT			6
 #define AN30259A_CTN_RW_FLG		0x80
 
-#define LED_R_CURRENT		0x28
-#define LED_G_CURRENT		0x28
-#define LED_B_CURRENT		0x28
 #define LED_MAX_CURRENT		0xFF
 #define LED_OFF				0x00
 
@@ -86,21 +83,28 @@
 u8 LED_DYNAMIC_CURRENT = 0x28;
 u8 LED_LOWPOWER_MODE = 0x0;
 
+u32 LED_R_CURRENT = 0x28;
+u32 LED_G_CURRENT = 0x28;
+u32 LED_B_CURRENT = 0x28;
+
+u32 led_default_cur = 0x28;
+u32 led_lowpower_cur = 0x05;
+
 static struct an30259_led_conf led_conf[] = {
 	{
 		.name = "led_r",
 		.brightness = LED_OFF,
-		.max_brightness = LED_R_CURRENT,
+		.max_brightness = 0,
 		.flags = 0,
 	}, {
 		.name = "led_g",
 		.brightness = LED_OFF,
-		.max_brightness = LED_G_CURRENT,
+		.max_brightness = 0,
 		.flags = 0,
 	}, {
 		.name = "led_b",
 		.brightness = LED_OFF,
-		.max_brightness = LED_B_CURRENT,
+		.max_brightness = 0,
 		.flags = 0,
 	}
 };
@@ -150,6 +154,21 @@ struct device *led_dev;
 /*path : /sys/class/leds/led_r/brightness*/
 /*path : /sys/class/leds/led_g/brightness*/
 /*path : /sys/class/leds/led_b/brightness*/
+#endif
+
+#if defined (CONFIG_SEC_FACTORY)
+#if defined (CONFIG_SEC_S_PROJECT)
+static int f_jig_cable;
+extern int get_lcd_attached(void);
+
+static int __init get_jig_cable_cmdline(char *mode)
+{
+	f_jig_cable = mode[0]-48;
+	return 0;
+}
+
+__setup( "uart_dbg=", get_jig_cable_cmdline);
+#endif
 #endif
 
 static void leds_on(enum an30259a_led_enum led, bool on, bool slopemode,
@@ -332,9 +351,9 @@ static void an30259a_start_led_pattern(int mode)
 
 	/* Set to low power consumption mode */
 	if (LED_LOWPOWER_MODE == 1)
-		LED_DYNAMIC_CURRENT = 0x05;
+		LED_DYNAMIC_CURRENT = (u8)led_lowpower_cur;
 	else
-		LED_DYNAMIC_CURRENT = 0x28;
+		LED_DYNAMIC_CURRENT = (u8)led_default_cur;
 
 	switch (mode) {
 	/* leds_set_slope_mode(client, LED_SEL, DELAY,  MAX, MID, MIN,
@@ -377,12 +396,9 @@ static void an30259a_start_led_pattern(int mode)
 
 	case POWERING:
 		pr_info("LED Powering Pattern on\n");
-		leds_on(LED_G, true, true, LED_DYNAMIC_CURRENT);
 		leds_on(LED_B, true, true, LED_DYNAMIC_CURRENT);
-		leds_set_slope_mode(client, LED_G,
-				0, 8, 4, 1, 2, 2, 3, 3, 3, 3);
 		leds_set_slope_mode(client, LED_B,
-				0, 15, 14, 12, 2, 2, 7, 7, 7, 7);
+				0, 15, 12, 8, 2, 2, 3, 3, 3, 3);
 		break;
 
 	default:
@@ -767,6 +783,31 @@ static struct attribute_group sec_led_attr_group = {
 };
 #endif
 
+#ifdef CONFIG_OF
+static int an30259a_parse_dt(struct device *dev) {
+	struct device_node *np = dev->of_node;
+	int ret;
+
+	ret = of_property_read_u32(np,
+			"an30259a,default_current", &led_default_cur);
+	if (ret < 0) {
+		led_default_cur = 0x28;
+		pr_warning("%s warning dt parse[%d]\n", __func__, ret);
+	}
+
+	ret = of_property_read_u32(np,
+			"an30259a,lowpower_current", &led_lowpower_cur);
+	if (ret < 0) {
+		led_lowpower_cur = 0x05;
+		pr_warning("%s warning dt parse[%d]\n", __func__, ret);
+	}
+
+	pr_info("%s default %d, lowpower %d\n",
+			__func__, led_default_cur, led_lowpower_cur);
+	return 0;
+}
+#endif
+
 static int __devinit an30259a_initialize(struct i2c_client *client,
 					struct an30259a_led *led, int channel)
 {
@@ -837,6 +878,14 @@ static int __devinit an30259a_probe(struct i2c_client *client,
 			"failed to allocate driver data.\n");
 		return -ENOMEM;
 	}
+#ifdef CONFIG_OF
+	ret = an30259a_parse_dt(&client->dev);
+	if (ret) {
+		pr_err("[%s] an30259a parse dt failed\n", __func__);
+		kfree(data);
+		return ret;
+	}
+#endif
 
 	i2c_set_clientdata(client, data);
 	data->client = client;
@@ -844,6 +893,12 @@ static int __devinit an30259a_probe(struct i2c_client *client,
 
 	mutex_init(&data->mutex);
 	/* initialize LED */
+
+	LED_R_CURRENT = LED_G_CURRENT = LED_B_CURRENT = led_default_cur;
+	led_conf[0].max_brightness = LED_R_CURRENT;
+	led_conf[1].max_brightness = LED_G_CURRENT;
+	led_conf[2].max_brightness = LED_B_CURRENT;
+
 	for (i = 0; i < MAX_NUM_LEDS; i++) {
 
 		ret = an30259a_initialize(client, &data->leds[i], i);
@@ -855,6 +910,16 @@ static int __devinit an30259a_probe(struct i2c_client *client,
 		INIT_WORK(&(data->leds[i].brightness_work),
 				 an30259a_led_brightness_work);
 	}
+
+#if defined (CONFIG_SEC_FACTORY)
+#if defined (CONFIG_SEC_S_PROJECT)
+	if ( (f_jig_cable == 0) && (get_lcd_attached() == 0) ) {
+		pr_info("%s:Factory MODE - No OCTA, Battery BOOTING\n", __func__);
+		leds_on(LED_R, true, false, LED_R_CURRENT);
+		leds_i2c_write_all(data->client);
+	}
+#endif
+#endif
 
 #ifdef SEC_LED_SPECIFIC
 	led_dev = device_create(sec_class, NULL, 0, data, "led");

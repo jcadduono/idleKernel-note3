@@ -1332,15 +1332,20 @@ int wacom_load_fw_from_req_fw(struct wacom_i2c *wac_i2c)
 			snprintf(fw_path, WACOM_MAX_FW_PATH,
 				"%s", WACOM_FW_NAME_W9007_BL92);
 	} else if (wac_i2c->ic_mpu_ver == MPU_W9010) {
-		if (system_rev >= WACOM_FW_UPDATE_REVISION)
+		if (system_rev >= WACOM_FW_UPDATE_REVISION) {
 			snprintf(fw_path, WACOM_MAX_FW_PATH,
 				"%s", WACOM_FW_NAME_W9010);
-		else
-			snprintf(fw_path, WACOM_MAX_FW_PATH,
-				"%s", WACOM_FW_NAME_W9010_B934);
+		} else {
+			dev_info(&wac_i2c->client->dev,
+				"%s: B934 PANEL, firmware name is NULL. return -1\n",
+				__func__);
+			ret = -1;
+			goto firm_name_null_err;
+		}
+
 	} else {
 		dev_info(&wac_i2c->client->dev,
-			"%s: firmware name is NULL. return -1\n",
+			"%s: Not apply WACOM IC, firmware name is NULL. return -1\n",
 			__func__);
 		ret = -1;
 		goto firm_name_null_err;

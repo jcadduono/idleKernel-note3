@@ -1,4 +1,4 @@
-/* Copyright (c) 2011, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2011,2014, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -23,7 +23,7 @@ struct msm_buspm_map_dev {
 
 /* Read/write data into kernel buffer */
 struct buspm_xfer_req {
-	int size;		/* Size of this request, in bytes */
+	unsigned int  size;		/* Size of this request, in bytes */
 	void *data;		/* Data buffer to transfer data to/from */
 };
 
@@ -34,6 +34,21 @@ struct buspm_alloc_params {
 enum msm_buspm_ioc_cmds {
 	MSM_BUSPM_SPDM_CLK_DIS = 0,
 	MSM_BUSPM_SPDM_CLK_EN,
+};
+
+struct msm_buspm_bus_set {
+	char op;
+	char nocid;
+	char set;
+	unsigned int max;
+	unsigned int min;
+};
+
+enum msm_buspm_busio {
+	MSM_BUSPM_BUS_MAX_SET = 1,
+	MSM_BUSPM_BUS_MAX_CLR,
+	MSM_BUSPM_BUS_MIN_SET,
+	MSM_BUSPM_BUS_MIN_CLR,
 };
 
 #define MSM_BUSPM_IOC_MAGIC	'p'

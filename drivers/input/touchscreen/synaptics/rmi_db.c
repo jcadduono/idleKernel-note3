@@ -15,7 +15,6 @@
 #include <linux/module.h>
 #include <asm/unaligned.h>
 #include <asm/siginfo.h>
-//#include <mach/cpufreq.h>
 #include <linux/slab.h>
 #include <linux/i2c.h>
 #include <linux/interrupt.h>

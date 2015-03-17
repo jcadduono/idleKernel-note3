@@ -35,6 +35,9 @@ struct pn547_i2c_platform_data {
 	int clk_req_gpio;
 	int clk_req_irq;
 #endif
+#ifdef CONFIG_NFC_PN547_8226_USE_BBCLK2
+	int clk_req_gpio;
+#endif
 #ifdef CONFIG_OF
 	u32 irq_gpio_flags;
 	u32 ven_gpio_flags;

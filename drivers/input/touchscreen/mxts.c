@@ -58,8 +58,13 @@ struct mxt_touchkey mxt_touchkey_data[] = {
 	},
 	{
 		.value = TOUCH_KEY_MENU,
+#ifdef USE_MENU_TOUCHKEY
+		.keycode = KEY_MENU,
+		.name = "menu",
+#else
 		.keycode = KEY_RECENT,
 		.name = "recent",
+#endif
 		.xnode = 30,
 		.ynode = 51,
 		.deltaobj = 4,
@@ -178,7 +183,8 @@ static int mxt_parse_dt(struct device *dev,
 	pdata->max_x = coords[2];
 	pdata->max_y = coords[3];
 	pdata->boot_address = MXT_BOOT_ADDRESS;
-
+	pdata->firmware_name = MXT_FIRMWARE_NAME;
+	
 	pdata->num_touchkey = ARRAY_SIZE(mxt_touchkey_data);
 	pdata->touchkey = mxt_touchkey_data;
 
@@ -843,16 +849,16 @@ static int set_charger_config(struct mxt_data *data)
 		    }
 	    }
 		data->chargin_status = data->charging_mode;
-		
-#ifdef CONFIG_SEC_LT03_PROJECT
+
+#ifdef WORKAROUND_THRESHOLD
 		if (data->setdata == 1 && system_rev < 11) {
-#if TSP_PATCH		
+#if TSP_PATCH
 			dev_info(&data->client->dev, "RF Mode\n");
 			if(data->patch.event_cnt)
-				mxt_patch_test_event(data, 3); 			
-#endif			
-		}		
-#endif		
+				mxt_patch_test_event(data, 3);
+#endif
+		}
+#endif
 	}
 	return 0;
 }
@@ -896,6 +902,7 @@ static void mxt_report_input_data(struct mxt_data *data)
 	int i;
 	int count = 0;
 	int report_count = 0;
+	u16 sum_size = 0; //20131231
 
 	for (i = 0; i < MXT_MAX_FINGER; i++) {
 		if (data->fingers[i].state == MXT_STATE_INACTIVE)
@@ -916,7 +923,7 @@ static void mxt_report_input_data(struct mxt_data *data)
 					data->fingers[i].x);
 			input_report_abs(data->input_dev, ABS_MT_POSITION_Y,
 					data->fingers[i].y);
-#ifdef CONFIG_SEC_PICASSO_PROJECT
+#ifdef PALM_TUNING
 #if USE_FOR_SUFACE //20131220
 			if (!data->charging_mode) {
 				data->fingers[i].w += 10;
@@ -929,16 +936,19 @@ static void mxt_report_input_data(struct mxt_data *data)
 					 data->fingers[i].z);
 
 #if TSP_USE_SHAPETOUCH
-			input_report_abs(data->input_dev, ABS_MT_COMPONENT,
-					data->fingers[i].component);
+			sum_size = data->sumsize;
 #if USE_FOR_SUFACE //20131211
+#ifdef PALM_TUNING
 			if (!data->charging_mode) {
-				if (data->sumsize > 20)
-					data->sumsize += 30;
+				sum_size = (data->sumsize * 16) / 10; //20131231
 			}
+#else
+			if (!data->charging_mode) {
+				if(data->sumsize > 20)
+					sum_size = data->sumsize + 30;
+			}
+#endif
 #endif //20131211
-			input_report_abs(data->input_dev, ABS_MT_SUMSIZE,
-					data->sumsize);
 #endif
 #if TSP_USE_PALM_FLAG
 			input_report_abs(data->input_dev, ABS_MT_PALM,
@@ -1144,7 +1154,11 @@ static void mxt_release_all_keys(struct mxt_data *data)
 							"%s: [TSP_KEY] Ignore menu R! by back key\n",
 								 __func__);
 				} else {
+#ifdef USE_MENU_TOUCHKEY
+					input_report_key(data->input_dev, KEY_MENU, KEY_RELEASE);
+#else
 					input_report_key(data->input_dev, KEY_RECENT, KEY_RELEASE);
+#endif
 						dev_info(&data->client->dev,
 							"%s: [TSP_KEY] menu R!\n", __func__);
 #if MXT_TKEY_BOOSTER
@@ -1243,7 +1257,12 @@ static void mxt_treat_T15_object(struct mxt_data *data,
 						"%s: [TSP_KEY] Ignore menu %s by back key\n",
 								 __func__, key_state != 0 ? "P" : "R");
 				} else {
+					
+#ifdef USE_MENU_TOUCHKEY
+					input_report_key(data->input_dev, KEY_MENU, key_state != 0 ? KEY_PRESS : KEY_RELEASE);
+#else
 					input_report_key(data->input_dev, KEY_RECENT, key_state != 0 ? KEY_PRESS : KEY_RELEASE);
+#endif					
 					dev_info(&data->client->dev, 
 						"%s: [TSP_KEY] menu %s\n",
 								__func__, key_state != 0 ? "P" : "R");
@@ -2325,7 +2344,7 @@ static int mxt_input_open(struct input_dev *dev)
 		goto err_open;
 
 
-#ifdef CONFIG_SEC_LT03_PROJECT
+#ifdef WORKAROUND_THRESHOLD
 	if (data->setdata == 1 && system_rev < 11) {
 		ret = set_threshold(data);
 			if (!ret) {
@@ -2606,11 +2625,7 @@ out:
 static int __devinit mxt_touch_init(struct mxt_data *data, bool nowait)
 {
 	struct i2c_client *client = data->client;
-#if defined(CONFIG_SEC_LT03_PROJECT) || defined(CONFIG_SEC_PICASSO_PROJECT)
-	const char *firmware_name = data->pdata->firmware_name ?: MXT_N_PROJECT_FIRMWARE_NAME;
-#else
-	const char *firmware_name = data->pdata->firmware_name ?: MXT_V_PROJECT_FIRMWARE_NAME;
-#endif
+	const char *firmware_name = data->pdata->firmware_name;
 	int ret = 0;
 
 #if TSP_INFORM_CHARGER
@@ -2624,6 +2639,12 @@ static int __devinit mxt_touch_init(struct mxt_data *data, bool nowait)
 		inform_charger_init(data);
 	}
 #endif
+
+	if (firmware_name == NULL) {
+		dev_info(&client->dev, "%s: firmware name is NULL!, return\n",
+			__func__);
+		return 0;
+	}
 
 	if (nowait) {
 		const struct firmware *fw;
@@ -2856,13 +2877,6 @@ static int __devinit mxt_probe(struct i2c_client *client,
 				0, MXT_AREA_MAX, 0, 0);
 	input_set_abs_params(input_dev, ABS_MT_PRESSURE,
 				0, MXT_AMPLITUDE_MAX, 0, 0);
-#if TSP_USE_SHAPETOUCH
-	input_set_abs_params(input_dev, ABS_MT_COMPONENT,
-				0, MXT_COMPONENT_MAX, 0, 0);
-	input_set_abs_params(input_dev, ABS_MT_SUMSIZE,
-				0, MXT_SUMSIZE_MAX, 0, 0);
-#endif
-
 #if TSP_USE_PALM_FLAG
 	input_set_abs_params(input_dev, ABS_MT_PALM, 
 				0, MXT_PALM_MAX, 0, 0);
@@ -2934,9 +2948,8 @@ static int __devinit mxt_probe(struct i2c_client *client,
 	* to prevent unnecessary report of touch event
 	* it will be enabled in open function
 	*/
-/* bringup
 	mxt_stop(data);
-*/
+
 /*
 	mxt_input_close(data->input_dev);
 */

@@ -26,6 +26,10 @@ struct irda_ice40_platform_data {
 	int cresetb;
 	int rst_n;
 	int irda_irq;
+#ifdef CONFIG_MACH_KLTE_VZW
+	int tunable_support;
+	int tunable_crstb;
+#endif
 };
 
 #define IR_DRIVER_NAME		"ice4_dev"
@@ -47,21 +51,19 @@ struct irda_ice40_platform_data {
 #define FW_VER_ADDR		0x02
 #define FIRMWARE_MAX_RETRY	2
 #define GPIO_FPGA_MAIN_CLK	58
+#define GPIO_FPGA_MAIN_CLK_CTC_REV02	18
 
 #define IRDA_I2C_ADDR		0x50
 #define IRDA_I2C_RX_ADDR	0x6C
 #define IRDA_TEST_CODE_SIZE	144
 #define IRDA_TEST_CODE_ADDR	0x00
-#define MAX_SIZE		2048
+#define MAX_SIZE		4096
 #define READ_LENGTH		8
 
 #define POWER_ON		1
 #define POWER_OFF		0
 #define SEND_SUCCESS		0
 #define SEND_FAIL		-1
-
-#define TIME_LIMIT_MSEC 300
-#define tm(time) (u32)ktime_to_us(time)
 
 enum irda_tx_register_map {
 	IRDA_REG_LENGTH_MSB,

@@ -9,11 +9,16 @@
 #ifndef _ES705_H
 #define _ES705_H
 
+#if defined(CONFIG_SEC_S_PROJECT)
+#define ES705_VDDCORE_MAX77826
+#endif
 #include <linux/cdev.h>
 #include <linux/mutex.h>
 #include <sound/soc.h>
 #include <linux/time.h>
-
+#ifdef ES705_VDDCORE_MAX77826
+#include <linux/regulator/consumer.h>
+#endif
 #include "es705-uart.h"
 
 #define SAMSUNG_ES705_FEATURE
@@ -357,6 +362,7 @@ enum {
 	ES705_VS_STORED_KEYWORD,
 	ES705_VS_INT_OSC_MEASURE_START,
 	ES705_VS_INT_OSC_MEASURE_STATUS,
+	ES705_RX_ENABLE,
 	ES705_VS_STREAM_ENABLE,
 	ES705_API_ADDR_MAX,
 };
@@ -370,7 +376,11 @@ enum {
  * RX => 0,1:FE_IN1 2,3:FE_IN2 4,5,6,7:BE_IN
  * TX => 0,1:FE_OUT 3,4:BE_OUT
  */
+#ifdef CONFIG_WCD9306_CODEC
+#define ES705_SLIM_RX_PORTS		6
+#else
 #define ES705_SLIM_RX_PORTS		8
+#endif /* CONFIG_WCD9306_CODEC */
 #else
 #define ES705_SLIM_RX_PORTS		6
 #endif
@@ -386,6 +396,25 @@ enum {
 
 #define ES705_NS_ON_PRESET		969
 #define ES705_NS_OFF_PRESET		624
+#define ES705_SW_ON_PRESET		702
+#define ES705_SW_OFF_PRESET		703
+#define ES705_STS_ON_PRESET		984
+#define ES705_STS_OFF_PRESET	985
+#define ES705_RX_NS_ON_PRESET	996
+#define ES705_RX_NS_OFF_PRESET	997
+#define ES705_WNF_ON_PRESET		994
+#define ES705_WNF_OFF_PRESET	995
+#define ES705_BWE_ON_PRESET		622
+#define ES705_BWE_OFF_PRESET	623
+#define ES705_AVALON_WN_ON_PRESET	704
+#define ES705_AVALON_WN_OFF_PRESET	705
+#define ES705_VBB_ON_PRESET		706
+#define ES705_VBB_OFF_PRESET	707
+
+#define ES705_VEQ_ON_PRESET		105
+#define ES705_VEQ_OFF_PRESET	106
+
+#define ES705_VS_PRESET		1382
 
 #define ES705_AUD_ZOOM_PRESET			1355
 #define ES705_AUD_ZOOM_NARRATOR_PRESET	756
@@ -455,6 +484,11 @@ enum {
  * To change delay value use SYSFS sleep delay entry
  */
 #define ES705_SLEEP_DEFAULT_DELAY 2000
+
+#if defined(PREVENT_CALL_MUTE_WHEN_SWITCH_NB_AND_WB)
+#define ES705_REROUTE_INV 200
+#endif
+
 /* Maximum size of keyword parameter block in bytes. */
 #define ES705_VS_KEYWORD_PARAM_MAX 512
 
@@ -475,9 +509,10 @@ struct es705_priv {
 	struct snd_soc_codec *codec;
 	struct firmware *standard;
 	struct firmware *vs;
+#if defined(SAMSUNG_ES705_FEATURE)
 	struct firmware *vs_grammar;
 	struct firmware *vs_net;
-
+#endif
 	unsigned int intf;
 
 	struct esxxx_platform_data *pdata;
@@ -493,6 +528,10 @@ struct es705_priv {
 	int (*uart_fw_download) (struct es705_priv *es705, int fw_type);
 	int (*uart_es705_wakeup) (struct es705_priv *es705);
 	int (*wakeup_bus)(struct es705_priv *es705);
+	int (*rdb_wdb_open)(struct es705_priv *es705);
+	int (*rdb_wdb_close)(struct es705_priv *es705);
+	int (*rdb_read)(struct es705_priv *es705, void *buf, int len);
+	int (*wdb_write)(struct es705_priv *es705, const void *buf, int len);
 
 	struct timespec last_resp_time;
 	u32 last_response;
@@ -508,7 +547,9 @@ struct es705_priv {
 	struct mutex streaming_mutex;
 
 	struct delayed_work sleep_work;
-
+#if defined(PREVENT_CALL_MUTE_WHEN_SWITCH_NB_AND_WB)
+	struct delayed_work reroute_work;
+#endif
 	struct es705_slim_dai_data dai[ES705_NUM_CODEC_SLIM_DAIS];
 	struct es705_slim_ch slim_rx[ES705_SLIM_RX_PORTS];
 	struct es705_slim_ch slim_tx[ES705_SLIM_TX_PORTS];
@@ -526,8 +567,12 @@ struct es705_priv {
 	int uart_fw_download_rate;
 	int uart_state;
 	int sleep_delay;
+#if defined(PREVENT_CALL_MUTE_WHEN_SWITCH_NB_AND_WB)
+	int reroute_delay;
+#endif
 	u16 vs_keyword_param_size;
 	u8 vs_keyword_param[ES705_VS_KEYWORD_PARAM_MAX];
+	u16 preset;
 
 	long internal_route_num;
 	long internal_rate;
@@ -556,6 +601,11 @@ struct es705_priv {
 	unsigned int voice_lpm_enable;
 	unsigned int use_uart_for_wakeup_gpio;
 	unsigned int change_uart_config;
+	unsigned int vs_grammar_set_flag;
+	unsigned int vs_net_set_flag;
+	int current_bwe;
+	int current_veq;
+	int current_veq_preset;
 #endif
 };
 

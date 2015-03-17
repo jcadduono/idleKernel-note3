@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2013, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2010-2014, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -94,7 +94,7 @@ struct apr_hdr {
 #define APR_SVC_SRD		0x7
 
 /* APR Port IDs */
-#define APR_MAX_PORTS		0x40
+#define APR_MAX_PORTS		0x80
 
 #define APR_NAME_MAX		0x40
 
@@ -168,4 +168,5 @@ enum apr_subsys_state apr_get_q6_state(void);
 int apr_set_q6_state(enum apr_subsys_state state);
 void apr_set_subsys_state(void);
 const char *apr_get_lpass_subsys_name(void);
+extern int is_modem_up;
 #endif

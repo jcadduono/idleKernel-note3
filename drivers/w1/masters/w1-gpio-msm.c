@@ -20,10 +20,14 @@
 #include <linux/of.h>
 #include <linux/delay.h>
 
+#include <linux/input.h>
+
 #include "../w1.h"
 #include "../w1_int.h"
 
 #include "../../gpio/gpio-msm-common.h"
+
+#define MAX_SAMPLE	30
 
 #define gpio_direction_input(gpio) __msm_gpio_set_config_direction_no_log(gpio, 1, 0)
 #define gpio_direction_output(gpio, val) __msm_gpio_set_config_direction_no_log(gpio, 0, val)
@@ -31,6 +35,9 @@
 #define gpio_get_value_msm(gpio) __msm_gpio_get_inout_no_log(gpio)
 
 static DEFINE_SPINLOCK(w1_gpio_msm_lock);
+#if defined(CONFIG_W1_FAST_CHECK)
+bool w1_is_resumed;
+#endif
 
 static int w1_delay_parm = 1;
 static void w1_delay(unsigned long tm)
@@ -301,10 +308,12 @@ static u8 w1_gpio_read_block(void *data, u8 *buf, int len)
  */
 static u8 w1_gpio_reset_bus(void *data)
 {
-	int result;
+	int result = 1,i;
 	struct w1_gpio_msm_platform_data *pdata = data;
 	void	(*write_bit)(void *, u8);
 	unsigned long irq_flags;
+	int temp_read[MAX_SAMPLE]={'1',};
+	int loop_cnt = 3;
 
 	if (pdata->is_open_drain) {
 		write_bit = w1_gpio_write_bit_val;
@@ -313,30 +322,52 @@ static u8 w1_gpio_reset_bus(void *data)
 	}
 
 	spin_lock_irqsave(&w1_gpio_msm_lock, irq_flags);
-	write_bit(data, 0);
-		/* minimum 480, max ? us
-		 * be nice and sleep, except 18b20 spec lists 960us maximum,
-		 * so until we can sleep with microsecond accuracy, spin.
-		 * Feel free to come up with some other way to give up the
-		 * cpu for such a short amount of time AND get it back in
-		 * the maximum amount of time.
+
+	while (loop_cnt > 0) {
+		write_bit(data, 0);
+			/* minimum 48, max 80 us(In DS Documnet)
+			 * be nice and sleep, except 18b20 spec lists 960us maximum,
+			 * so until we can sleep with microsecond accuracy, spin.
+			 * Feel free to come up with some other way to give up the
+			 * cpu for such a short amount of time AND get it back in
+			 * the maximum amount of time.
+			 */
+		(pdata->slave_speed == 0)? __const_udelay(500*UDELAY_MULT) : __const_udelay(50*UDELAY_MULT);
+		write_bit(data, 1);
+
+		(pdata->slave_speed == 0)? __const_udelay(60*UDELAY_MULT) : __const_udelay(1*UDELAY_MULT);
+
+		for(i=0;i<MAX_SAMPLE;i++)
+			temp_read[i] = gpio_get_value_msm(pdata->pin);
+
+		for(i=0;i<MAX_SAMPLE;i++)
+			result &= temp_read[i];
+
+		/* minmum 70 (above) + 410 = 480 us
+		 * There aren't any timing requirements between a reset and
+		 * the following transactions.  Sleeping is safe here.
 		 */
-	(pdata->slave_speed == 0)? w1_delay(480) : w1_delay(48);
-	write_bit(data, 1);
+		/* w1_delay(410); min required time */
+		(pdata->slave_speed == 0)? msleep(1) : __const_udelay(40*UDELAY_MULT);
 
-	(pdata->slave_speed == 0)? w1_delay(70) : w1_delay(7);
-
-	result = w1_gpio_read_bit_val(data) & 0x1;
-
-	/* minmum 70 (above) + 410 = 480 us
-	 * There aren't any timing requirements between a reset and
-	 * the following transactions.  Sleeping is safe here.
-	 */
-	/* w1_delay(410); min required time */
-	(pdata->slave_speed == 0)? msleep(1) : w1_delay(40);
+		if (result)
+			loop_cnt--;
+		else
+			break;
+	}
 
 	spin_unlock_irqrestore(&w1_gpio_msm_lock, irq_flags);
+
 	return result;
+}
+
+static int hall_open(struct input_dev *input)
+{
+	return 0;
+}
+
+static void hall_close(struct input_dev *input)
+{
 }
 
 static struct of_device_id w1_gpio_msm_dt_ids[] = {
@@ -371,6 +402,7 @@ static int w1_gpio_msm_probe(struct platform_device *pdev)
 {
 	struct w1_bus_master *master;
 	struct w1_gpio_msm_platform_data *pdata;
+	struct input_dev *input;
 	int err;
 
 	printk(KERN_ERR "\nw1_gpio_msm_probe start\n");
@@ -396,12 +428,42 @@ static int w1_gpio_msm_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 
+	/* add for sending uevent */
+	input = input_allocate_device();
+	if (!input) {
+		err = -ENODEV;
+		goto free_master;
+		/* need to change*/
+	}
+	master->input = input;
+
+	input_set_drvdata(input, master);
+
+	input->name = "w1";
+	input->phys = "w1";
+	input->dev.parent = &pdev->dev;
+
+	input->evbit[0] |= BIT_MASK(EV_SW);
+	input_set_capability(input, EV_SW, SW_W1);
+
+	input->open = hall_open;
+	input->close = hall_close;
+
+	/* Enable auto repeat feature of Linux input subsystem */
+	__set_bit(EV_REP, input->evbit);
+
+	err = input_register_device(input);
+	if(err) {
+		dev_err(&pdev->dev, "input_register_device failed!\n");
+		goto free_input;
+	}
+
 	spin_lock_init(&w1_gpio_msm_lock);
 
 	err = gpio_request(pdata->pin, "w1");
 	if (err) {
 		dev_err(&pdev->dev, "gpio_request (pin) failed\n");
-		goto free_master;
+		goto free_input;
 	}
 
 	if (gpio_is_valid(pdata->ext_pullup_enable_pin)) {
@@ -454,6 +516,8 @@ free_gpio_ext_pu:
 		gpio_free(pdata->ext_pullup_enable_pin);
 free_gpio:
 	gpio_free(pdata->pin);
+free_input:
+	kfree(input);
 free_master:
 	kfree(master);
 
@@ -504,6 +568,10 @@ static int w1_gpio_msm_resume(struct platform_device *pdev)
 
 	gpio_tlmm_config(GPIO_CFG(pdata->pin, 0, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_2MA), 1);
 	gpio_direction_output(pdata->pin, 1);
+
+#if defined(CONFIG_W1_FAST_CHECK)
+	w1_is_resumed = true;
+#endif
 #ifdef CONFIG_W1_WORKQUEUE
 	schedule_delayed_work(&w1_gdev->w1_dwork, HZ * 2);
 #endif
@@ -537,7 +605,7 @@ static void __exit w1_gpio_msm_exit(void)
 	platform_driver_unregister(&w1_gpio_msm_driver);
 }
 
-module_init(w1_gpio_msm_init);
+late_initcall(w1_gpio_msm_init);
 module_exit(w1_gpio_msm_exit);
 
 MODULE_DESCRIPTION("MSM GPIO w1 bus master driver");

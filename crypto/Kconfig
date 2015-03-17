@@ -443,6 +443,7 @@ config CRYPTO_SHA1_ARM
 	depends on ARM
 	select CRYPTO_SHA1
 	select CRYPTO_HASH
+	default y
 	help
 	  SHA-1 secure hash standard (FIPS 180-1/DFIPS 180-2) implemented
 	  using optimized ARM assembler.
@@ -632,6 +633,7 @@ config CRYPTO_AES_ARM
 	depends on ARM
 	select CRYPTO_ALGAPI
 	select CRYPTO_AES
+	default y
 	help
 	  Use optimized AES assembler routines for ARM platforms.
 

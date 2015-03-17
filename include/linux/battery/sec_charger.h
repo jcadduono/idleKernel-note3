@@ -51,21 +51,38 @@
 #include <linux/battery/charger/max77888_charger.h>
 #elif defined(CONFIG_CHARGER_MAX77823)
 #include <linux/battery/charger/max77823_charger.h>
+#elif defined(CONFIG_CHARGER_SM5414)
+#include <linux/battery/charger/sm5414_charger.h>
 #endif
 
 #if defined(CONFIG_CHARGER_BQ24260)
 #include <linux/battery/charger/bq24260_charger.h>
 #endif
 
+#if defined(CONFIG_CHARGER_SMB1357)
+#include <linux/battery/charger/smb1357_charger.h>
+#endif
+
 struct sec_charger_info {
 	struct i2c_client		*client;
+	#if defined(CONFIG_QPNP_CHARGER)
+	struct qpnp_chg_chip *chip;
+	#endif
 	sec_battery_platform_data_t *pdata;
 	struct power_supply		psy_chg;
 	struct delayed_work isr_work;
 
 	int cable_type;
 	int status;
+	int siop_level;
 	bool is_charging;
+
+/* used only by sm5414 for store of charger interrupt */
+/* values for next health/charger status                    */
+#if defined(CONFIG_CHARGER_SM5414)
+	struct sec_chg_info sm5414_chg_inf;
+	bool is_fullcharged;
+#endif
 
 	/* charging current : + charging, - OTG */
 	int charging_current;
@@ -75,6 +92,8 @@ struct sec_charger_info {
 	int reg_addr;
 	int reg_data;
 	int irq_base;
+	bool is_slow_charging;
+	struct delayed_work slow_work;
 };
 
 bool sec_hal_chg_init(struct i2c_client *);

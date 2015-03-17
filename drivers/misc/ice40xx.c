@@ -102,6 +102,23 @@ static int ice40_clock_en(int onoff)
 
 	pr_info("%s:%d - on : %d\n", __func__, __LINE__, onoff);
 
+#if defined(CONFIG_MACH_K3GDUOS_CTC)
+	fpga_main_clk = NULL;
+
+	if (!fpga_main_src_clk)
+		fpga_main_src_clk = clk_get(NULL, "fpga_src_clk");
+	if (IS_ERR(fpga_main_src_clk))
+		pr_err("%s: unable to get fpga_main_src_clk\n", __func__);
+
+	if (onoff) {
+		clk_set_rate(fpga_main_src_clk, 24000000);
+		clk_prepare_enable(fpga_main_src_clk);
+	} else {
+		clk_disable_unprepare(fpga_main_src_clk);
+		clk_put(fpga_main_src_clk);
+		fpga_main_src_clk = NULL;
+	}
+#else
 	if (!fpga_main_src_clk)
 		fpga_main_src_clk = clk_get(NULL, "gp2_src_clk");
 	if (IS_ERR(fpga_main_src_clk))
@@ -121,6 +138,7 @@ static int ice40_clock_en(int onoff)
 		fpga_main_src_clk = NULL;
 		fpga_main_clk = NULL;
 	}
+#endif
 	return 0;
 }
 
@@ -155,38 +173,38 @@ static void fpga_enable(int enable_clk, int enable_rst_n)
 	}
 }
 
-void l13_power_onoff(int onoff)
+static void irled_power_onoff(int onoff)
 {
 	int ret;
-	static struct regulator *reg_l13;
+	static struct regulator *reg_l19;
 
-	if (!reg_l13) {
-		reg_l13 = regulator_get(NULL, "8084_l13");
-		ret = regulator_set_voltage(reg_l13, 2950000, 2950000);
-		if (IS_ERR(reg_l13)) {
-			printk(KERN_ERR"could not get 8084_l13, rc = %ld\n",
-					PTR_ERR(reg_l13));
+	if (!reg_l19) {
+		reg_l19 = regulator_get(NULL, "8084_l19");
+		ret = regulator_set_voltage(reg_l19, 3300000, 3300000);
+		if (IS_ERR(reg_l19)) {
+			printk(KERN_ERR"could not get 8084_l19, rc = %ld\n",
+					PTR_ERR(reg_l19));
 			return;
 		}
 	}
 
 	if (onoff) {
-		ret = regulator_enable(reg_l13);
+		ret = regulator_enable(reg_l19);
 		if (ret) {
-			printk(KERN_ERR"enable l13 failed, rc=%d\n", ret);
+			printk(KERN_ERR"enable l19 failed, rc=%d\n", ret);
 			return;
 		}
-		printk(KERN_DEBUG"L13 power_on is finished.\n");
+		printk(KERN_DEBUG"ir_led power_on is finished.\n");
 	} else {
-		if (regulator_is_enabled(reg_l13)) {
-			ret = regulator_disable(reg_l13);
+		if (regulator_is_enabled(reg_l19)) {
+			ret = regulator_disable(reg_l19);
 			if (ret) {
-				printk(KERN_ERR"disable l13 failed, rc=%d\n",
+				printk(KERN_ERR"disable l19 failed, rc=%d\n",
 						ret);
 				return;
 			}
 		}
-		printk(KERN_DEBUG"L13 power_off is finished.\n");
+		printk(KERN_DEBUG"ir_led power_off is finished.\n");
 	}
 }
 
@@ -208,6 +226,15 @@ static int irda_ice40_parse_dt(struct device *dev,
 	pdata->irda_irq = of_get_named_gpio(np, "irda_ice40,irq-gpio", 0);
 	pdata->cresetb = of_get_named_gpio(np, "irda_ice40,cresetb", 0);
 
+#ifdef CONFIG_MACH_KLTE_VZW
+	ret = of_property_read_u32(np,
+			"tunable,support", &pdata->tunable_support);
+	if (ret < 0) {
+		pr_err("[%s]: failed to read tunable\n", __func__);
+		return ret;
+	}
+	pdata->tunable_crstb = of_get_named_gpio(np, "tunable,cresetb", 0);
+#endif
 	return 0;
 }
 #else
@@ -223,12 +250,16 @@ static void irda_ice40_config(void)
 	int rc = 0;
 
 	pr_info("%s\n", __func__);
+	pr_info("g_pdata->fw_ver  = %d\n", g_pdata->fw_ver);
 	pr_info("g_pdata->rst_n   = %d\n", g_pdata->rst_n);
 	pr_info("g_pdata->spi_clk = %d\n", g_pdata->spi_clk);
 	pr_info("g_pdata->spi_si  = %d\n", g_pdata->spi_si);
 	pr_info("g_pdata->irda_irq= %d\n", g_pdata->irda_irq);
 	pr_info("g_pdata->cresetb = %d\n", g_pdata->cresetb);
-
+#ifdef CONFIG_MACH_KLTE_VZW
+	pr_info("g_pdata->tunable_support = %d\n", g_pdata->tunable_support);
+	pr_info("g_pdata->tunable_crstb= %d\n", g_pdata->tunable_crstb);
+#endif
 	rc = gpio_tlmm_config(GPIO_CFG(g_pdata->spi_si, 0,
 				GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL,
 				GPIO_CFG_2MA), 1);
@@ -241,9 +272,15 @@ static void irda_ice40_config(void)
 	if (rc)
 		pr_err("%s: error : %d\n", __func__, rc);
 
+#if defined(CONFIG_MACH_K3GDUOS_CTC)
+	rc = gpio_tlmm_config(GPIO_CFG(GPIO_FPGA_MAIN_CLK_CTC_REV02, 1,
+				GPIO_CFG_OUTPUT, GPIO_CFG_PULL_DOWN,
+				GPIO_CFG_2MA), GPIO_CFG_ENABLE);
+#else
 	rc = gpio_tlmm_config(GPIO_CFG(GPIO_FPGA_MAIN_CLK, 2,
 				GPIO_CFG_OUTPUT, GPIO_CFG_PULL_DOWN,
 				GPIO_CFG_2MA), GPIO_CFG_ENABLE);
+#endif
 	if (rc)
 		pr_err("%s: error : %d\n", __func__, rc);
 
@@ -290,6 +327,25 @@ static void irda_ice40_config(void)
 	if (rc)
 		pr_err("%s: error : %d\n", __func__, rc);
 
+
+#ifdef CONFIG_MACH_KLTE_VZW
+	if (g_pdata->tunable_support) {
+		rc = gpio_tlmm_config(GPIO_CFG(g_pdata->tunable_crstb, 0,
+					GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL,
+					GPIO_CFG_2MA), 1);
+		if (rc)
+			pr_warning("%s: warning check pin num[%d]\n",
+					__func__, rc);
+
+		rc = gpio_request(g_pdata->tunable_crstb, "tunable_creset");
+		if (rc)
+			pr_err("%s: error : %d\n", __func__, rc);
+
+		rc = gpio_direction_output(g_pdata->tunable_crstb, 0);
+		if (rc)
+			pr_err("%s: error : %d\n", __func__, rc);
+	}
+#endif
 }
 
 /*
@@ -461,14 +517,12 @@ static ssize_t ice40_fpga_fw_update_store(struct device *dev,
 
 	ice40_fpga_fimrware_update_start((unsigned char *)buff, fsize);
 
-	if (fp != NULL) {
 err_fw_size:
 		kfree(buff);
 err_alloc:
 		filp_close(fp, NULL);
 err_open:
 		set_fs(old_fs);
-	}
 
 	return size;
 }
@@ -536,6 +590,10 @@ static ssize_t ice40_ver_check_show(struct device *dev,
 	fw_ver = (read_val >> 2) & 0x3;
 	bufp += snprintf(bufp, SNPRINT_BUF_SIZE, "ver %d\n", fw_ver + 11);
 
+	irda_ice40_read(data->client, IRDA_I2C_ADDR, 0x00, 1, &read_val);
+	fw_ver = (read_val >> 4) & 0xf;
+	bufp += snprintf(bufp, SNPRINT_BUF_SIZE, "0x00 read ver %d\n", fw_ver);
+
 	return strlen(buf);
 }
 
@@ -547,16 +605,15 @@ static void fw_work(struct work_struct *work)
 
 static int ir_remocon_work(struct irda_ice40_data *ir_data, int count)
 {
-
 	struct irda_ice40_data *data = ir_data;
 	struct i2c_client *client = data->client;
 	int buf_size = count;
 	int ret;
-	int actual_time;
 	int emission_time;
 	int ack_pin_onoff;
 	int ack_number;
-	ktime_t t1, t2;
+	int f_checksum;
+	int retry;
 
 	if (count_number >= 100)
 		count_number = 0;
@@ -566,7 +623,7 @@ static int ir_remocon_work(struct irda_ice40_data *ir_data, int count)
 	pr_irda("%s: total buf_size: %d\n", __func__, buf_size);
 
 	fpga_enable(1, 1);
-	l13_power_onoff(POWER_ON);
+	irled_power_onoff(POWER_ON);
 	mutex_lock(&data->mutex);
 
 	client->addr = IRDA_I2C_ADDR;
@@ -575,55 +632,68 @@ static int ir_remocon_work(struct irda_ice40_data *ir_data, int count)
 	data->i2c_block_transfer.data[0] = (count >> 8) & 0xFF;
 	data->i2c_block_transfer.data[1] = count & 0xFF;
 	buf_size++;
-	ret = i2c_master_send(client,
-		(unsigned char *) &(data->i2c_block_transfer), buf_size);
-	if (ret < 0) {
-		dev_err(&client->dev, "%s: err1 %d\n", __func__, ret);
+	f_checksum = 0;
+	retry = 0;
+	while (!f_checksum) {
 		ret = i2c_master_send(client,
-		(unsigned char *) &(data->i2c_block_transfer), buf_size);
+				(unsigned char *) &(data->i2c_block_transfer), buf_size);
 		if (ret < 0) {
 			dev_err(&client->dev, "%s: err1 %d\n", __func__, ret);
 			ret = i2c_master_send(client,
-				data->i2c_block_transfer.data, count);
-			if (ret < 0)
-				dev_err(&client->dev, "%s: err2 %d\n",
-								__func__, ret);
+					(unsigned char *) &(data->i2c_block_transfer), buf_size);
+			if (ret < 0) {
+				dev_err(&client->dev, "%s: err1 %d\n", __func__, ret);
+				ret = i2c_master_send(client,
+						data->i2c_block_transfer.data, count);
+				if (ret < 0)
+					dev_err(&client->dev, "%s: err2 %d\n",
+							__func__, ret);
+			}
 		}
+		usleep_range(10000, 12000);
+
+		ack_pin_onoff = 0;
+
+		if (gpio_get_value(g_pdata->irda_irq)) {
+			ack_pin_onoff = 1;
+			retry++;
+		} else {
+			ack_pin_onoff = 2;
+			f_checksum = 1;
+		}
+		if (retry > 5)
+			break;
 	}
-	usleep_range(10000, 12000);
-
-	ack_pin_onoff = 0;
-
-	if (gpio_get_value(g_pdata->irda_irq)) {
-		pr_irda("%s : %d Checksum NG!\n",
-			__func__, count_number);
-		ack_pin_onoff = 1;
-	} else {
-		pr_irda("%s : %d Checksum OK!\n",
-			__func__, count_number);
-		ack_pin_onoff = 2;
+	if (ack_pin_onoff == 1)
+		pr_irda("%s : %d %d Checksum NG!\n",
+				__func__, count_number, retry);
+	else {
+		if (!retry)
+			pr_irda("%s : %d %d Checksum OK!\n",
+					__func__, count_number, retry);
+		else
+			pr_irda("%s : %d %d Checksum RE!\n",
+					__func__, count_number, retry);
 	}
 	ack_number = ack_pin_onoff;
 
 	mutex_unlock(&data->mutex);
 
-	emission_time = \
-		(1000 * (data->ir_sum) / (data->ir_freq));
+	emission_time = (1000 * (data->ir_sum) / (data->ir_freq));
+	if (emission_time > 0)
+		msleep(emission_time);
 
-	actual_time = 0;
-	t1 = ktime_get();
-	while ((gpio_get_value(g_pdata->irda_irq) == 0) &&
-				(actual_time <= emission_time)) {
-		int diff;
-		t2 = ktime_get();
-		diff = (tm(t2) - tm(t1))/1000;
-		usleep_range(10000, 20000);
-		actual_time += 10;
-		if (diff > TIME_LIMIT_MSEC)
-			break;
-	}
 	pr_irda("%s: emission_time = %d\n",
 			__func__, emission_time);
+
+	retry = 0;
+	while (!gpio_get_value(g_pdata->irda_irq)) {
+		usleep_range(100000, 120000);
+		pr_irda("%s : try to check irda_irq %d, %d\n",
+				__func__, emission_time, retry);
+		if (retry++ > 5)
+			break;
+	}
 
 	if (gpio_get_value(g_pdata->irda_irq)) {
 		pr_irda("%s : %d Sending IR OK!\n",
@@ -643,8 +713,8 @@ static int ir_remocon_work(struct irda_ice40_data *ir_data, int count)
 	data->length = 0;
 	data->operation = 0xffff;
 
+	irled_power_onoff(POWER_OFF);
 	fpga_enable(0, 0);
-	l13_power_onoff(POWER_OFF);
 
 	g_ack_number = ack_number;
 	if (ack_number == 6)
@@ -659,6 +729,8 @@ static ssize_t remocon_store(struct device *dev, struct device_attribute *attr,
 	struct irda_ice40_data *data = dev_get_drvdata(dev);
 	unsigned int _data;
 	unsigned int count = 2, i = 0;
+	unsigned int c_factor = 0;
+	unsigned int temp_data = 0;
 	int ret;
 
 	pr_irda("%s ir_send called[%d]\n", __func__, __LINE__);
@@ -682,11 +754,11 @@ static ssize_t remocon_store(struct device *dev, struct device_attribute *attr,
 							= _data & 0xFF;
 				count += 3;
 			} else {
-				data->ir_sum += _data;
-				data->i2c_block_transfer.data[count++]
-						= (_data >> 8);
-				data->i2c_block_transfer.data[count++]
-						= _data & 0xFF;
+				c_factor = 1000000 / data->ir_freq;
+				temp_data = _data / c_factor;
+				data->ir_sum += temp_data;
+				data->i2c_block_transfer.data[count++] = (temp_data >> 8);
+				data->i2c_block_transfer.data[count++] = temp_data & 0xFF;
 			}
 
 			while (_data > 0) {
@@ -1136,6 +1208,7 @@ static long ice40_ioctl(struct file *file, unsigned int cmd,
 		if (copy_from_user(pattern, (int *)arg,
 					(sizeof(int)*(data->length)))) {
 			pr_irda("Re-enter the pattern array\n");
+			kfree(pattern);
 			return -EINVAL;
 		}
 		pr_irda("SET_DATA cmd\n");
@@ -1276,10 +1349,12 @@ static int __devinit irda_ice40_probe(struct i2c_client *client,
 	g_pdata = pdata;
 	irda_ice40_config();
 
-	ret = ice40_power_onoff(client, POWER_ON);
-	if (ret) {
-		dev_err(&client->dev, "%s\n", __func__);
-		return ret;
+	if (g_pdata->fw_ver == 1) {
+		ret = ice40_power_onoff(client, POWER_ON);
+		if (ret) {
+			dev_err(&client->dev, "%s\n", __func__);
+			return ret;
+		}
 	}
 
 	client->irq = gpio_to_irq(pdata->irda_irq);
@@ -1303,6 +1378,13 @@ static int __devinit irda_ice40_probe(struct i2c_client *client,
 
 	i2c_set_clientdata(client, data);
 #ifdef IRDA_RX_ENABLE
+	ret = switch_dev_register(&switch_irda_receive);
+	if (ret < 0) {
+		dev_err(&client->dev, "Failed to switch_dev_register\n");
+		error = ret;
+		goto err_switch_dev;
+	}
+
 	ret = request_threaded_irq(client->irq,
 					NULL, irda_irq_handler,
 					IRQF_TRIGGER_FALLING | IRQF_ONESHOT,
@@ -1320,16 +1402,11 @@ static int __devinit irda_ice40_probe(struct i2c_client *client,
 	data->miscdev.name = IR_DRIVER_NAME;
 	data->miscdev.fops = &ice40_fops;
 	data->miscdev.parent = &client->dev;
-#ifdef IRDA_RX_ENABLE
-	ret = switch_dev_register(&switch_irda_receive);
-	if (ret < 0) {
-		dev_err(&client->dev, "Failed to switch_dev_register\n");
-		goto err_switch_dev;
-	}
-#endif
+
 	ret = misc_register(&data->miscdev);
 	if (ret < 0) {
 		dev_err(&client->dev, "Device misc_register failed\n");
+		error = ret;
 		goto err_misc;
 	}
 

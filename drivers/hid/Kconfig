@@ -658,6 +658,12 @@ config HID_WIIMOTE_EXT
 	here if you want to use the Nintendo Motion+, Nunchuck or Classic
 	extension controllers with your Wii Remote.
 
+config HID_ZAGG
+	tristate "ZAGG InfraRed remote control or keyboards"
+	depends on (USB_HID || BT_HIDP)
+	---help---
+	Support for ZAGG InfraRed remote control or keyboards.
+
 config HID_ZEROPLUS
 	tristate "Zeroplus based game controller support"
 	depends on USB_HID

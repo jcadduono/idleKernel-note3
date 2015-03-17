@@ -180,6 +180,7 @@ get_cal_data_yas532(struct yas_correction_data *c)
 	c->a8 = (uint8_t)(((data[7]<<1) & 0x3e) | ((data[8]>>7) & 0x01)) - 32;
 	c->a9 = (uint8_t)(((data[8]<<1) & 0xfe) | ((data[9]>>7) & 0x01));
 	c->k = (uint8_t)((data[9]>>2) & 0x1f);
+	c->ver=data[13]&0x01;
 	for (i = 0; i < 13; i++)
 		if (data[i] != 0)
 			return YAS_NO_ERROR;

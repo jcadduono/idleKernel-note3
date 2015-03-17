@@ -310,8 +310,29 @@ Run the SiliconID Verification, and proceed according to result.
 	TX8SW_CPutString("End VerifySiliconID");
 #endif
 
-	 /* Bulk-Erase the Device. */
+	if (info->do_checksum) {
+		/*data checksum*/
+		pr_err("[TKEY] re run check.\n");
+		iChecksumData = info->fw_img->checksum;
 
+		iChecksumTarget = 0;
+		for (bBankCounter = 0; bBankCounter < NUM_BANKS; bBankCounter++) {
+			fIsError = fAccTargetBankChecksum(&iChecksumTarget);
+			if (fIsError) {
+				ErrorTrap(info, fIsError);
+				return fIsError;
+			}
+		}
+		info->do_checksum = false;
+		if ((unsigned short)(iChecksumTarget & 0xffff) ==
+				    (unsigned short)(iChecksumData & 0xffff)) {
+			    pr_err("[TKEY] do not need fw update.\n");
+			    goto out;
+		}
+		pr_err("[TKEY] checksum fail/////need fw update.!!\n");
+	}
+
+	/* Bulk-Erase the Device. */
 	fIsError = fEraseTarget();
 	if (fIsError) {
 		ErrorTrap(info, fIsError);
@@ -461,6 +482,7 @@ if ((unsigned short)(iChecksumTarget&0xffff) !=
     // Bulk-Erased, Block-Loaded, Block-Programmed, Block-Verified, and Device-
     // Checksum Verified.
     // You may want to restart Your Target PSoC Here.*/
+out:
 	ReStartTarget(info);
 	return 0;
 }

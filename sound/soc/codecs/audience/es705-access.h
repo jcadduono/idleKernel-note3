@@ -1597,10 +1597,10 @@ static struct es705_api_access es705_api_access[ES705_API_ADDR_MAX] = {
 	[ES705_FE_STREAMING] = {
 		.read_msg = { ES705_API_WORD(0x8028, 0x0000) },
 		.read_msg_len = 4,
-		.write_msg = { ES705_API_WORD(0x8028, 0x0000) },
+		.write_msg = { ES705_API_WORD(0x9028, 0x0000) },
 		.write_msg_len = 4,
 		.val_shift = 0,
-		.val_max = 8,
+		.val_max = 65535,
 	},
 	[ES705_PRESET] = {
 		.read_msg = { ES705_API_WORD(0x8031, 0x0000) },
@@ -1608,7 +1608,7 @@ static struct es705_api_access es705_api_access[ES705_API_ADDR_MAX] = {
 		.write_msg = { ES705_API_WORD(0x9031, 0x0000) },
 		.write_msg_len = 4,
 		.val_shift = 0,
-		.val_max = 2047,
+		.val_max = 65535,
 	},
 	[ES705_ALGO_STATS] = {
 		.read_msg = { ES705_API_WORD(0x8042, 0x0000) },
@@ -2235,6 +2235,15 @@ static struct es705_api_access es705_api_access[ES705_API_ADDR_MAX] = {
 		.read_msg_len = 4,
 		.write_msg = { ES705_API_WORD(0x8071, 0x0000) },
 		.write_msg_len = 4,
+		.val_shift = 0,
+		.val_max = 1,
+	},
+	[ES705_RX_ENABLE] = {
+		.read_msg = { ES705_API_WORD(ES705_GET_ALGO_PARAM, 0x0075) },
+		.read_msg_len = 4,
+		.write_msg = { ES705_API_WORD(ES705_SET_ALGO_PARAM_ID, 0x0075),
+			       ES705_API_WORD(ES705_SET_ALGO_PARAM, 0x0000) },
+		.write_msg_len = 8,
 		.val_shift = 0,
 		.val_max = 1,
 	},

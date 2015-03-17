@@ -43,7 +43,8 @@ static void change_pte_range(struct mm_struct *mm, pmd_t *pmd,
 	spinlock_t *ptl;
 #ifdef CONFIG_TIMA_RKP_L2_GROUP
         unsigned long tima_l2group_flag = 0;
-        tima_l2group_entry_t *tima_l2group_buffer = NULL;
+        tima_l2group_entry_t *tima_l2group_buffer1 = NULL;
+        tima_l2group_entry_t *tima_l2group_buffer2 = NULL;
         unsigned long tima_l2group_numb_entries = ((end-addr) >> PAGE_SHIFT);
         unsigned long tima_l2group_buffer_index = 0;
 #endif
@@ -52,29 +53,10 @@ static void change_pte_range(struct mm_struct *mm, pmd_t *pmd,
 #ifdef CONFIG_TIMA_RKP_L2_GROUP
         /*
          * Lazy mmu mode for tima:
-         * 1-Define a memory area to hold the PTEs to be changed
-         * 2-Commit the changes right away to TIMA
-	 * 0x200 = 512B which is 2 pages. Don't bother
-	 * grouping if number of grouped entries is <=2
          */
-        if (tima_l2group_numb_entries > 2 && tima_l2group_numb_entries <= 0x200
-		&& tima_is_pg_protected((unsigned long) pte ) == 1) {
-        	/*
-		 * Need to allocate 2^1 = 2 pages. 
-        	 */
-		tima_l2group_buffer = (tima_l2group_entry_t *)
-					__get_free_pages(GFP_ATOMIC, 1);
-		if (tima_l2group_buffer == NULL) {
-			printk(KERN_ERR"TIMA -> L2GRP FAILED %lx %lx %lx %s\n",
-				addr, end, tima_l2group_numb_entries, __FUNCTION__);
-		} else {
-			tima_l2group_flag = 1;
-			/* reset index here or the sky
-			 * will fall.
-			 */
-			tima_l2group_buffer_index = 0;
-		}
-        }	
+        init_tima_rkp_group_buffers(tima_l2group_numb_entries, pte,
+				&tima_l2group_flag, &tima_l2group_buffer_index,
+				&tima_l2group_buffer1, &tima_l2group_buffer2);
 #endif /* CONFIG_TIMA_RKP_L2_GROUP */
 	do {
 		oldpte = *pte;
@@ -102,7 +84,8 @@ static void change_pte_range(struct mm_struct *mm, pmd_t *pmd,
 				ptent = pte_mkwrite(ptent);
 #ifdef CONFIG_TIMA_RKP_L2_GROUP
 			tima_l2group_ptep_modify_prot_commit(mm, addr,
-					pte, ptent, tima_l2group_buffer,
+					pte, ptent, tima_l2group_buffer1,
+					tima_l2group_buffer2,
 					&tima_l2group_buffer_index,
 					tima_l2group_flag);
 #else
@@ -124,18 +107,16 @@ static void change_pte_range(struct mm_struct *mm, pmd_t *pmd,
 	} while (pte++, addr += PAGE_SIZE, addr != end);
 #ifdef CONFIG_TIMA_RKP_L2_GROUP
 	if (tima_l2group_flag) {
-		unsigned long buffer_va = (unsigned long) tima_l2group_buffer;
 		/* First: Flush the cache of the buffer to be read by the TZ side
 		 */
-		flush_dcache_page(virt_to_page(buffer_va));
-		flush_dcache_page(virt_to_page(buffer_va + PAGE_SIZE));
-		/* Second: Pass the buffer pointer and length to TIMA to commit the changes
+		if(tima_l2group_buffer1)
+			flush_dcache_page(virt_to_page(tima_l2group_buffer1));
+		if(tima_l2group_buffer2)
+			flush_dcache_page(virt_to_page(tima_l2group_buffer2));
+		/* Second: Pass the buffer pointers and length to TIMA to commit the changes
 		 */
-		if (tima_l2group_buffer_index) {
-			timal2group_set_pte_commit(tima_l2group_buffer,
-							tima_l2group_buffer_index, (void*)pte);
-		} 
-		free_pages((unsigned long) tima_l2group_buffer, 1);
+		write_tima_rkp_group_buffers(tima_l2group_buffer_index,
+			&tima_l2group_buffer1, &tima_l2group_buffer2);
 	}
 #endif
 	arch_leave_lazy_mmu_mode();
@@ -243,7 +224,8 @@ mprotect_fixup(struct vm_area_struct *vma, struct vm_area_struct **pprev,
 	 */
 	pgoff = vma->vm_pgoff + ((start - vma->vm_start) >> PAGE_SHIFT);
 	*pprev = vma_merge(mm, *pprev, start, end, newflags,
-			vma->anon_vma, vma->vm_file, pgoff, vma_policy(vma));
+			vma->anon_vma, vma->vm_file, pgoff, vma_policy(vma),
+			vma_get_anon_name(vma));
 	if (*pprev) {
 		vma = *pprev;
 		goto success;

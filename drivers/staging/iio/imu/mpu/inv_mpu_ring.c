@@ -330,8 +330,6 @@ static int set_fifo_rate_reg(struct inv_mpu_state *st)
 	result = inv_set_lpf(st, fifo_rate);
 	if (result)
 		return result;
-	/* wait for the sampling rate change to stabilize */
-	mdelay(INV_MPU_SAMPLE_RATE_CHANGE_STABLE);
 
 	return 0;
 }
@@ -359,9 +357,12 @@ static int inv_lpa_mode(struct inv_mpu_state *st, int lpa_mode)
 		return result;
 	if (INV_MPU6500 == st->chip_type) {
 		d = BIT_FIFO_SIZE_1K;
-		if (lpa_mode)
+             d |= INV_FILTER_42HZ;
+		if (lpa_mode) {
 			d |= BIT_ACCEL_FCHOCIE_B;
-		result = inv_i2c_single_write(st, REG_6500_ACCEL_CONFIG2, d);
+		}
+		pr_err("REG_6500_ACCEL_CONFIG2=%d",d);
+		result = inv_i2c_single_write(st, st->reg.accel_config2, d);
 		if (result)
 			return result;
 	}
@@ -505,7 +506,7 @@ static int reset_fifo_itg(struct iio_dev *indio_dev)
 	int_word = 0;
 
 	/* MPU6500's BIT_6500_WOM_EN is the same as BIT_MOT_EN */
-	if (st->mot_int.mot_on)
+	if (st->reactive_enable || st->mot_int.mot_on)
 		int_word |= BIT_MOT_EN;
 
 	if (st->chip_config.dmp_on) {
@@ -952,6 +953,9 @@ int set_inv_enable(struct iio_dev *indio_dev, bool enable)
 	struct inv_reg_map_s *reg;
 	u8 data[2];
 	int result;
+#if defined(CONFIG_SENSORS)
+	u8 d;
+#endif
 
 	reg = &st->reg;
 	pr_err("%x %x%x%x%x", enable,
@@ -1063,6 +1067,65 @@ int set_inv_enable(struct iio_dev *indio_dev, bool enable)
 	}
 	st->chip_config.enable = enable;
 
+#if defined(CONFIG_SENSORS)
+	if (st->reactive_enable) {
+
+		result = inv_i2c_read(st, REG_PWR_MGMT_1, 1, &d);
+		if (result)
+			return result;
+
+		if (d & BIT_SLEEP) {
+			/* Power up the chip and clear the cycle bit. Full power */
+			inv_i2c_single_write(st, REG_PWR_MGMT_1, 0x01);
+			mdelay(50);
+			inv_i2c_single_write(st, REG_PWR_MGMT_2, 0x00);
+		}
+
+		if (!(st->chip_config.enable || st->chip_config.dmp_on)) {
+			inv_i2c_single_write(st, REG_CONFIG, 0x00);
+		}
+
+		 result = inv_i2c_read(st, REG_INT_ENABLE, 1, &d);
+		 if (result)
+			 return result;
+
+		 /* Set motion thr & dur */
+		if (st->factory_mode)
+			d |= BIT_MOT_INT | 0x01;	/* Make the motion & drdy enable */
+		else
+			d |= BIT_MOT_INT;		/* Make the motion interrupt enable */
+		inv_i2c_single_write(st, REG_INT_ENABLE, d);
+
+		 /* Motion Duration =1 ms */
+		inv_i2c_single_write(st, REG_6500_ACCEL_INTEL_CTRL, 0xC0);
+
+		/* Motion Threshold =1mg, based on the data sheet. */
+		if (st->factory_mode)
+			d = 0x00;
+		else
+			d = 0x0C;
+		inv_i2c_single_write(st, REG_6500_ACCEL_WOM_THR, d);
+
+		d = 0x04;	/* 3.91 Hz (low power accel odr) */
+		inv_i2c_single_write(st, REG_6500_LP_ACCEL_ODR, d);
+
+		/* put gyro in standby. */
+		if (!(st->chip_config.gyro_enable))
+			inv_i2c_single_write(st, REG_PWR_MGMT_2, BIT_PWR_GYRO_STBY);
+		else
+			inv_i2c_single_write(st, REG_PWR_MGMT_2, 0x0);
+
+		if (!(st->chip_config.enable || st->chip_config.dmp_on)) {
+			/* Set the cycle bit to be 1. LP MODE */
+			inv_i2c_single_write(st, REG_PWR_MGMT_1, 0x21);
+		} else {
+			inv_i2c_single_write(st, REG_PWR_MGMT_1, 0x01);
+		}
+
+		pr_info("[SENSOR] %s, setting reactive config\n", __func__);
+		st->mot_st_time = jiffies;
+	}
+#endif
 	return 0;
 }
 
@@ -1230,15 +1293,45 @@ static void inv_process_motion(struct inv_mpu_state *st)
 {
 	struct iio_dev *indio_dev = iio_priv_to_dev(st);
 	int result;
-	u8 data[1];
+	u8 data;
+#if defined(CONFIG_SENSORS)
+	unsigned long timediff = 0;
+#endif
 
 	/* motion interrupt */
-	result = inv_i2c_read(st, REG_INT_STATUS, 1, data);
+	result = inv_i2c_read(st, REG_INT_STATUS, 1, &data);
 	if (result)
 		return;
 
-	if (data[0] & BIT_MOT_INT)
+	if (data & BIT_MOT_INT || st->factory_mode) {
 		sysfs_notify(&indio_dev->dev.kobj, NULL, "event_accel_motion");
+
+#if defined(CONFIG_SENSORS)
+		timediff = jiffies_to_msecs(jiffies - st->mot_st_time);
+		/* ignore motion interrupt happened in 100ms to skip intial erronous interrupt */
+		if (timediff < 1000 && !(st->factory_mode)) {
+			pr_err("[SENSOR] %s: timediff = %ld msec\n", __func__, timediff);
+			return;
+		}
+
+		st->reactive_state = 1;
+		pr_info("[SENSOR] Reactive alert happened ##############\n");
+
+		result = inv_i2c_read(st, REG_INT_ENABLE, 1, &data);
+		if (result)
+			return;
+		data &= ~BIT_MOT_INT;
+
+		if (st->factory_mode) {
+			data &= ~0x01;
+			st->factory_mode = false;
+		}
+
+		inv_i2c_single_write(st, REG_INT_ENABLE, data);
+		wake_lock_timeout(&st->reactive_wake_lock, msecs_to_jiffies(2000));
+		pr_info("[SENSOR] %s: disable interrupt\n", __func__);
+#endif
+	}
 }
 
 static int inv_get_timestamp(struct inv_mpu_state *st, int count)
@@ -1449,12 +1542,21 @@ static int inv_process_batchmode(struct inv_mpu_state *st)
 	u64 t;
 	bool done_flag;
 
-	if (1024 == st->fifo_count) {
+	if (1024 <= st->fifo_count) {
+		if (1024 < st->fifo_count) {
+			pr_err("fifo_count over spec. %d\n",st->fifo_count);
+			st->chip_config.is_overflow = 1;
+			return 0;
+		}
 		inv_reset_ts(st, st->last_ts);
 		st->left_over_size = 0;
 	}
 	d = fifo_data;
 	if (st->left_over_size > 0) {
+		if(st->left_over_size > HEADERED_Q_BYTES) {
+			pr_err("left_over_size overflow %d \n", __LINE__);
+			st->left_over_size = HEADERED_Q_BYTES;
+		}
 		dptr = d + st->left_over_size;
 		memcpy(d, st->left_over, st->left_over_size);
 	} else {
@@ -1482,16 +1584,16 @@ static int inv_process_batchmode(struct inv_mpu_state *st)
 		steps = (hdr & STEP_INDICATOR_MASK);
 		hdr &= (~STEP_INDICATOR_MASK);
 		sensor_ind = inv_parse_header(hdr);
+		/* error packet */
+		if ((sensor_ind == SENSOR_INVALID) ||
+						(!st->sensor[sensor_ind].on)) {
+			dptr += HEADERED_NORMAL_BYTES;
+			continue;
+		}
 		/* incomplete packet */
 		if (target_bytes - (dptr - d) <
 					st->sensor[sensor_ind].sample_size) {
 			done_flag = true;
-			continue;
-		}
-		/* error packet */
-		if ((sensor_ind == SENSOR_INVALID) ||
-				(!st->sensor[sensor_ind].on)) {
-			dptr += HEADERED_NORMAL_BYTES;
 			continue;
 		}
 		if (sensor_ind == SENSOR_STEP) {
@@ -1562,8 +1664,13 @@ static int inv_process_batchmode(struct inv_mpu_state *st)
 	inv_adjust_sensor_ts(st, sensor_ind);
 	st->left_over_size = target_bytes - (dptr - d);
 
-	if (st->left_over_size)
+	if (st->left_over_size) {
+		if(st->left_over_size > HEADERED_Q_BYTES) {
+			pr_err("left_over_size overflow %d \n" ,__LINE__);
+			st->left_over_size = HEADERED_Q_BYTES;
+		}
 		memcpy(st->left_over, dptr, st->left_over_size);
+        }
 
 	return 0;
 }
@@ -1617,9 +1724,17 @@ irqreturn_t inv_read_fifo(int irq, void *dev_id)
 	struct inv_reg_map_s *reg;
 	u64 pts1;
 
+	result = inv_i2c_read(st, REG_INT_ENABLE, 1, data);
+	if (result)
+		goto end_session;
+
+	if(st->reactive_enable && (data[0]&0x40))
+		inv_process_motion(st);
+
+	if((data[0] & ~0x40) == 0x0)
+		goto end_session;
+
 #define DMP_MIN_RUN_TIME (37 * NSEC_PER_MSEC)
-	mutex_lock(&st->suspend_resume_lock);
-	mutex_lock(&indio_dev->mlock);
 	if (st->chip_config.dmp_on) {
 		pts1 = get_time_ns();
 		result = inv_process_dmp_interrupt(st);
@@ -1707,16 +1822,12 @@ irqreturn_t inv_read_fifo(int irq, void *dev_id)
 		inv_send_pressure_data(st);
 	}
 end_session:
-	mutex_unlock(&indio_dev->mlock);
-	mutex_unlock(&st->suspend_resume_lock);
 
 	return IRQ_HANDLED;
 flush_fifo:
 	/* Flush HW and SW FIFOs. */
 	inv_reset_fifo(indio_dev);
 	inv_clear_kfifo(st);
-	mutex_unlock(&indio_dev->mlock);
-	mutex_unlock(&st->suspend_resume_lock);
 
 	return IRQ_HANDLED;
 }

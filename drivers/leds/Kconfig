@@ -607,14 +607,33 @@ config LEDS_MAX77804K
 	  Now camera_class is exceptioned
 	  by sanghoon.lee.
 
+config LEDS_MAX77888
+	bool "LED support for the MAX77888"
+	depends on LEDS_CLASS
+	depends on MFD_MAX77888
+	default n
+	help
+	  This option enables support for the LEDs
+	  Now camera_class is exceptioned
+
+config LEDS_MAX77828
+	bool "LED support for the MAX77828"
+	depends on LEDS_CLASS
+	depends on MFD_MAX77828
+	default n
+	help
+	  This option enables support for the LEDs
+
+config LEDS_KTD2026
+	tristate "LED driver for KTD2026 LED"
+	depends on I2C
+	  help
+	  This option enables support for RGB LED driver
+	  accessed via the I2C bus.
+	  KTD2026 is a fully programmable, constant current
+	  three channel LED driver with flexible control interface.
+
 comment "iptables trigger is under Netfilter config (LED target)"
 	depends on LEDS_TRIGGERS
-
-config LEDS_SEPERATE_MOVIE_FLASH
-       bool "LED support for seperate movie flash"
-       depends on LEDS_MAX77803
-       default n
-       help
-	 This option enables support for seperate movie flash
 
 endif # NEW_LEDS

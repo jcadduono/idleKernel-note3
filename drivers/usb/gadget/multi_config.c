@@ -262,7 +262,6 @@ void set_string_mode(u16 w_length)
 		USB_DBG("initialize string mode\n");
 		stringMode = OTHER_REQUEST;
 	}
-	printk(KERN_INFO "usb: %s %d \n", __func__, w_length);
 }
 
 /* Description  : Set config mode
@@ -280,7 +279,6 @@ void set_config_mode(u16 w_length)
 		USB_DBG("initialize string mode\n");
 		configMode = OTHER_REQUEST;
 	}
-	printk(KERN_INFO "usb: %s %d \n", __func__, w_length);
 }
 
 /* Description  : Get Host OS type

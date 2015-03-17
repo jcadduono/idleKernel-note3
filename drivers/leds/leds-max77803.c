@@ -130,7 +130,7 @@ static ssize_t max77803_store_movie_brightness(struct device *dev,
 		set_brightness = led_data->brightness;
 	}
 
-	pr_err("[LED] %s:movie_brightness = %d\n", __func__, led_data->movie_brightness);
+	pr_debug("[LED] %s:movie_brightness = %d\n", __func__, led_data->movie_brightness);
 
 	ret = max77803_set_bits(led_data->i2c, reg_led_current[led_data->data->id],
 			led_current_mask[led_data->data->id],
@@ -376,7 +376,7 @@ static ssize_t max77803_flash(struct device *dev,
 		if (state > led_cdev->max_brightness)
 			state = led_cdev->max_brightness;
 		led_cdev->brightness = state;
-		DEBUG_MAX77803("[LED] %s : led_cdev->brightness %d\n",
+		pr_warn("[LED] %s : led_cdev->brightness %d\n",
 		       __func__, led_cdev->brightness);
 		if (!(led_cdev->flags & LED_SUSPENDED))
 			led_cdev->brightness_set(led_cdev, state);

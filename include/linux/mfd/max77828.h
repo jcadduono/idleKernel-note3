@@ -73,29 +73,25 @@ struct max77828_charger_platform_data {
 };
 
 #ifdef CONFIG_VIBETONZ
-#define MAX8997_MOTOR_REG_CONFIG2	0x2
-#define MOTOR_LRA			(1<<7)
+#define DIVIDER_32			(0x00)
+#define DIVIDER_64			(0x01)
+#define DIVIDER_128		(DIVIDER_64<<1)
+#define DIVIDER_256		(DIVIDER_128 <<1)
+
+#define MAX77828_VIB_MOTOR_ERM	0
+#define MAX77828_VIB_MOTOR_LRA	1
+
+#define MOTOR_LRA			(MAX77828_VIB_MOTOR_LRA<<1)
+
 #define MOTOR_EN			(1<<6)
-#define EXT_PWM				(0<<5)
-#define DIVIDER_128			(1<<1)
-#define DIVIDER_256			0x3
 
-struct max77828_haptic_platform_data {
-	u16 max_timeout;
-	u16 duty;
-	u16 period;
-	u16 reg2;
-	char *regulator_name;
-	unsigned int pwm_id;
-
-	void (*init_hw) (void);
-	void (*motor_en) (bool);
+struct max77828_haptic_platform_data
+{
+    int mode;
+    int divisor;    /* PWM Frequency Divisor. 32, 64, 128 or 256 */
 };
 #endif
 
-#ifdef CONFIG_LEDS_MAX77828
-struct max77828_led_platform_data;
-#endif
 
 struct max77828_regulator_data {
 	int id;
@@ -113,9 +109,16 @@ struct max77828_platform_data {
 	struct max77828_muic_data *muic_data;
 	struct max77828_regulator_data *regulators;
 	int num_regulators;
+#ifdef CONFIG_VIBETONZ
+     /* haptic motor data */
+	struct max77828_haptic_platform_data *haptic_data;
+#endif
 	/* led (flash/torch) data */
-	struct max77828_led_platform_data *led;
+	struct max77828_led_platform_data *led_data;
 };
+
+#define max77828_set_bit(m) ((m) & 0x0F ? ((m) & 0x03 ? ((m) & 0x01 ? 0 : 1) : ((m) & 0x04 ? 2 : 3)) : \
+		((m) & 0x30 ? ((m) & 0x10 ? 4 : 5) : ((m) & 0x40 ? 6 : 7)))
 
 enum cable_type_muic;
 struct max77828_muic_data {

@@ -35,9 +35,13 @@
 #include <mach/apq8064-gpio.h>
 #include <mach/gpiomux.h>
 #include <linux/barcode_emul.h>
-#elif defined(CONFIG_ARCH_MSM8974)
+#elif defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
 #include "../../arch/arm/mach-msm/board-8064.h"
+#if defined(CONFIG_MACH_KLTE_KDI) || defined(CONFIG_MACH_KLTE_DCM) || defined(CONFIG_MACH_KLTE_SBM)
+#include <mach/klte_felica_gpio.h>
+#else
 #include <mach/hlte_felica_gpio.h>
+#endif
 #include <mach/gpiomux.h>
 #include <linux/barcode_emul.h>
 #endif
@@ -45,13 +49,34 @@
 /******************************************************************************
  * log
  ******************************************************************************/
-/*
-#define FELICA_DEBUG_READ_DATA
-#define FELICA_DEBUG
-*/
-#define FELICA_UICC_INIT_LOG
 
+#if defined(CONFIG_SEC_FACTORY)
+/* shown at FACTORY */
+#define FELICA_PR_ERR(A,...) pr_err("[FELICA]"A,##__VA_ARGS__)
 
+/* NOT shown at FACTORY */
+#define FELICA_PR_INFO(A,...) 
+#define FELICA_PR_DBG(A,...) 
+#else
+extern unsigned int sec_dbg_level;
+
+/* shown at HIGH/MID/LOW, user mode:default LOW, eng mode: default MID*/
+#define FELICA_PR_ERR(A,...) pr_err("[FELICA]"A,##__VA_ARGS__)
+
+/* shown at HIGH/MID, user mode:default LOW, eng mode: default MID*/
+#define FELICA_PR_INFO(A,...) \
+	do { \
+		if (sec_dbg_level != KERNEL_SEC_DEBUG_LEVEL_LOW)	\
+			pr_info("[FELICA]"A,##__VA_ARGS__);\
+	} while(0)
+
+/* shown at HIGH/MID under debug control, user mode:default LOW, eng mode: default MID*/
+#define FELICA_PR_DBG(A,...) \
+	do { \
+		if (sec_dbg_level != KERNEL_SEC_DEBUG_LEVEL_LOW)	\
+			pr_debug("[FELICA]"A,##__VA_ARGS__);\
+	} while(0)
+#endif
 
 /******************************************************************************
  * config option
@@ -173,9 +198,11 @@ static int felica_smc_read_oemflag(u32 ctrl_word, u32 *val);
 static int felica_Cpu0(void);
 static int felica_CpuAll(void);
 #endif
-#if defined(CONFIG_ARCH_APQ8064)  | (CONFIG_ARCH_MSM8974)
+
+#if defined(CONFIG_ARCH_APQ8064) || defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
 static uint8_t felica_get_tamper_fuse_cmd(void);
 #endif
+
 #ifdef CONFIG_NFC_FELICA
 static int felica_uart_open_wait_for_polling(void);
 #endif /* CONFIG_NFC_FELICA */
@@ -195,8 +222,10 @@ static int felica_uart_open_wait_for_polling(void);
 #define GPIO_PINID_FELICA_PON			EXYNOS5410_GPJ2(7)
 #elif defined(CONFIG_ARCH_APQ8064)
 #define GPIO_PINID_FELICA_PON			FPGA_GPIO_FELICA_PON
-#elif defined(CONFIG_ARCH_MSM8974)
+#elif defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
+#if !defined(CONFIG_MACH_KLTE_KDI) && !defined(CONFIG_MACH_KLTE_DCM) && !defined(CONFIG_MACH_KLTE_SBM)
 #define GPIO_PINID_FELICA_PON			GPIO_FELICA_PON
+#endif // CONFIG_MACH_KLTE
 #endif
 #define FELICA_PON_DATA_LEN				1
 #define FELICA_PON_WIRELESS				0
@@ -266,7 +295,7 @@ static ssize_t felica_cen_write(struct file *file, const char __user *data,\
 /* jmodel */
 #if defined(CONFIG_ARCH_EXYNOS)
 #define GPIO_PINID_FELICA_RFS			EXYNOS5410_GPJ3(0)
-#elif defined(CONFIG_ARCH_APQ8064) | (CONFIG_ARCH_MSM8974)
+#elif defined(CONFIG_ARCH_APQ8064) ||  defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
 #define GPIO_PINID_FELICA_RFS			GPIO_FELICA_RFS
 #endif
 #define FELICA_RFS_DATA_LEN				1
@@ -322,7 +351,11 @@ static ssize_t felica_rws_write(struct file *file, const char __user *data, \
 #define GPIO_PINID_FELICA_INT_REV00			EXYNOS5410_GPX1(6) /* rev0.0 */
 #elif defined(CONFIG_ARCH_APQ8064)
 #define GPIO_PINID_FELICA_INT_REV03			GPIO_FELICA_INT
-#endif
+#elif defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
+#if defined(CONFIG_MACH_KLTE_KDI) || defined(CONFIG_MACH_KLTE_DCM) || defined(CONFIG_MACH_KLTE_SBM)
+#define GPIO_PINID_FELICA_INT				GPIO_FELICA_INT
+#endif	// CONFIG_MACH_KLTE
+#endif	//CONFIG_ARCH_MSM8974
 #define FELICA_INT_DATA_LEN				1
 #define FELICA_INT_DELAY_TIME			3
 #define FELICA_INT_LOW					0
@@ -406,7 +439,7 @@ static int snfc_uid_check(void);
 #define GPIO_PINID_NFC_HSEL				EXYNOS5410_GPX0(4)
 #elif defined(CONFIG_ARCH_APQ8064)
 #define GPIO_PINID_NFC_HSEL				FPGA_GPIO_FELICA_HSEL
-#elif defined(CONFIG_ARCH_MSM8974)
+#elif defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
 #define GPIO_PINID_NFC_HSEL				GPIO_FELICA_HSEL
 #endif
 #define HSEL_DEV_NAME					"snfc_hsel"
@@ -434,7 +467,7 @@ static int hsel_release(struct inode *inode, struct file *file);
 #elif defined(CONFIG_ARCH_APQ8064)
 #define GPIO_PINID_NFC_INTU_REV03				GPIO_FELICA_INTU
 #define GPIO_PINID_NFC_INTU_REV06				GPIO_FELICA_INTU_REV06
-#elif defined(CONFIG_ARCH_MSM8974)
+#elif defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
 #define GPIO_PINID_NFC_INTU						GPIO_FELICA_INTU
 #endif
 
@@ -510,7 +543,9 @@ static ssize_t rfs_poll_read(struct file *file, char __user * buf, size_t len,
 
 /* constant definition */
 /* CXD2235POWER device	*/
+#if !defined(CONFIG_MACH_KLTE_KDI) && !defined(CONFIG_MACH_KLTE_DCM) && !defined(CONFIG_MACH_KLTE_SBM)
 #define GPIO_PINID_NFC_PON				GPIO_PINID_FELICA_PON
+#endif
 #define CXD2235_POWER_DEV_NAME			"snfc_pon"
 #define CXD2235_POWER_DEV_COUNT			1
 
@@ -531,7 +566,7 @@ static ssize_t cxd2235power_write(struct file *file, const char __user *data,\
 #define SNFC_RFS_NAME					"snfc_rfs"
 #if defined(CONFIG_ARCH_EXYNOS)
 #define GPIO_PINID_SNFC_RFS				EXYNOS5410_GPJ3(0)
-#elif defined(CONFIG_ARCH_APQ8064) | (CONFIG_ARCH_MSM8974)
+#elif defined(CONFIG_ARCH_APQ8064) || defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
 #define GPIO_PINID_SNFC_RFS				GPIO_PINID_FELICA_RFS
 #endif
 #define SNFC_RFS_DATA_LEN				1
@@ -554,7 +589,11 @@ static ssize_t snfc_rfs_read(struct file *file, char __user *buf, \
 #define SNFC_UART_NAME					"snfc_uart"
 #if defined(CONFIG_ARCH_EXYNOS)
 #define UART_DEV_NAME					"/dev/ttySAC1"
-#elif defined(CONFIG_ARCH_APQ8064) | (CONFIG_ARCH_MSM8974)
+#elif defined(CONFIG_ARCH_APQ8064)
+#define UART_DEV_NAME					"/dev/ttyHSL2"
+#elif defined(CONFIG_MACH_KLTE_DCM) || defined(CONFIG_MACH_KLTE_KDI) || defined(CONFIG_MACH_KLTE_SBM)
+#define UART_DEV_NAME					"/dev/ttyHSL2"
+#elif defined(CONFIG_MACH_HLTEDCM)	|| defined(CONFIG_MACH_HLTEKDI) || defined(CONFIG_MACH_JS01LTEDCM)
 #define UART_DEV_NAME					"/dev/ttyHSL1"
 #endif
 
@@ -641,6 +680,8 @@ static unsigned int uartcc_is_idle_status(void);
 #define UICC_POWER_ON		_IO(UICC_MAGIC, 1)
 #define UICC_POWER_OFF		_IO(UICC_MAGIC, 2)
 #define UICC_POWER_SPS_PMIC	_IO(UICC_MAGIC, 3)
+#define UICC_POWER_UIM_MON	_IO(UICC_MAGIC, 4)
+
 
 #define UICC_ERROR		1
 #define UICC_SUCCESS	2

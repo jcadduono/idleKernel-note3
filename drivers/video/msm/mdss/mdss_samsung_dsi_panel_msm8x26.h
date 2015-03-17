@@ -21,20 +21,42 @@
 #define LOW_BRIGHTNESS_LEVEL 20
 #define DIM_BRIGHTNESS_LEVEL 30
 #if defined(CONFIG_FB_MSM_MDSS_TC_DSI2LVDS_WXGA_PANEL)
-#define BL_MIN_BRIGHTNESS			2
-#define BL_MAX_BRIGHTNESS_LEVEL		126
-#define BL_MID_BRIGHTNESS_LEVEL		65
-#define BL_LOW_BRIGHTNESS_LEVEL		2
-#define BL_DIM_BRIGHTNESS_LEVEL		4
+#if defined(CONFIG_MACH_MATISSELTE_VZW) || defined(CONFIG_MACH_MATISSELTE_USC)  
+#define BL_MIN_BRIGHTNESS			1
+#define BL_MAX_BRIGHTNESS_LEVEL		101
+#define BL_MID_BRIGHTNESS_LEVEL		46
+#define BL_LOW_BRIGHTNESS_LEVEL		1
+#define BL_DIM_BRIGHTNESS_LEVEL		3
+#define BL_DEFAULT_BRIGHTNESS		BL_MID_BRIGHTNESS_LEVEL
+#elif defined(CONFIG_MACH_MATISSELTE_ATT)
+#define BL_MIN_BRIGHTNESS			1
+#define BL_MAX_BRIGHTNESS_LEVEL		105
+#define BL_MID_BRIGHTNESS_LEVEL		52
+#define BL_LOW_BRIGHTNESS_LEVEL		1
+#define BL_DIM_BRIGHTNESS_LEVEL		3
 #define BL_DEFAULT_BRIGHTNESS		BL_MID_BRIGHTNESS_LEVEL
 #else
-#define BL_MIN_BRIGHTNESS			2
+#define BL_MIN_BRIGHTNESS			1
+#define BL_MAX_BRIGHTNESS_LEVEL		105
+#define BL_MID_BRIGHTNESS_LEVEL		45
+#define BL_LOW_BRIGHTNESS_LEVEL		1
+#define BL_DIM_BRIGHTNESS_LEVEL		3
+#define BL_DEFAULT_BRIGHTNESS		BL_MID_BRIGHTNESS_LEVEL
+#endif
+#elif !defined(CONFIG_FB_MSM_MDSS_SDC_WXGA_PANEL)
+#define BL_MIN_BRIGHTNESS			3
 #define BL_MAX_BRIGHTNESS_LEVEL		230
-#define BL_MID_BRIGHTNESS_LEVEL		115
-#define BL_LOW_BRIGHTNESS_LEVEL		2
+#define BL_MID_BRIGHTNESS_LEVEL		107
+#define BL_LOW_BRIGHTNESS_LEVEL		3
 #define BL_DIM_BRIGHTNESS_LEVEL		9
 #define BL_DEFAULT_BRIGHTNESS		BL_MID_BRIGHTNESS_LEVEL
 #endif
+
+#if defined(CONFIG_FB_MSM_MDSS_CPT_QHD_PANEL)
+#define SINGLE_WIRE_BL_CTRL 1
+#define DT_CMD_HDR 6
+#endif
+
 enum {
 	MIPI_RESUME_STATE,
 	MIPI_SUSPEND_STATE,
@@ -44,6 +66,7 @@ enum {
 	unsigned char auto_brightness;
 	int bright_level;
 	int siop_status;
+	int wait_bl_on;
  };
 
  struct mdss_samsung_driver_data{
@@ -55,17 +78,23 @@ enum {
 	struct mutex lock;
 
 #if defined(CONFIG_FB_MSM_MDSS_SDC_WXGA_PANEL)
-	int bl_on_gpio;
 	int bl_rst_gpio;
 	int bl_ldi_en;
-#endif
-#if defined(CONFIG_FB_MSM_MDSS_TC_DSI2LVDS_WXGA_PANEL)
-	int lvds_supply_en;
-	int bl_on_gpio;
+	int bl_sda;
+	int bl_scl;
+	int bl_ap_pwm;
+#elif defined(CONFIG_FB_MSM_MDSS_CPT_QHD_PANEL)
+	int lcd_en_gpio;
+	int lcd_on_gpio;
+	int lcd_io_1p8_en_gpio;
+#elif defined(CONFIG_FB_MSM_MDSS_TC_DSI2LVDS_WXGA_PANEL)
+	int lcd_en_gpio;
 	int bl_ap_pwm;
 	int bl_rst_gpio;
 	int bl_wled;
 	int bl_ldi_en;
+	int bl_sda;
+	int bl_scl;
 #endif
 
 #if defined(CONFIG_LCD_CLASS_DEVICE)

@@ -55,7 +55,23 @@ void *wlan_static_scan_buf0;
 void *wlan_static_scan_buf1;
 void *wlan_static_dhd_info_buf;
 
-#ifdef CONFIG_SEC_KS01_PROJECT
+#if defined(CONFIG_BCM4335) || defined(CONFIG_BCM4335_MODULE)
+#define ENABLE_4335BT_WAR
+#endif
+
+#if defined(CONFIG_BCM4339) || defined(CONFIG_BCM4339_MODULE)
+#ifdef CONFIG_SEC_H_PROJECT
+#define ENABLE_4339BT_WAR
+bool b0rev = 1;    
+#endif
+#endif
+
+#if defined(ENABLE_4335BT_WAR) || defined(ENABLE_4339BT_WAR)
+static int bt_off = 0;
+extern int bt_is_running;
+#endif /* ENABLE_4335BT_WAR */
+
+#if defined(CONFIG_SEC_KS01_PROJECT) || defined(CONFIG_SEC_JACTIVE_PROJECT)
 enum {
     FPGA_VSIL_A_1P2_EN = 0,
     FPGA_GPIO_01,
@@ -69,6 +85,10 @@ enum {
     FPGA_GPIO_VPS_SOUND_EN,
 };
 #endif /* defined(CONFIG_SEC_KS01_PROJECT) */
+
+#ifdef CONFIG_SEC_H_PROJECT
+#define FPGA_GPIO_BT_EN 42
+#endif
 
 static void *brcm_wlan_mem_prealloc(int section, unsigned long size)
 {
@@ -143,6 +163,13 @@ static int brcm_init_wlan_mem(void)
 	return 0;
 
  err_mem_alloc:
+	if (wlan_static_scan_buf0)
+		kfree(wlan_static_scan_buf0);
+	if (wlan_static_scan_buf1)
+		kfree(wlan_static_scan_buf1);
+	if (wlan_static_dhd_info_buf)
+		kfree(wlan_static_dhd_info_buf);
+
 	pr_err("Failed to mem_alloc for WLAN\n");
 	for (j = 0 ; j < i ; j++)
 		kfree(wlan_mem_array[j].mem_ptr);
@@ -159,29 +186,46 @@ static int brcm_init_wlan_mem(void)
 #endif /* CONFIG_BROADCOM_WIFI_RESERVED_MEM */
 
 /* MSM8974 WLAN_EN GPIO Number */
-#if defined(CONFIG_SEC_K_PROJECT) || defined(CONFIG_SEC_KACTIVE_PROJECT)
+#if defined(CONFIG_SEC_K_PROJECT) || defined(CONFIG_SEC_KACTIVE_PROJECT) || defined(CONFIG_SEC_KSPORTS_PROJECT)
 #define GPIO_WL_REG_ON 308
+#elif defined(CONFIG_SEC_PATEK_PROJECT)
+#define GPIO_WL_REG_ON 26
+#elif defined(CONFIG_SEC_S_PROJECT)
+#define GPIO_WL_REG_ON 85
 #elif defined(CONFIG_SEC_H_PROJECT) || defined(CONFIG_SEC_VIENNA_PROJECT) || defined(CONFIG_SEC_LT03_PROJECT) ||\
       defined(CONFIG_SEC_PICASSO_PROJECT) || defined(CONFIG_SEC_V2_PROJECT) || defined(CONFIG_SEC_JS_PROJECT) ||\
-      defined(CONFIG_SEC_F_PROJECT) || defined(CONFIG_SEC_MONTBLANC_PROJECT) || defined(CONFIG_SEC_KACTIVE_PROJECT)
+      defined(CONFIG_SEC_F_PROJECT) || defined(CONFIG_SEC_MONTBLANC_PROJECT) || defined(CONFIG_SEC_KACTIVE_PROJECT) ||\
+      defined(CONFIG_SEC_FRESCO_PROJECT) || defined(CONFIG_SEC_CHAGALL_PROJECT) || defined(CONFIG_SEC_KLIMT_PROJECT)
+#if defined(CONFIG_MACH_CHAGALL_KDI)
+#define GPIO_WL_REG_ON 28
+#else
 #define GPIO_WL_REG_ON 53
+#endif
 #elif defined(CONFIG_MACH_MELIUSCASKT) || defined(CONFIG_MACH_MELIUSCAKTT) || defined(CONFIG_MACH_MELIUSCALGT)
 #define GPIO_WL_REG_ON 100
 #endif /* defined CONFIG_SEC_K_PROJECT and CONFIG_SEC_KACTIVE_PROJECT */
 
 /* MSM8974 WLAN_HOST_WAKE GPIO Number */
-#if defined(CONFIG_SEC_K_PROJECT) || defined(CONFIG_SEC_KACTIVE_PROJECT)
+#if defined(CONFIG_SEC_K_PROJECT) || defined(CONFIG_SEC_KACTIVE_PROJECT) || defined(CONFIG_SEC_KSPORTS_PROJECT) ||\
+	defined(CONFIG_SEC_S_PROJECT) || defined(CONFIG_SEC_PATEK_PROJECT)
+#if defined(CONFIG_MACH_KLTE_JPN_WLAN_OBSOLETE)
+#define GPIO_WL_HOST_WAKE 73
+#else
 #define GPIO_WL_HOST_WAKE 92
+#endif
+#elif defined(CONFIG_MACH_CHAGALL_KDI)
+#define GPIO_WL_HOST_WAKE 18
 #else
 #define GPIO_WL_HOST_WAKE 54
 #endif
 
-#ifdef CONFIG_SEC_KS01_PROJECT
+#if defined(CONFIG_SEC_KS01_PROJECT) || defined(CONFIG_SEC_JACTIVE_PROJECT)
 extern int ice_gpiox_get(int num);
 extern int ice_gpiox_set(int num, int val);
 #endif
 
-#if !defined(CONFIG_SEC_K_PROJECT) && !defined(CONFIG_SEC_KS01_PROJECT) && !defined(CONFIG_SEC_KACTIVE_PROJECT)
+#if !defined(CONFIG_SEC_K_PROJECT) && !defined(CONFIG_SEC_KS01_PROJECT) && !defined(CONFIG_SEC_KACTIVE_PROJECT) &&\
+    !defined(CONFIG_SEC_JACTIVE_PROJECT) && !defined(CONFIG_SEC_PATEK_PROJECT)
 static unsigned config_gpio_wl_reg_on[] = {
 	GPIO_CFG(GPIO_WL_REG_ON, 0, GPIO_CFG_OUTPUT,
 		GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA) };
@@ -211,8 +255,8 @@ int __init brcm_wifi_init_gpio(void)
 	unsigned gpio_cfg = GPIO_CFG(get_gpio_wl_host_wake(), 0, GPIO_CFG_INPUT,
 		GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA);
 
-#ifndef CONFIG_SEC_KS01_PROJECT
-#if !defined(CONFIG_SEC_K_PROJECT) && !defined(CONFIG_SEC_KACTIVE_PROJECT)
+#if !defined(CONFIG_SEC_KS01_PROJECT) && !defined(CONFIG_SEC_JACTIVE_PROJECT)
+#if !defined(CONFIG_SEC_K_PROJECT) && !defined(CONFIG_SEC_KACTIVE_PROJECT) && !defined(CONFIG_SEC_PATEK_PROJECT)
 	if (gpio_tlmm_config(config_gpio_wl_reg_on[0], GPIO_CFG_ENABLE))
 		printk(KERN_ERR "%s: Failed to configure GPIO"
 			" - WL_REG_ON\n", __func__);
@@ -227,7 +271,7 @@ int __init brcm_wifi_init_gpio(void)
 			"failed to pull down\n", __func__);
 #endif /* not defined CONFIG_SEC_KS01_PROJECT */
 
-#if defined(CONFIG_SEC_K_PROJECT) || defined(CONFIG_SEC_KACTIVE_PROJECT)
+#if defined(CONFIG_SEC_K_PROJECT)
 	if (system_rev == 4) {
 		printk("WLAN: Skip wlan irq setting..\n");
 	}
@@ -259,31 +303,42 @@ int __init brcm_wifi_init_gpio(void)
 	return 0;
 }
 
+#ifdef ENABLE_4335BT_WAR
+static int brcm_wlan_power(int onoff,bool b0rev)
+#else
 static int brcm_wlan_power(int onoff)
+#endif
 {
+	int ret = 0;
 	printk(KERN_INFO"------------------------------------------------");
 	printk(KERN_INFO"------------------------------------------------\n");
 	printk(KERN_INFO"%s Enter: power %s\n", __func__, onoff ? "on" : "off");
 
 	if (onoff) {
-		/*
-		if (gpio_request(GPIO_WL_REG_ON, "WL_REG_ON"))
+#if defined(ENABLE_4335BT_WAR) || defined(ENABLE_4339BT_WAR)
+		if(b0rev == true && gpio_get_value(FPGA_GPIO_BT_EN) == 0)
 		{
-			printk("Failed to request for WL_REG_ON\n");
+			bt_off = 1;
+			gpio_direction_output(FPGA_GPIO_BT_EN, 1);
+			printk("[brcm_wlan_power] Bluetooth Power On.\n");
+			msleep(50);
 		}
-		*/
+		else {
+			bt_off = 0;
+		}
+#endif
 
-#ifdef CONFIG_SEC_KS01_PROJECT
+#if defined(CONFIG_SEC_KS01_PROJECT) || defined(CONFIG_SEC_JACTIVE_PROJECT)
 		if (ice_gpiox_set(FPGA_GPIO_WLAN_EN, 1)) {
 			printk(KERN_ERR "%s: WL_REG_ON  failed to pull up\n", __func__);
-				return -EIO;
+			ret =  -EIO;
 		}
 #else
 		printk(KERN_INFO"WL_REG_ON on-step : [%d]\n" , gpio_get_value(GPIO_WL_REG_ON));
 		if (gpio_direction_output(GPIO_WL_REG_ON, 1)) {
 			printk(KERN_ERR "%s: check WL_REG_ON pin for H\n", __func__);
 			printk(KERN_ERR "%s: WL_REG_ON  failed to pull up\n", __func__);
-				return -EIO;
+			ret =  -EIO;
 		}
 
 		if(gpio_get_value(GPIO_WL_REG_ON)){
@@ -292,7 +347,7 @@ static int brcm_wlan_power(int onoff)
 		else
 		{
 			printk("[%s] gpio value is 0. We need reinit.\n",__func__);
-#if !defined(CONFIG_SEC_K_PROJECT) && !defined(CONFIG_SEC_KACTIVE_PROJECT)
+#if !defined(CONFIG_SEC_K_PROJECT) && !defined(CONFIG_SEC_KACTIVE_PROJECT) && !defined(CONFIG_SEC_PATEK_PROJECT)
 			if (gpio_tlmm_config(config_gpio_wl_reg_on[0], GPIO_CFG_ENABLE))
 				printk(KERN_ERR "%s: Failed to configure GPIO"
 						" - WL_REG_ON\n", __func__);
@@ -303,7 +358,16 @@ static int brcm_wlan_power(int onoff)
 						"failed to pull down\n", __func__);
 		}
 #endif /* defined CONFIG_SEC_KS01_PROJECT */
+
+#if defined(CONFIG_BCM4339) || defined(CONFIG_BCM4335) || defined(CONFIG_BCM4354)
+	/* Power on/off SDIO host */
+	sdio_ctrl_power((struct mmc_host *)wifi_mmc_host, onoff);
+#endif /* CONFIG_BCM4339 || CONFIG_BCM4335  || CONFIG_BCM4354 */
 	} else {
+#if defined(CONFIG_BCM4339) || defined(CONFIG_BCM4335) || defined(CONFIG_BCM4354)
+	/* Power on/off SDIO host */
+	sdio_ctrl_power((struct mmc_host *)wifi_mmc_host, onoff);
+#endif /* CONFIG_BCM4339 || CONFIG_BCM4335  || CONFIG_BCM4354 */
 /*
 		if (gpio_request(GPIO_WL_REG_ON, "WL_REG_ON"))
 		{
@@ -311,29 +375,30 @@ static int brcm_wlan_power(int onoff)
 		}
 */
 
-#ifdef CONFIG_SEC_KS01_PROJECT
+#if defined(CONFIG_SEC_KS01_PROJECT) || defined(CONFIG_SEC_JACTIVE_PROJECT)
 		if (ice_gpiox_set(FPGA_GPIO_WLAN_EN, 0)) {
 			printk(KERN_ERR "%s: WL_REG_ON  failed to pull down\n", __func__);
-				return -EIO;
+			ret = -EIO;
 		}
 #else
 		printk(KERN_INFO"WL_REG_ON off-step : [%d]\n" , gpio_get_value(GPIO_WL_REG_ON));
 
 		if (gpio_direction_output(GPIO_WL_REG_ON, 0)) {
 			printk(KERN_ERR "%s: WL_REG_ON  failed to pull down\n", __func__);
-				return -EIO;
+			ret = -EIO;
 		}
 
 		printk(KERN_INFO"WL_REG_ON off-step-2 : [%d]\n" , gpio_get_value(GPIO_WL_REG_ON));
 #endif
 	}
-
-#if defined(CONFIG_BCM4339) || defined(CONFIG_BCM4335) || defined(CONFIG_BCM4354)
-	/* Power on/off SDIO host */
-	sdio_ctrl_power((struct mmc_host *)wifi_mmc_host, onoff);
-#endif /* CONFIG_BCM4339 || CONFIG_BCM4335  || CONFIG_BCM4354 */
-
-	return 0;
+#if defined(ENABLE_4335BT_WAR) || defined(ENABLE_4339BT_WAR)
+	if(onoff && (bt_off == 1) && (bt_is_running == 0)) {
+		msleep(100);
+		gpio_direction_output(FPGA_GPIO_BT_EN, 0);
+		printk("[brcm_wlan_power] BT_REG_OFF.\n");
+	}
+#endif
+	return ret;
 }
 
 static int brcm_wlan_reset(int onoff)
@@ -496,8 +561,8 @@ int __init brcm_wlan_init(void)
 	brcm_init_wlan_mem();
 #endif
 
-#if defined(CONFIG_SEC_K_PROJECT) || defined(CONFIG_SEC_KACTIVE_PROJECT)
-	if (system_rev >= 4)
+#if defined(CONFIG_SEC_K_PROJECT)
+	if (system_rev >= 5)
 		return platform_device_register(&brcm_device_wlan);
 	else
 		return -1;
@@ -505,4 +570,4 @@ int __init brcm_wlan_init(void)
 	return platform_device_register(&brcm_device_wlan);
 #endif
 }
-device_initcall_sync(brcm_wlan_init);
+device_initcall(brcm_wlan_init);

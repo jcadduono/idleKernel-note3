@@ -31,7 +31,7 @@ void __msm_gpiomux_write(unsigned gpio, struct gpiomux_setting val)
 	mb();
 }
 
-#if defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8610)
+#if defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8610) || defined(CONFIG_ARCH_MSM8226)
 void __msm_gpiomux_read(unsigned gpio, struct gpiomux_setting *val)
 {
 	uint32_t bits = readl_relaxed(GPIO_CFG(gpio));

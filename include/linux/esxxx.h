@@ -38,7 +38,9 @@ struct esxxx_platform_data {
 	int	irq_base, irq_end;
 	int	reset_gpio;
 	int	wakeup_gpio;
-	int	uart_gpio;
+	int	uart_gpio;	/* uart switch */
+	int	uart_tx_gpio;
+	int	uart_rx_gpio;
 	int	gpioa_gpio;
 	int	gpiob_gpio;
 	int	accdet_gpio;

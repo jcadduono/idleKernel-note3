@@ -110,6 +110,9 @@ EXPORT_SYMBOL(boot_reason);
 unsigned int cold_boot;
 EXPORT_SYMBOL(cold_boot);
 
+char* (*arch_read_hardware_id)(void);
+EXPORT_SYMBOL(arch_read_hardware_id);
+
 #ifdef MULTI_CPU
 struct processor processor __read_mostly;
 #endif
@@ -735,14 +738,23 @@ static int __init parse_tag_serialnr(const struct tag *tag)
 
 __tagtable(ATAG_SERIAL, parse_tag_serialnr);
 
+#if !defined(CONFIG_MACH_KS01EUR)
 static int __init msm_serialnr_setup(char *p)
 {
+#ifdef CONFIG_EXTEND_SERIAL_NUM_16
+	unsigned long long serial = 0;
+	serial = simple_strtoull(p, NULL, 16);
+	system_serial_high = serial>>32;
+	system_serial_low = serial & 0xFFFFFFFF;
+#else
 	system_serial_low = simple_strtoul(p, NULL, 16);
 	system_serial_high = (system_serial_low&0xFFFF0000)>>16;
 	system_serial_low = system_serial_low&0x0000FFFF;
+#endif
 	return 0;
 }
 early_param("androidboot.serialno", msm_serialnr_setup);
+#endif
 
 static int __init parse_tag_revision(const struct tag *tag)
 {
@@ -1132,7 +1144,10 @@ static int c_show(struct seq_file *m, void *v)
 
 	seq_puts(m, "\n");
 
-	seq_printf(m, "Hardware\t: %s\n", machine_name);
+	if (!arch_read_hardware_id)
+		seq_printf(m, "Hardware\t: %s\n", machine_name);
+	else
+		seq_printf(m, "Hardware\t: %s\n", arch_read_hardware_id());
 	seq_printf(m, "Revision\t: %04x\n", system_rev);
 	seq_printf(m, "Serial\t\t: %08x%08x\n",
 		   system_serial_high, system_serial_low);

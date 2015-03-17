@@ -39,7 +39,7 @@
 
 #define MODULE_NAME			"magnetic_sensor"
 #define VENDOR_NAME			"YAMAHA"
-#define CHIP_NAME			"YAS532"
+#define CHIP_NAME			"yas532"
 
 #define YAS53X_MIN_DELAY		(200) /* msec */
 #define YAS53X_LOG_TIME			10000
@@ -198,6 +198,7 @@ static ssize_t yas53x_delay_store(struct device *dev,
 	long value;
 	if (kstrtol(buf, 10, &value) < 0)
 		return -EINVAL;
+	value /= 1000000;
 	if (value < 0)
 		value = 0;
 	if (YAS53X_MIN_DELAY < value)
@@ -495,14 +496,22 @@ static int yas53x_resume(struct device *dev)
 }
 
 static struct of_device_id yas53x_match_table[] = {
-	{ .compatible = "yas532-i2c",},
+	{ .compatible = "yamaha,yas532",},
 	{},
 };
 
+/*
 static struct i2c_device_id yas53x_id[] = {
 	{ "yas53x_match_table", 0},
 	{}
 };
+*/
+
+static struct i2c_device_id yas53x_id[] = {
+	{"yas532", 0},
+	{}
+};
+MODULE_DEVICE_TABLE(i2c, yas53x_id);
 
 
 static const struct dev_pm_ops yas53x_pm_ops = {

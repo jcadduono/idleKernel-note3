@@ -45,6 +45,20 @@
 			reg = <0x36>;
 			fuelgauge,fuel_int = <&pm8941_gpios 26 0x1>;
 			fuelgauge,bat_int = <&pm8941_mpps 8 0>;
+
+			fuelgauge,capacity_max = <1000>;
+			fuelgauge,capacity_max_margin = <50>;
+			fuelgauge,capacity_min = <0>;
+			fuelgauge,capacity_calculation_type = <0x17>;
+			fuelgauge,fuel_alert_soc = <2>;
+			/* fuelgaguge,repeated_fuelalert; */
+			fuelgauge,rcomp0 = <0x73>;
+			fuelgauge,rcomp_charging = <0x8D>;
+			fuelgauge,temp_cohot = <(-1000)>;
+			fuelgauge,temp_cocold = <(-4325)>;
+			fuelgauge,is_using_model_data;
+			fuelgauge,type_str = "SDI";
+			qcom,sec-fuelgauge-vadc = <&pm8941_vadc>;
 		};
 	};
 };

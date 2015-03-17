@@ -97,10 +97,10 @@
 
 				05 01 00 00 32 02 29 00		/* Display On Command (29h) */
 			];
-		qcom,on-cmds-dsi-state = "DSI_LP_MODE";
+		qcom,on-cmds-dsi-state = "dsi_lp_mode";
 		qcom,panel-off-cmds = [05 01 00 00 32 02 28 00
 					05 01 00 00 78 02 10 00];
-		qcom,off-cmds-dsi-state = "DSI_HS_MODE";
+		qcom,off-cmds-dsi-state = "dsi_hs_mode";
 
 		/*
 			the last byte in read commands  represent READ LENGH,

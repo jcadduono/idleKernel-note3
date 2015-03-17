@@ -16,6 +16,10 @@
 };
 
 &soc {
+	i2c_3: i2c@f9925000 { /* BLSP#3 */
+		qcom,master-id = <86>;
+		status = "disabled";
+	};
 	spi_2: spi@f9925000 {
 		compatible = "qcom,spi-qup-v2";
 		#address-cells = <1>;
@@ -62,5 +66,7 @@
 		tdmb_rst = <&msmgpio 41 0>;
 		tdmb_irq = <&msmgpio 73 0>;
 		tdmb_ant_irq = <&msmgpio 18 0>;
+		tdmb_use_rst;
+		tdmb_use_irq;
 	};
 };

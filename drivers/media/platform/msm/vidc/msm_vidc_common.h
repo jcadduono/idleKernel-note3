@@ -32,12 +32,15 @@ int msm_comm_try_set_prop(struct msm_vidc_inst *inst,
 int msm_comm_set_scratch_buffers(struct msm_vidc_inst *inst);
 int msm_comm_set_persist_buffers(struct msm_vidc_inst *inst);
 int msm_comm_set_output_buffers(struct msm_vidc_inst *inst);
+int msm_comm_queue_output_buffers(struct msm_vidc_inst *inst);
 int msm_comm_qbuf(struct vb2_buffer *vb);
 void msm_comm_scale_clocks_and_bus(struct msm_vidc_inst *inst);
 int msm_comm_flush(struct msm_vidc_inst *inst, u32 flags);
 int msm_comm_release_scratch_buffers(struct msm_vidc_inst *inst);
 int msm_comm_release_persist_buffers(struct msm_vidc_inst *inst);
+int msm_comm_release_output_buffers(struct msm_vidc_inst *inst);
 int msm_comm_force_cleanup(struct msm_vidc_inst *inst);
+int msm_comm_suspend(int core_id);
 enum hal_extradata_id msm_comm_get_hal_extradata_index(
 	enum v4l2_mpeg_vidc_extradata index);
 int msm_comm_get_domain_partition(struct msm_vidc_inst *inst, u32 flags,
@@ -52,9 +55,6 @@ int msm_comm_check_scaling_supported(struct msm_vidc_inst *inst);
 int msm_comm_recover_from_session_error(struct msm_vidc_inst *inst);
 enum multi_stream msm_comm_get_stream_output_mode(struct msm_vidc_inst *inst);
 enum hal_buffer msm_comm_get_hal_output_buffer(struct msm_vidc_inst *inst);
-
-enum hal_video_codec get_hal_codec_type(int fourcc); 
-
 struct msm_smem *msm_comm_smem_alloc(struct msm_vidc_inst *inst,
 			size_t size, u32 align, u32 flags,
 			enum hal_buffer buffer_type, int map_kernel);
@@ -66,4 +66,5 @@ struct msm_smem *msm_comm_smem_user_to_kernel(struct msm_vidc_inst *inst,
 int msm_comm_smem_get_domain_partition(struct msm_vidc_inst *inst,
 			u32 flags, enum hal_buffer buffer_type,
 			int *domain_num, int *partition_num);
+enum hal_video_codec get_hal_codec_type(int fourcc);
 #endif

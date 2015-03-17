@@ -22,6 +22,9 @@ NOTE: Atleast one Channel node is required.
 
 Optional properties:
 - qcom,vadc-poll-eoc: Use polling instead of interrupts for End of Conversion completion.
+- qcom,pmic-revid : Phandle pointing to the revision peripheral node. Use it to query the
+		    PMIC type and revision for applying the appropriate temperature
+		    compensation parameters.
 
 Client required property:
 - qcom,<consumer name>-vadc : The phandle to the corresponding vadc device.
@@ -49,6 +52,7 @@ Required properties:
 				 2 : {1, 4}
 				 3 : {1, 6}
 				 4 : {1, 20}
+				 5 : {1, 8}
 - qcom,calibration-type : Reference voltage to use for channel calibration.
 			  Channel calibration is dependendent on the channel.
 			  Certain channels like XO_THERM, BATT_THERM use ratiometric
@@ -65,6 +69,8 @@ Required properties:
 			3 : Returns current across 0.1 ohm resistor.
 			4 : Returns XO thermistor voltage in degree's Centigrade.
 			5 : Returns result in degC for 150k pull-up.
+			9 : Conversion to temperature based on -15~55 allowable
+			    battery charging tempeature setting for btm parameters.
 - qcom,hw-settle-time : Settling period for the channel before ADC read.
 			Select from the following unsigned int.
 			0 : 0us

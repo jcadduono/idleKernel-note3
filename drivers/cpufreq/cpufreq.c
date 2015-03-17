@@ -476,9 +476,10 @@ static ssize_t store_##file_name					\
 }
 
 #ifdef CONFIG_SEC_PM
-
+#ifndef CONFIG_ARCH_MSM8226
 /* Disable scaling_min_freq store */
 	store_one(scaling_min_freq, min);
+#endif
 #endif
 
 static ssize_t store_scaling_max_freq
@@ -1421,7 +1422,7 @@ static unsigned int __cpufreq_get(unsigned int cpu)
 	struct cpufreq_policy *policy = per_cpu(cpufreq_cpu_data, cpu);
 	unsigned int ret_freq = 0;
 
-	if (!cpufreq_driver->get)
+	if (!cpufreq_driver->get || policy == 0)
 		return ret_freq;
 
 	ret_freq = cpufreq_driver->get(cpu);
@@ -1844,10 +1845,9 @@ static int __cpufreq_set_policy(struct cpufreq_policy *data,
 	memcpy(&policy->cpuinfo, &data->cpuinfo,
 				sizeof(struct cpufreq_cpuinfo));
 
-	if (policy->min > data->user_policy.max
-		|| policy->max < data->user_policy.min) {
+	if (policy->min > data->user_policy.max || policy->max < data->user_policy.min) {
 		pr_debug("CPUFREQ: %s: pmin:%d, pmax:%d, min:%d, max:%d\n",
-			__func__, policy->min, policy->max, data->min, data->max);
+			__func__, policy->min, policy->max, data->user_policy.min, data->user_policy.max);
 #ifndef CONFIG_SEC_PM
 		ret = -EINVAL;
 		goto error_out;

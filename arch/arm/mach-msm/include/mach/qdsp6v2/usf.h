@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2013, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2011-2014, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -39,6 +39,15 @@
 #define US_GET_VERSION  _IOWR(USF_IOCTL_MAGIC, 9, \
 				struct us_version_info_type)
 
+#define US_SET_TX_STREAM_PARAM   _IOW(USF_IOCTL_MAGIC, 10, \
+				struct us_stream_param_type)
+#define US_GET_TX_STREAM_PARAM  _IOWR(USF_IOCTL_MAGIC, 11, \
+				struct us_stream_param_type)
+#define US_SET_RX_STREAM_PARAM   _IOW(USF_IOCTL_MAGIC, 12, \
+				struct us_stream_param_type)
+#define US_GET_RX_STREAM_PARAM  _IOWR(USF_IOCTL_MAGIC, 13, \
+				struct us_stream_param_type)
+
 /* Special timeout values */
 #define USF_NO_WAIT_TIMEOUT	0x00000000
 /* Infinitive */
@@ -73,7 +82,8 @@ enum us_detect_mode_enum {
 #define USF_TSC_PTR_EVENT_IND  1
 #define USF_MOUSE_EVENT_IND    2
 #define USF_KEYBOARD_EVENT_IND 3
-#define USF_MAX_EVENT_IND      4
+#define USF_TSC_EXT_EVENT_IND  4
+#define USF_MAX_EVENT_IND      5
 
 /* Types of events, produced by the calculators */
 #define USF_NO_EVENT 0
@@ -81,10 +91,12 @@ enum us_detect_mode_enum {
 #define USF_TSC_PTR_EVENT  (1 << USF_TSC_PTR_EVENT_IND)
 #define USF_MOUSE_EVENT    (1 << USF_MOUSE_EVENT_IND)
 #define USF_KEYBOARD_EVENT (1 << USF_KEYBOARD_EVENT_IND)
+#define USF_TSC_EXT_EVENT  (1 << USF_TSC_EXT_EVENT_IND)
 #define USF_ALL_EVENTS         (USF_TSC_EVENT |\
 				USF_TSC_PTR_EVENT |\
 				USF_MOUSE_EVENT |\
-				USF_KEYBOARD_EVENT)
+				USF_KEYBOARD_EVENT |\
+				USF_TSC_EXT_EVENT)
 
 /* min, max array dimension */
 #define MIN_MAX_DIM 2
@@ -127,13 +139,8 @@ struct us_xx_info_type {
 	uint16_t params_data_size;
 /* Pointer to the parameters */
 	uint8_t *params_data;
-};
-
-/* Input events sources */
-enum us_input_event_src_type {
-	US_INPUT_SRC_PEN,
-	US_INPUT_SRC_FINGER,
-	US_INPUT_SRC_UNDEF
+/* Max size of buffer for get and set parameter */
+	uint32_t max_get_set_param_buf_size;
 };
 
 struct us_input_info_type {
@@ -146,10 +153,10 @@ struct us_input_info_type {
 	int tsc_y_tilt[MIN_MAX_DIM];
 	/* Touch screen pressure limits: min & max; for input module */
 	int tsc_pressure[MIN_MAX_DIM];
+	/* The requested buttons bitmap */
+	uint16_t req_buttons_bitmap;
 	/* Bitmap of types of events (USF_X_EVENT), produced by calculator */
 	uint16_t event_types;
-	/* Input event source */
-	enum us_input_event_src_type event_src;
 	/* Bitmap of types of events from devs, conflicting with USF */
 	uint16_t conflicting_event_types;
 };
@@ -174,6 +181,8 @@ struct point_event_type {
 	int inclinations[TILTS_DIM];
 /* [0-1023] (10bits); 0 - pen up */
 	uint32_t pressure;
+/* Bitmap for button state. 1 - down, 0 - up */
+	uint16_t buttons_state_bitmap;
 };
 
 /* Mouse buttons, supported by USF */
@@ -273,6 +282,17 @@ struct us_version_info_type {
 	uint16_t buf_size;
 /* Pointer to the memory for the version string */
 	char *pbuf;
+};
+
+struct us_stream_param_type {
+/* Id of module */
+	uint32_t module_id;
+/* Id of parameter */
+	uint32_t param_id;
+/* Size of memory of the parameter buffer */
+	uint32_t buf_size;
+/* Pointer to the memory of the parameter buffer */
+	uint8_t __user *pbuf;
 };
 
 #endif /* __USF_H__ */

@@ -64,8 +64,6 @@
 #define STK_POLL_PS
 #define STK_POLL_ALS		/* ALS interrupt is valid only when STK_PS_INT_MODE = 1	or 4*/
 
-#define STK_DEBUG_PRINTF
-
 /* Define Register Map */
 #define STK_STATE_REG 			0x00
 #define STK_PSCTRL_REG 			0x01
@@ -192,9 +190,13 @@ static struct sensors_classdev sensors_light_cdev = {
 	.max_range = "6500",
 	.resolution = "0.0625",
 	.sensor_power = "0.09",
-	.min_delay = 0,
+	.min_delay = (MIN_ALS_POLL_DELAY_NS / 1000),	/* us */
 	.fifo_reserved_event_count = 0,
 	.fifo_max_event_count = 0,
+	.enabled = 0,
+	.delay_msec = 200,
+	.sensors_enable = NULL,
+	.sensors_poll_delay = NULL,
 };
 
 static struct sensors_classdev sensors_proximity_cdev = {
@@ -209,6 +211,10 @@ static struct sensors_classdev sensors_proximity_cdev = {
 	.min_delay = 0,
 	.fifo_reserved_event_count = 0,
 	.fifo_max_event_count = 0,
+	.enabled = 0,
+	.delay_msec = 200,
+	.sensors_enable = NULL,
+	.sensors_poll_delay = NULL,
 };
 
 struct data_filter {
@@ -221,6 +227,8 @@ struct data_filter {
 struct stk3x1x_data {
 	struct i2c_client *client;
 	struct stk3x1x_platform_data *pdata;
+	struct sensors_classdev als_cdev;
+	struct sensors_classdev ps_cdev;
 #if (!defined(STK_POLL_PS) || !defined(STK_POLL_ALS))
     int32_t irq;
     struct work_struct stk_work;
@@ -238,7 +246,7 @@ struct stk3x1x_data {
 	int32_t ps_distance_last;
 	bool ps_enabled;
 	struct wake_lock ps_wakelock;
-    struct work_struct stk_ps_work;
+	struct work_struct stk_ps_work;
 	struct workqueue_struct *stk_ps_wq;
 #ifdef STK_POLL_PS
 	struct wake_lock ps_nosuspend_wl;
@@ -321,11 +329,11 @@ static void stk_init_code_threshold_table(struct stk3x1x_data *ps_data)
     for (i=1,j=0;i<LUX_THD_TABLE_SIZE;i++,j++)
     {
         alscode = stk_lux2alscode(ps_data, lux_threshold_table[j]);
-        printk(KERN_INFO "alscode[%d]=%d\n",i,alscode);
+		dev_dbg(&ps_data->client->dev, "alscode[%d]=%d\n", i, alscode);
         code_threshold_table[i] = (uint16_t)(alscode);
     }
     code_threshold_table[i] = 0xffff;
-    printk(KERN_INFO "alscode[%d]=%d\n",i,alscode);
+	dev_dbg(&ps_data->client->dev, "alscode[%d]=%d\n", i, alscode);
 }
 
 static uint32_t stk_get_lux_interval_index(uint16_t alscode)
@@ -458,7 +466,6 @@ static int32_t stk3x1x_check_pid(struct stk3x1x_data *ps_data)
         printk(KERN_ERR "%s: read i2c error, err=%d\n", __func__, err2);
         return -1;
     }
-	printk(KERN_INFO "%s: PID=0x%x, RID=0x%x\n", __func__, err1, err2);
 	if(err2 == 0xC0)
 		printk(KERN_INFO "%s: RID=0xC0!!!!!!!!!!!!!\n", __func__);
 
@@ -685,7 +692,9 @@ static int32_t stk3x1x_enable_ps(struct stk3x1x_data *ps_data, uint8_t enable)
 		input_sync(ps_data->ps_input_dev);
 		wake_lock_timeout(&ps_data->ps_wakelock, 3*HZ);
 		reading = stk3x1x_get_ps_reading(ps_data);
-		printk(KERN_INFO "%s: ps input event=%d, ps code = %d\n",__func__, near_far_state, reading);
+		dev_dbg(&ps_data->client->dev,
+			"%s: ps input event=%d, ps code = %d\n",
+			__func__, near_far_state, reading);
 #endif	/* #ifndef STK_POLL_PS */
 	}
 	else
@@ -904,6 +913,21 @@ static ssize_t stk_als_code_show(struct device *dev, struct device_attribute *at
     return scnprintf(buf, PAGE_SIZE, "%d\n", reading);
 }
 
+static ssize_t stk_als_enable_set(struct sensors_classdev *sensors_cdev,
+						unsigned int enabled)
+{
+	struct stk3x1x_data *als_data = container_of(sensors_cdev,
+						struct stk3x1x_data, als_cdev);
+	int err;
+
+	mutex_lock(&als_data->io_lock);
+	err = stk3x1x_enable_als(als_data, enabled);
+	mutex_unlock(&als_data->io_lock);
+
+	if (err < 0)
+		return err;
+	return 0;
+}
 
 static ssize_t stk_als_enable_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
@@ -935,7 +959,7 @@ static ssize_t stk_als_enable_store(struct device *dev, struct device_attribute 
 		printk(KERN_ERR "%s, invalid value %d\n", __func__, *buf);
 		return -EINVAL;
 	}
-    printk(KERN_INFO "%s: Enable ALS : %d\n", __func__, en);
+	dev_dbg(dev, "%s: Enable ALS : %d\n", __func__, en);
     mutex_lock(&ps_data->io_lock);
     stk3x1x_enable_als(ps_data, en);
     mutex_unlock(&ps_data->io_lock);
@@ -971,7 +995,7 @@ static ssize_t stk_als_lux_store(struct device *dev, struct device_attribute *at
 	input_report_abs(ps_data->als_input_dev, ABS_MISC, value);
 	input_sync(ps_data->als_input_dev);
 	mutex_unlock(&ps_data->io_lock);
-	printk(KERN_INFO "%s: als input event %ld lux\n",__func__, value);
+	dev_dbg(dev, "%s: als input event %ld lux\n", __func__, value);
 
     return size;
 }
@@ -1009,7 +1033,8 @@ static ssize_t stk_als_transmittance_store(struct device *dev, struct device_att
 static ssize_t stk_als_delay_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	struct stk3x1x_data *ps_data =  dev_get_drvdata(dev);
-	return scnprintf(buf, PAGE_SIZE, "%lld\n", ktime_to_ns(ps_data->als_poll_delay));
+	return scnprintf(buf, PAGE_SIZE, "%u\n",
+			(u32)ktime_to_ms(ps_data->als_poll_delay));
 }
 
 static inline void stk_als_delay_store_fir(struct stk3x1x_data *ps_data)
@@ -1018,34 +1043,48 @@ static inline void stk_als_delay_store_fir(struct stk3x1x_data *ps_data)
 	ps_data->fir.idx = 0;
 	ps_data->fir.sum = 0;
 }
+
+static ssize_t stk_als_poll_delay_set(struct sensors_classdev *sensors_cdev,
+						unsigned int delay_msec)
+{
+	struct stk3x1x_data *als_data = container_of(sensors_cdev,
+						struct stk3x1x_data, als_cdev);
+	uint64_t value = 0;
+
+	value = delay_msec * 1000000;
+
+	if (value < MIN_ALS_POLL_DELAY_NS)
+		value = MIN_ALS_POLL_DELAY_NS;
+
+	mutex_lock(&als_data->io_lock);
+	if (value != ktime_to_ns(als_data->als_poll_delay))
+		als_data->als_poll_delay = ns_to_ktime(value);
+
+	if (als_data->use_fir)
+		stk_als_delay_store_fir(als_data);
+
+	mutex_unlock(&als_data->io_lock);
+
+	return 0;
+}
+
 static ssize_t stk_als_delay_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t size)
 {
     uint64_t value = 0;
 	int ret;
-	struct stk3x1x_data *ps_data =  dev_get_drvdata(dev);
+	struct stk3x1x_data *als_data =  dev_get_drvdata(dev);
 	ret = kstrtoull(buf, 10, &value);
 	if(ret < 0)
 	{
-		printk(KERN_ERR "%s:kstrtoull failed, ret=0x%x\n",
-			__func__, ret);
+		dev_err(dev, "%s:kstrtoull failed, ret=0x%x\n",	__func__, ret);
 		return ret;
 	}
 #ifdef STK_DEBUG_PRINTF
-	printk(KERN_INFO "%s: set als poll delay=%lld\n", __func__, value);
+	dev_dbg(dev, "%s: set als poll delay=%lld\n", __func__, value);
 #endif
-	if(value < MIN_ALS_POLL_DELAY_NS)
-	{
-		printk(KERN_ERR "%s: delay is too small\n", __func__);
-		value = MIN_ALS_POLL_DELAY_NS;
-	}
-	mutex_lock(&ps_data->io_lock);
-	if(value != ktime_to_ns(ps_data->als_poll_delay))
-		ps_data->als_poll_delay = ns_to_ktime(value);
-
-	if (ps_data->use_fir)
-		stk_als_delay_store_fir(ps_data);
-
-	mutex_unlock(&ps_data->io_lock);
+	ret = stk_als_poll_delay_set(&als_data->als_cdev, value);
+	if (ret < 0)
+		return ret;
 	return size;
 }
 
@@ -1136,6 +1175,22 @@ static ssize_t stk_ps_code_show(struct device *dev, struct device_attribute *att
     return scnprintf(buf, PAGE_SIZE, "%d\n", reading);
 }
 
+static ssize_t stk_ps_enable_set(struct sensors_classdev *sensors_cdev,
+						unsigned int enabled)
+{
+	struct stk3x1x_data *ps_data = container_of(sensors_cdev,
+						struct stk3x1x_data, ps_cdev);
+	int err;
+
+	mutex_lock(&ps_data->io_lock);
+	err = stk3x1x_enable_ps(ps_data, enabled);
+	mutex_unlock(&ps_data->io_lock);
+
+	if (err < 0)
+		return err;
+	return 0;
+}
+
 static ssize_t stk_ps_enable_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
     int32_t enable, ret;
@@ -1166,7 +1221,7 @@ static ssize_t stk_ps_enable_store(struct device *dev, struct device_attribute *
 		printk(KERN_ERR "%s, invalid value %d\n", __func__, *buf);
 		return -EINVAL;
 	}
-    printk(KERN_INFO "%s: Enable PS : %d\n", __func__, en);
+	dev_dbg(dev, "%s: Enable PS : %d\n", __func__, en);
     mutex_lock(&ps_data->io_lock);
     stk3x1x_enable_ps(ps_data, en);
     mutex_unlock(&ps_data->io_lock);
@@ -1200,7 +1255,7 @@ static ssize_t stk_ps_enable_aso_store(struct device *dev, struct device_attribu
 		printk(KERN_ERR "%s, invalid value %d\n", __func__, *buf);
 		return -EINVAL;
 	}
-    printk(KERN_INFO "%s: Enable PS ASO : %d\n", __func__, en);
+	dev_dbg(dev, "%s: Enable PS ASO : %d\n", __func__, en);
 
     ret = i2c_smbus_read_byte_data(ps_data->client, STK_STATE_REG);
     if (ret < 0)
@@ -1288,7 +1343,7 @@ static ssize_t stk_ps_distance_show(struct device *dev, struct device_attribute 
 	input_sync(ps_data->ps_input_dev);
     mutex_unlock(&ps_data->io_lock);
 	wake_lock_timeout(&ps_data->ps_wakelock, 3*HZ);
-	printk(KERN_INFO "%s: ps input event %d cm\n",__func__, dist);
+	dev_dbg(dev, "%s: ps input event %d cm\n", __func__, dist);
     return scnprintf(buf, PAGE_SIZE, "%d\n", dist);
 }
 
@@ -1311,7 +1366,7 @@ static ssize_t stk_ps_distance_store(struct device *dev, struct device_attribute
 	input_sync(ps_data->ps_input_dev);
     mutex_unlock(&ps_data->io_lock);
 	wake_lock_timeout(&ps_data->ps_wakelock, 3*HZ);
-	printk(KERN_INFO "%s: ps input event %ld cm\n",__func__, value);
+	dev_dbg(dev, "%s: ps input event %ld cm\n", __func__, value);
     return size;
 }
 
@@ -1507,7 +1562,7 @@ static ssize_t stk_all_reg_show(struct device *dev, struct device_attribute *att
 		}
 		else
 		{
-			printk(KERN_INFO "reg[0x%2X]=0x%2X\n", cnt, ps_reg[cnt]);
+			dev_dbg(dev, "reg[0x%2X]=0x%2X\n", cnt, ps_reg[cnt]);
 		}
 	}
 	ps_reg[cnt] = i2c_smbus_read_byte_data(ps_data->client, STK_PDT_ID_REG);
@@ -1517,7 +1572,7 @@ static ssize_t stk_all_reg_show(struct device *dev, struct device_attribute *att
 		printk( KERN_ERR "all_reg_show:i2c_smbus_read_byte_data fail, ret=%d", ps_reg[cnt]);
 		return -EINVAL;
 	}
-	printk( KERN_INFO "reg[0x%x]=0x%2X\n", STK_PDT_ID_REG, ps_reg[cnt]);
+	dev_dbg(dev, "reg[0x%x]=0x%2X\n", STK_PDT_ID_REG, ps_reg[cnt]);
 	cnt++;
 	ps_reg[cnt] = i2c_smbus_read_byte_data(ps_data->client, STK_RSRVD_REG);
 	if(ps_reg[cnt] < 0)
@@ -1526,7 +1581,7 @@ static ssize_t stk_all_reg_show(struct device *dev, struct device_attribute *att
 		printk( KERN_ERR "all_reg_show:i2c_smbus_read_byte_data fail, ret=%d", ps_reg[cnt]);
 		return -EINVAL;
 	}
-	printk( KERN_INFO "reg[0x%x]=0x%2X\n", STK_RSRVD_REG, ps_reg[cnt]);
+	dev_dbg(dev, "reg[0x%x]=0x%2X\n", STK_RSRVD_REG, ps_reg[cnt]);
     mutex_unlock(&ps_data->io_lock);
 
     return scnprintf(buf, PAGE_SIZE, "%2X %2X %2X %2X %2X,%2X %2X %2X %2X %2X,%2X %2X %2X %2X %2X,%2X %2X %2X %2X %2X,%2X %2X %2X %2X %2X,%2X %2X\n",
@@ -1589,8 +1644,7 @@ static ssize_t stk_send_store(struct device *dev, struct device_attribute *attr,
 			__func__, ret);
 		return ret;
 	}
-	printk(KERN_INFO "%s: write reg 0x%x=0x%x\n", __func__, addr, cmd);
-
+	dev_dbg(dev, "%s: write reg 0x%x=0x%x\n", __func__, addr, cmd);
 	addr_u8 = (u8) addr;
 	cmd_u8 = (u8) cmd;
 	//mutex_lock(&ps_data->io_lock);
@@ -1688,7 +1742,6 @@ static void stk_als_work_func(struct work_struct *work)
 	input_report_abs(ps_data->als_input_dev, ABS_MISC, ps_data->als_lux_last);
 	input_sync(ps_data->als_input_dev);
 	mutex_unlock(&ps_data->io_lock);
-	//printk(KERN_INFO "%s: als input event %d lux\n",__func__, ps_data->als_lux_last);
 }
 #endif
 
@@ -1948,7 +2001,6 @@ static void stk3x1x_early_suspend(struct early_suspend *h)
 	int err;
 #endif
 
-	printk(KERN_INFO "%s", __func__);
     mutex_lock(&ps_data->io_lock);
 	if(ps_data->als_enabled)
 	{
@@ -1976,7 +2028,6 @@ static void stk3x1x_late_resume(struct early_suspend *h)
 	int err;
 #endif
 
-	printk(KERN_INFO "%s", __func__);
     mutex_lock(&ps_data->io_lock);
 	if(ps_data->als_enabled)
 		stk3x1x_enable_als(ps_data, 1);
@@ -2394,10 +2445,16 @@ static int stk3x1x_probe(struct i2c_client *client,
 	register_early_suspend(&ps_data->stk_early_suspend);
 #endif
 	/* make sure everything is ok before registering the class device */
-	err = sensors_classdev_register(&client->dev, &sensors_light_cdev);
+	ps_data->als_cdev = sensors_light_cdev;
+	ps_data->als_cdev.sensors_enable = stk_als_enable_set;
+	ps_data->als_cdev.sensors_poll_delay = stk_als_poll_delay_set;
+	err = sensors_classdev_register(&client->dev, &ps_data->als_cdev);
 	if (err)
 		goto err_power_on;
-	err = sensors_classdev_register(&client->dev, &sensors_proximity_cdev);
+
+	ps_data->ps_cdev = sensors_proximity_cdev;
+	ps_data->ps_cdev.sensors_enable = stk_ps_enable_set;
+	err = sensors_classdev_register(&client->dev, &ps_data->ps_cdev);
 	if (err)
 		goto err_class_sysfs;
 
@@ -2411,9 +2468,9 @@ static int stk3x1x_probe(struct i2c_client *client,
 
 err_init_all_setting:
 	stk3x1x_power_ctl(ps_data, false);
-	sensors_classdev_unregister(&sensors_proximity_cdev);
+	sensors_classdev_unregister(&ps_data->ps_cdev);
 err_class_sysfs:
-	sensors_classdev_unregister(&sensors_light_cdev);
+	sensors_classdev_unregister(&ps_data->als_cdev);
 err_power_on:
 	stk3x1x_power_init(ps_data, false);
 err_power_init:

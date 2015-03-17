@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -405,9 +405,9 @@
 	rpm-regulator-ldoa22 {
 		status = "okay";
 		pm8941_l22: regulator-l22 {
-			regulator-min-microvolt = <3000000>;
+			regulator-min-microvolt = <2500000>;
 			regulator-max-microvolt = <3000000>;
-			qcom,init-voltage = <3000000>;
+			qcom,init-voltage = <2500000>;
 			status = "okay";
 		};
 	};
@@ -415,7 +415,7 @@
 	rpm-regulator-ldoa23 {
 		status = "okay";
 		pm8941_l23: regulator-l23 {
-			regulator-min-microvolt = <2800000>;
+			regulator-min-microvolt = <2400000>;
 			regulator-max-microvolt = <3300000>;
 			qcom,init-voltage = <3000000>;
   			qcom,init-ldo-mode = <1>;
@@ -466,6 +466,8 @@
 		ranges;
 		qcom,pfm-threshold = <76>;
 		qcom,use-phase-scaling-factor;
+		qcom,phase-scaling-factor-bits-pos = <16>;
+		qcom,valid-scaling-factor-versions = <0 1 0 0>;
 
 		krait0_vreg: regulator@f9088000 {
 			compatible = "qcom,krait-regulator";
@@ -535,7 +537,9 @@
 	spi_eth_vreg: spi_eth_phy_vreg {
 		compatible = "regulator-fixed";
 		regulator-name = "ethernet_phy";
+		/* mpp 5 is used for another function
 		gpio = <&pm8941_mpps 5 0>;
+		*/
 		enable-active-high;
 	};
 

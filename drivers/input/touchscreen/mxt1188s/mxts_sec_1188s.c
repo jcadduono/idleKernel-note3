@@ -1,5 +1,6 @@
 #if TSP_SEC_FACTORY
 #include <linux/uaccess.h>
+#define tostring(x) #x
 
 static void set_default_result(struct mxt_fac_data *data)
 {
@@ -26,7 +27,7 @@ static void not_support_cmd(void *device_data)
 	set_default_result(fdata);
 	sprintf(buff, "%s", "NA");
 	set_cmd_result(fdata, buff, strnlen(buff, sizeof(buff)));
-	fdata->cmd_state = CMD_STATUS_NOT_APPLICABLE;
+	fdata->cmd_state = CMD_STATUS_WAITING;
 	dev_info(&client->dev, "%s: %s\"%s(%d)\"\n",
 		__func__, fdata->cmd, buff, strnlen(buff, sizeof(buff)));
 
@@ -205,6 +206,13 @@ static void mxt_treat_dbg_data(struct mxt_data *data,
 	u16 reference_temp = 0;
 #if ENABLE_TOUCH_KEY
 	bool reference_compare = true;
+#endif
+
+#if ENABLE_TOUCH_KEY
+	if((y_num == (data->pdata->touchkey[0].ynode)) &&
+					(x_num >= data->max_keys)){
+		return;
+	}
 #endif
 
 	if (dbg_mode == MXT_DIAG_DELTA_MODE) {
@@ -792,6 +800,40 @@ static void get_config_ver(void *device_data)
 		__func__, buff, strnlen(buff, sizeof(buff)));
 }
 
+static void get_module_vendor(void *device_data)
+{
+	struct mxt_data *data = (struct mxt_data *)device_data;
+	struct i2c_client *client = data->client;
+	struct mxt_fac_data *fdata = data->fdata;
+	char buff[16] = {0};
+	int val;
+
+	set_default_result(fdata);
+	if (!(gpio_get_value(data->pdata->tsp_en) &&
+				gpio_get_value(data->pdata->tsp_en1))) {
+		dev_err(&client->dev, "%s: [ERROR] Touch is stopped\n",
+				__func__);
+		snprintf(buff, sizeof(buff), "%s", "TSP turned off");
+		set_cmd_result(fdata, buff, strnlen(buff, sizeof(buff)));
+		fdata->cmd_state = CMD_STATUS_NOT_APPLICABLE;
+		return;
+	}
+	if (data->pdata->tsp_vendor1 > 0) {
+		gpio_tlmm_config(GPIO_CFG(data->pdata->tsp_vendor1, 0,
+				GPIO_CFG_INPUT, GPIO_CFG_NO_PULL, GPIO_CFG_2MA), 1);
+		val = gpio_get_value(data->pdata->tsp_vendor1);
+		dev_info(&client->dev,
+			"%s: TSP_ID: %d[%d]\n", __func__,data->pdata->tsp_vendor1, val);
+		snprintf(buff, sizeof(buff), "%s,%d", tostring(OK), val);
+		fdata->cmd_state = CMD_STATUS_OK;
+		set_cmd_result(fdata, buff, strnlen(buff, sizeof(buff)));
+		return;
+	}
+	snprintf(buff, sizeof(buff),  "%s", tostring(NG));
+	fdata->cmd_state = CMD_STATUS_FAIL;
+	set_cmd_result(fdata, buff, strnlen(buff, sizeof(buff)));
+}
+
 static void get_threshold(void *device_data)
 {
 	struct mxt_data *data = (struct mxt_data *)device_data;
@@ -991,6 +1033,11 @@ static void run_reference_read(void *device_data)
 		mxt_patch_test_event(data, 2);
 #endif
 
+	ret = mxt_write_object(data, MXT_GEN_COMMANDPROCESSOR_T6,
+		MXT_COMMAND_CALIBRATE, 1);
+	if(ret)
+		pr_err("[TSP] error sending calibration command %s\n", __func__);
+
 	ret = mxt_read_all_diagnostic_data(data,
 			MXT_DIAG_REFERENCE_MODE);
 	if (ret)
@@ -1000,7 +1047,10 @@ static void run_reference_read(void *device_data)
 			fdata->ref_min_data, fdata->ref_max_data);
 		set_cmd_result(fdata, buff, strnlen(buff, sizeof(buff)));
 
-		fdata->cmd_state = CMD_STATUS_OK;
+		if(fdata->ref_min_data < 100 && fdata->ref_max_data < 4000)
+			fdata->cmd_state = CMD_STATUS_NG;
+		else
+			fdata->cmd_state = CMD_STATUS_OK;
 	}
 }
 
@@ -1556,6 +1606,7 @@ static struct tsp_cmd tsp_cmds[] = {
 	{TSP_CMD("get_fw_ver_ic", get_fw_ver_ic),},
 	{TSP_CMD("get_config_ver", get_config_ver),},
 	{TSP_CMD("get_threshold", get_threshold),},
+	{TSP_CMD("get_module_vendor", get_module_vendor),},
 	{TSP_CMD("module_off_master", module_off_master),},
 	{TSP_CMD("module_on_master", module_on_master),},
 	{TSP_CMD("module_off_slave", not_support_cmd),},
@@ -1706,6 +1757,9 @@ static ssize_t show_cmd_status(struct device *dev,
 
 	else if (fdata->cmd_state == CMD_STATUS_NOT_APPLICABLE)
 		snprintf(buff, sizeof(buff), "NOT_APPLICABLE");
+
+	else if (fdata->cmd_state == CMD_STATUS_NG)
+		snprintf(buff, sizeof(buff), "NG");
 
 	return snprintf(buf, TSP_BUF_SIZE, "%s\n", buff);
 }
@@ -1872,20 +1926,6 @@ static ssize_t touchkey_d_menu_show(struct device *dev,
 	return sprintf(buf, "%d\n", touchkey_delta_show(data, "d_menu"));
 }
 
-static ssize_t touchkey_d_home1_show(struct device *dev,
-				  struct device_attribute *attr, char *buf)
-{
-	struct mxt_data *data = dev_get_drvdata(dev);
-	return sprintf(buf, "%d\n", touchkey_delta_show(data, "d_home1"));
-}
-
-static ssize_t touchkey_d_home2_show(struct device *dev,
-				  struct device_attribute *attr, char *buf)
-{
-	struct mxt_data *data = dev_get_drvdata(dev);
-	return sprintf(buf, "%d\n", touchkey_delta_show(data, "d_home2"));
-}
-
 static ssize_t touchkey_d_back_show(struct device *dev,
 				  struct device_attribute *attr, char *buf)
 {
@@ -1893,11 +1933,11 @@ static ssize_t touchkey_d_back_show(struct device *dev,
 	return sprintf(buf, "%d\n", touchkey_delta_show(data, "d_back"));
 }
 
-static ssize_t touchkey_menu_show(struct device *dev,
+static ssize_t touchkey_recent_show(struct device *dev,
 				  struct device_attribute *attr, char *buf)
 {
 	struct mxt_data *data = dev_get_drvdata(dev);
-	return sprintf(buf, "%d\n", touchkey_delta_show(data, "menu"));
+	return sprintf(buf, "%d\n", touchkey_delta_show(data, "recent"));
 }
 
 static ssize_t touchkey_back_show(struct device *dev,
@@ -2044,10 +2084,8 @@ static ssize_t boost_level_store(struct device *dev,
 #endif
 
 static DEVICE_ATTR(touchkey_d_menu, S_IRUGO | S_IWUSR | S_IWGRP, touchkey_d_menu_show, NULL);
-static DEVICE_ATTR(touchkey_d_home1, S_IRUGO | S_IWUSR | S_IWGRP, touchkey_d_home1_show, NULL);
-static DEVICE_ATTR(touchkey_d_home2, S_IRUGO | S_IWUSR | S_IWGRP, touchkey_d_home2_show, NULL);
 static DEVICE_ATTR(touchkey_d_back, S_IRUGO | S_IWUSR | S_IWGRP, touchkey_d_back_show, NULL);
-static DEVICE_ATTR(touchkey_menu, S_IRUGO | S_IWUSR | S_IWGRP, touchkey_menu_show, NULL);
+static DEVICE_ATTR(touchkey_recent, S_IRUGO | S_IWUSR | S_IWGRP, touchkey_recent_show, NULL);
 static DEVICE_ATTR(touchkey_back, S_IRUGO | S_IWUSR | S_IWGRP, touchkey_back_show, NULL);
 static DEVICE_ATTR(touchkey_threshold, S_IRUGO | S_IWUSR | S_IWGRP, get_touchkey_threshold, NULL);
 static DEVICE_ATTR(brightness, S_IRUGO | S_IWUSR | S_IWGRP, NULL, touchkey_led_control);
@@ -2059,10 +2097,8 @@ static DEVICE_ATTR(boost_level, S_IWUSR | S_IWGRP, NULL, boost_level_store);
 
 static struct attribute *touchkey_attributes[] = {
 	&dev_attr_touchkey_d_menu.attr,
-	&dev_attr_touchkey_d_home1.attr,
-	&dev_attr_touchkey_d_home2.attr,
 	&dev_attr_touchkey_d_back.attr,
-	&dev_attr_touchkey_menu.attr,
+	&dev_attr_touchkey_recent.attr,
 	&dev_attr_touchkey_back.attr,
 	&dev_attr_touchkey_threshold.attr,
 	&dev_attr_brightness.attr,

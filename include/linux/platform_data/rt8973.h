@@ -15,10 +15,21 @@
 #ifndef LINUX_MFD_RT8973_H
 #define LINUX_MFD_RT8973_H
 
+#include <linux/i2c/tsu6721.h>
 
 /* Marvell MMP arch*/
 #ifdef CONFIG_ARCH_MMP
 #define SAMSUNG_MVRL_MUIC_RT8973 1
+#endif
+
+#ifdef CONFIG_SEC_FACTORY
+#if defined(CONFIG_MACH_KANAS3G_CTC) || defined(CONFIG_MACH_HEAT_AIO) || defined(CONFIG_MACH_KANAS3G_CMCC)
+#define MUIC_SUPPORT_CARDOCK_FUNCTION 1
+#endif
+#endif
+
+#if defined(CONFIG_RT8973_JIG_WAKEUP)
+extern int rt8973_dock_init(void);
 #endif
 
 enum {
@@ -42,7 +53,9 @@ enum {
     MUIC_RT8973_CABLE_TYPE_JIG_UART_ON_WITH_VBUS,     //adc 0x1D
 
     MUIC_RT8973_CABLE_TYPE_CDP, // USB Charging downstream port, usually treated as SDP
+    MUIC_RT8973_CABLE_TYPE_L200K_SPEC_USB, // 200K special USB cable
     MUIC_RT8973_CABLE_TYPE_UNKNOWN,
+    MUIC_RT8973_CABLE_TYPE_INVALID, /* Means un-initialized*/
 };
 
 /*enum cable_type_t {
@@ -82,6 +95,7 @@ struct rt8973_platform_data {
     void (*uart_callback)(uint8_t attached);
     void (*otg_callback)(uint8_t attached);
     void (*jig_callback)(jig_type_t type, uint8_t attached);
+	int	(*dock_init) (void);
 	int gpio_int;
 	u32 irq_gpio_flags;
 //	int gpio_sda;
@@ -91,6 +105,7 @@ struct rt8973_platform_data {
 };
 
 extern struct rt8973_platform_data rt8973_pdata;
+extern int rt_check_jig_state(void);
 extern struct class *sec_class;
 #endif // LINUX_MFD_RT8973_H
 

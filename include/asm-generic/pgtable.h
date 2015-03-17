@@ -6,6 +6,7 @@
 
 #include <linux/mm_types.h>
 #include <linux/bug.h>
+#include <linux/slab.h>
 
 #ifdef CONFIG_TIMA_RKP_L2_GROUP
 /* Structure of a grouped entry */
@@ -15,7 +16,66 @@ typedef struct tima_l2group_entry {
 	unsigned long arm_pte;
 	unsigned long padding;
 }tima_l2group_entry_t;
-#endif
+
+#define	RKP_MAX_PGT2_ENTRIES	0x100
+static inline void init_tima_rkp_group_buffers(unsigned long num_entries,
+				pte_t *ptep,
+				unsigned long *tima_l2group_flag_ptr,
+				unsigned long *tima_l2group_buffer_index_ptr,
+				tima_l2group_entry_t **buffer1,
+				tima_l2group_entry_t **buffer2)
+{
+
+	/* 0x200 = 512 bytes which is 2 L2 pages. If grouped 
+	 * entries are <= 2, there is not much point in
+	 * grouping it, in which case follow the normal path.
+	 */
+	if (num_entries > 2 && (num_entries <= (RKP_MAX_PGT2_ENTRIES<<1)) 
+		&& tima_is_pg_protected((unsigned long) ptep ) == 1) {
+		*buffer1 = (tima_l2group_entry_t *)
+				__get_free_pages(GFP_ATOMIC, 0);
+		if (num_entries > RKP_MAX_PGT2_ENTRIES)
+			*buffer2 = (tima_l2group_entry_t *)
+					__get_free_pages(GFP_ATOMIC, 0);
+		
+		if (*buffer1 == NULL || ((num_entries > RKP_MAX_PGT2_ENTRIES) 
+			&& (*buffer2 == NULL))) {
+			printk(KERN_ERR"TIMA -> Could not group" 
+				"executing single L2 write %lx %s\n",
+				num_entries, __FUNCTION__);
+			if (*buffer1 != NULL) 
+				free_pages((unsigned long) *buffer1, 0);
+			if (*buffer2 != NULL)
+				free_pages((unsigned long) *buffer2, 0);
+		} else {
+			*tima_l2group_flag_ptr = 1;
+			/* reset index here */
+			*tima_l2group_buffer_index_ptr = 0;		
+		}
+        }
+	return;
+}
+
+static inline void write_tima_rkp_group_buffers(unsigned long num_entries,
+				tima_l2group_entry_t **buffer1,
+				tima_l2group_entry_t **buffer2)
+{
+	/* Pass the buffer pointer and length to TIMA 
+	 * to write the changes
+	 */
+	if (num_entries) {
+		if (num_entries > RKP_MAX_PGT2_ENTRIES) {
+			timal2group_set_pte_commit(*buffer1, RKP_MAX_PGT2_ENTRIES);
+			timal2group_set_pte_commit(*buffer2, (num_entries - RKP_MAX_PGT2_ENTRIES));
+		} else 
+			timal2group_set_pte_commit(*buffer1, num_entries);
+	}
+
+	free_pages((unsigned long) *buffer1, 0);
+	if (*buffer2 != NULL)
+		free_pages((unsigned long) *buffer2, 0);
+}
+#endif	/* CONFIG_TIMA_RKP_L2_GROUP */
 
 /*
  * On almost all architectures and configurations, 0 can be used as the
@@ -443,16 +503,23 @@ static inline pte_t ptep_modify_prot_start(struct mm_struct *mm,
 #ifdef CONFIG_TIMA_RKP_L2_GROUP
 static inline void tima_l2group_ptep_modify_prot_commit(struct mm_struct *mm,
 					unsigned long addr, pte_t *ptep, pte_t pte,
-					tima_l2group_entry_t *tima_l2group_buffer,
+					tima_l2group_entry_t *tima_l2group_buffer1,
+					tima_l2group_entry_t *tima_l2group_buffer2,
 					unsigned long *tima_l2group_buffer_index,
 					unsigned long tima_l2group_flag)
 {
 	if(tima_l2group_flag) {
-		__tima_l2group_ptep_modify_prot_commit(mm, addr, ptep, pte,
-				(((unsigned long) tima_l2group_buffer) + 
-				 (sizeof(tima_l2group_entry_t)*(*tima_l2group_buffer_index))),
-				tima_l2group_buffer_index);
-		//(*tima_l2group_buffer_index)++;
+		if (*tima_l2group_buffer_index < RKP_MAX_PGT2_ENTRIES) {
+			__tima_l2group_ptep_modify_prot_commit(mm, addr, ptep, pte,
+					(((unsigned long) tima_l2group_buffer1) + 
+					 (sizeof(tima_l2group_entry_t)*(*tima_l2group_buffer_index))),
+					tima_l2group_buffer_index);
+		} else {
+			__tima_l2group_ptep_modify_prot_commit(mm, addr, ptep, pte,
+					(((unsigned long) tima_l2group_buffer2) + 
+					 (sizeof(tima_l2group_entry_t)*((*tima_l2group_buffer_index) - RKP_MAX_PGT2_ENTRIES))),
+					tima_l2group_buffer_index);
+		}
 	}
 	else
 		__ptep_modify_prot_commit(mm, addr, ptep, pte);

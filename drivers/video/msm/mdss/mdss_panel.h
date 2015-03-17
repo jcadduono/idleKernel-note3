@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2013, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2008-2014, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -17,6 +17,11 @@
 #include <linux/platform_device.h>
 #include <linux/types.h>
 #include "dlog.h"
+#if defined(CONFIG_FB_MSM_MDSS_S6E8AA0A_HD_PANEL)
+#include "smart_mtp_s6e8aa0x01.h"
+#include "smart_dimming.h"
+typedef unsigned int boolean;
+#endif
 
 /* panel id type */
 struct panel_id {
@@ -145,6 +150,15 @@ struct mdss_panel_desc {
  * @MDSS_EVENT_DSI_CMDLIST_KOFF: kickoff sending dcs command from command list
  * @MDSS_EVENT_ENABLE_PARTIAL_UPDATE: Event to update ROI of the panel.
  * @MDSS_EVENT_DSI_CMDLIST_KOFF: acquire dsi_mdp_busy lock before kickoff.
+ * @MDSS_EVENT_DSI_ULPS_CTRL:	Event to configure Ultra Lower Power Saving
+ *				mode for the DSI data and clock lanes. The
+ *				event arguments can have one of these values:
+ *				- 0: Disable ULPS mode
+ *				- 1: Enable ULPS mode
+ * @MDSS_EVENT_DSI_DYNAMIC_SWITCH: Event to update the dsi driver structures
+ *				based on the dsi mode passed as argument.
+ *				- 0: update to video mode
+ *				- 1: update to command mode
  */
 enum mdss_intf_events {
 	MDSS_EVENT_RESET = 1,
@@ -152,6 +166,9 @@ enum mdss_intf_events {
 	MDSS_EVENT_PANEL_ON,
 	MDSS_EVENT_BLANK,
 	MDSS_EVENT_PANEL_OFF,
+#if defined(CONFIG_FB_MSM_MDSS_S6E8AA0A_HD_PANEL)
+	MTP_READ,
+#endif
 	MDSS_EVENT_CLOSE,
 	MDSS_EVENT_SUSPEND,
 	MDSS_EVENT_RESUME,
@@ -166,6 +183,16 @@ enum mdss_intf_events {
 	MDSS_EVENT_DSI_CMDLIST_KOFF,
 	MDSS_EVENT_MDNIE_DEFAULT_UPDATE,
 	MDSS_EVENT_ENABLE_PARTIAL_UPDATE,
+	MDSS_EVENT_DSI_ULPS_CTRL,
+	MDSS_EVENT_REGISTER_RECOVERY_HANDLER,
+	MDSS_EVENT_DSI_DYNAMIC_SWITCH,
+	MDSS_EVENT_BACKLIGHT_LATE_ON,
+#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_CMD_WQHD_PT_PANEL)
+	MDSS_EVENT_TE_UPDATE,
+	MDSS_EVENT_TE_UPDATE2,
+	MDSS_EVENT_TE_SET,
+	MDSS_EVENT_TE_RESTORE,
+#endif
 };
 
 struct lcd_panel_info {
@@ -223,6 +250,7 @@ struct mipi_panel_info {
 	char hbp_power_stop;
 	char hsa_power_stop;
 	char eof_bllp_power_stop;
+	char last_line_interleave_en;
 	char bllp_power_stop;
 	char traffic_mode;
 	char frame_rate;
@@ -235,6 +263,9 @@ struct mipi_panel_info {
 	char stream;	/* 0 or 1 */
 	char mdp_trigger;
 	char dma_trigger;
+	/*Dynamic Switch Support*/
+	bool dynamic_switch_enabled;
+	u32 pixel_packing;
 	u32 dsi_pclk_rate;
 	/* The packet-size should not bet changed */
 	char no_max_pkt_size;
@@ -248,9 +279,14 @@ struct mipi_panel_info {
 	u32  init_delay;
 };
 
+struct edp_panel_info {
+	char frame_rate;	/* fps */
+};
+
 enum dynamic_fps_update {
 	DFPS_SUSPEND_RESUME_MODE,
 	DFPS_IMMEDIATE_CLK_UPDATE_MODE,
+	DFPS_IMMEDIATE_PORCH_UPDATE_MODE,
 };
 
 enum lvds_mode {
@@ -284,6 +320,17 @@ struct fbc_panel_info {
 	u32 lossy_mode_idx;
 };
 
+struct mdss_mdp_pp_tear_check {
+	u32 tear_check_en;
+	u32 sync_cfg_height;
+	u32 vsync_init_val;
+	u32 sync_threshold_start;
+	u32 sync_threshold_continue;
+	u32 start_pos;
+	u32 rd_ptr_irq;
+	u32 refx100;
+};
+
 struct mdss_panel_info {
 	u32 xres;
 	u32 yres;
@@ -295,6 +342,7 @@ struct mdss_panel_info {
 	u32 type;
 	u32 wait_cycle;
 	u32 pdest;
+	u32 brightness_max;
 	u32 bl_max;
 	u32 bl_min;
 	u32 fb_num;
@@ -318,8 +366,19 @@ struct mdss_panel_info {
 	int pwm_period;
 	u32 mode_gpio_state;
 	bool dynamic_fps;
+	bool ulps_feature_enabled;
+	bool esd_check_enabled;
 	char dfps_update;
 	int new_fps;
+
+	int panel_max_fps;
+	int panel_max_vtotal;
+	u32 xstart_pix_align;
+	u32 width_pix_align;
+	u32 ystart_pix_align;
+	u32 height_pix_align;
+	u32 min_width;
+	u32 min_height;
 
 	u32 cont_splash_enabled;
 	u32 partial_update_enabled;
@@ -328,25 +387,44 @@ struct mdss_panel_info {
 	int force_screen_state;
 
 	uint32_t panel_dead;
+	bool dynamic_switch_pending;
+	bool is_lpm_mode;
+
+	struct mdss_mdp_pp_tear_check te;
 
 	struct lcd_panel_info lcdc;
 	struct fbc_panel_info fbc;
 	struct mipi_panel_info mipi;
 	struct lvds_panel_info lvds;
+	struct edp_panel_info edp;
 	u8 (*alpm_event) (u8 flag);
+	void (*alpm_gamma_read) (void);
 };
 
+#if defined(CONFIG_FB_MSM_MDSS_S6E8AA0A_HD_PANEL)
+#define MTP_DATA_SIZE (24)
+#define ELVSS_DATA_SIZE (24)
+
+struct cmd_set {
+	struct dsi_cmd_desc *cmd;
+	int size;
+};
+#endif
 /* ALPM Flags */
 enum {
 	/* Status Flags */
-	MODE_OFF = 0,		/* Off ALPM or Normal Mode Status */
+	MODE_OFF = 0,				/* Off ALPM or Normal Mode Status */
 	ALPM_MODE_ON,				/* ALPM Mode Status */
-	NORMAL_MODE_ON,			/* Normal Mode Status */
+	NORMAL_MODE_ON,				/* Normal Mode Status */
 	/* Event Flags */
-	CHECK_CURRENT_STATUS,	/* Check Current Mode */
-	CHECK_PREVIOUS_STATUS,	/* Check Previous Mode */
-	STORE_CURRENT_STATUS,	/* Store Current Mode to Previous Mode */
-	CLEAR_MODE_STATUS,		/* Clear Status Flag as 0 */
+	CHECK_CURRENT_STATUS,		/* Check Current Mode */
+	CHECK_PREVIOUS_STATUS,		/* Check Previous Mode */
+	STORE_CURRENT_STATUS,		/* Store Current Mode to Previous Mode */
+	CLEAR_MODE_STATUS,			/* Clear Status Flag as 0 */
+	/* Brightness Flags */
+	CHECK_BL_VALUE,
+	STORE_BL_10CD = 10,	/* Store Brightness level */
+	STORE_BL_60CD = 60,	/* Store Brightness Level */
 };
 
 struct mdss_panel_data {
@@ -371,6 +449,39 @@ struct mdss_panel_data {
 	int (*event_handler) (struct mdss_panel_data *pdata, int e, void *arg);
 
 	struct mdss_panel_data *next;
+
+#if defined(CONFIG_FB_MSM_MDSS_S6E8AA0A_HD_PANEL)
+	unsigned char *gamma_smartdim_4_8;
+	int *lux_table;
+	int lux_table_max_cnt;
+	struct SMART_DIM smart_s6e8aa0x01;
+	struct SMART_DIM smart_ea8868;
+
+	struct str_smart_dim smart;
+	signed char lcd_current_cd_idx;
+	unsigned char lcd_mtp_data[MTP_DATA_SIZE+16] ;
+	unsigned char lcd_elvss_data[ELVSS_DATA_SIZE+16];
+	unsigned char *gamma_smartdim;
+	unsigned char *gamma_initial;
+
+	struct cmd_set gamma_update;
+	struct cmd_set elvss_update;
+	struct cmd_set elvss_update_4_8;
+
+	struct cmd_set acl_on;
+	struct cmd_set acl_off;
+	struct cmd_set acl_update;
+
+	int (*set_gamma)(int bl_level, int gamma_mode);
+	int (*set_acl)(int bl_level);
+	int (*set_elvss)(int bl_level);
+	int (*set_elvss_4_8)(int bl_level);
+	int (*prepare_brightness_control_cmd_array)(int lcd_type, int bl_level);
+
+	struct cmd_set combined_ctrl;
+
+	boolean ldi_acl_stat;
+#endif
 };
 
 /**
@@ -388,6 +499,9 @@ static inline u32 mdss_panel_get_framerate(struct mdss_panel_info *panel_info)
 	case MIPI_VIDEO_PANEL:
 	case MIPI_CMD_PANEL:
 		frame_rate = panel_info->mipi.frame_rate;
+		break;
+	case EDP_PANEL:
+		frame_rate = panel_info->edp.frame_rate;
 		break;
 	case WRITEBACK_PANEL:
 		frame_rate = DEFAULT_FRAME_RATE;
@@ -410,6 +524,32 @@ static inline u32 mdss_panel_get_framerate(struct mdss_panel_info *panel_info)
 	}
 	return frame_rate;
 }
+
+/**
+ * mdss_panel_get_min_bw() - get panel min bw based on resolution
+ * @panel_info:	Pointer to panel info containing all panel information
+ * the min BW should be = panel_info->xres * panel_info->yres * 4 bpp * frame_rate
+*/
+static inline u32 mdss_panel_get_min_bw(struct mdss_panel_info *panel_info)
+{
+	u32 min_bw, frame_rate;
+
+	if (panel_info == NULL)
+		return -EINVAL;
+
+	frame_rate = mdss_panel_get_framerate(panel_info);
+
+	switch (panel_info->type) {
+	case WRITEBACK_PANEL:
+	case MIPI_VIDEO_PANEL:
+	case MIPI_CMD_PANEL:
+	default:
+		min_bw = panel_info->xres * panel_info->yres * 4 * frame_rate;
+		break;
+	}
+	return min_bw;
+}
+
 
 /*
  * mdss_panel_get_vtotal() - return panel vertical height
@@ -478,4 +618,10 @@ bool mdss_is_ready(void);
 int mdss_panel_force_update(struct mdss_panel_data *pdata);
 int load_565rle_image(char *filename);
 int load_samsung_boot_logo(void);
+#if defined(CONFIG_LCD_CONNECTION_CHECK)
+int is_lcd_attached(void);
+#endif
+#if defined(CONFIG_CLK_TUNING)
+void load_clk_tuning_file(void);
+#endif /* CONFIG_CLK_TUNING */
 #endif /* MDSS_PANEL_H */

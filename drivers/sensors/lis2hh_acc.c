@@ -216,6 +216,9 @@
 #define OUTPUT_ALWAYS_ANTI_ALIASED 1
 #define DEFAULT_POWER_ON_SETTING (ODR400 | STATUS_REG)
 
+#define SELF_TEST_2G_MAX_LSB	(24576)
+#define SELF_TEST_2G_MIN_LSB	(1146)
+
 struct {
 	unsigned int cutoff_ms;
 	unsigned int mask;
@@ -579,6 +582,8 @@ static int lis2hh_acc_device_power_on(struct lis2hh_acc_status *stat)
 			enable_irq(stat->irq2);
 	}
 
+	mdelay(30);
+
 	if (!stat->hw_initialized) {
 		err = lis2hh_acc_hw_init(stat);
 		if (stat->hw_working == 1 && err < 0) {
@@ -738,8 +743,10 @@ static int lis2hh_acc_get_data(
 	/* x,y,z hardware data */
 	s32 hw_d[3] = { 0 };
 
+	mutex_lock(&stat->lock);
 	acc_data[0] = (AXISDATA_REG);
 	err = lis2hh_acc_i2c_read(stat, acc_data, 6);
+	mutex_unlock(&stat->lock);
 	if (err < 0)
 		return err;
 
@@ -758,6 +765,11 @@ static int lis2hh_acc_get_data(
 		   : (hw_d[stat->pdata->axis_map_y]));
 	xyz[2] = ((stat->pdata->negate_z) ? (-hw_d[stat->pdata->axis_map_z])
 		   : (hw_d[stat->pdata->axis_map_z]));
+
+	xyz[0] = xyz[0] - stat->cal_data.x ;
+	xyz[1] = xyz[1] - stat->cal_data.y ;
+	xyz[2] = xyz[2] - stat->cal_data.z ;
+
 	/*printk("%s read x=%d, y=%d, z=%d\n",
 			LIS2HH_ACC_DEV_NAME, xyz[0], xyz[1], xyz[2]);*/
 
@@ -1250,6 +1262,11 @@ static int k2hh_do_calibrate(struct device *dev, bool do_calib)
 	mm_segment_t old_fs;
 	int xyz[3];
 	if (do_calib) {
+
+		acc_data->cal_data.x = 0;
+		acc_data->cal_data.y = 0;
+		acc_data->cal_data.z = 0;
+
 		for (i = 0; i < CAL_DATA_AMOUNT; i++) {
 
 			err = lis2hh_acc_get_data(acc_data,xyz);
@@ -1331,6 +1348,117 @@ static ssize_t k2hh_calibration_store(struct device *dev,
 
 	return count;
 }
+
+static ssize_t attr_get_selftest(struct device *dev,
+			       struct device_attribute *attr, char *buf)
+{
+	struct lis2hh_acc_status *stat = dev_get_drvdata(dev);
+	int val, i, en_state = 0;
+	ssize_t ret;
+	u8 x[8];
+	s32 NO_ST[3] = {0, 0, 0};
+	s32 ST[3] = {0, 0, 0};
+
+	en_state = atomic_read(&stat->enable);
+	lis2hh_acc_disable(stat);
+
+	lis2hh_acc_device_power_on(stat);
+
+	x[0] = CTRL1;
+	x[1] = 0x3f;
+	lis2hh_acc_i2c_write(stat, x, 1);
+	x[0] = CTRL4;
+	x[1] = 0x04;
+	x[2] = 0x00;
+	x[3] = 0x00;
+	lis2hh_acc_i2c_write(stat, x, 3);
+
+	mdelay(80);
+
+	x[0] = AXISDATA_REG;
+	lis2hh_acc_i2c_read(stat, x, 6);
+
+	for (i = 0; i < 5; i++) {
+		while (1) {
+			x[0] = 0x27;
+			val = lis2hh_acc_i2c_read(stat, x, 1);
+			if (val < 0) {
+				ret = sprintf(buf, "I2C fail. (%d)\n", val);
+				goto ST_EXIT;
+			}
+			if (x[0] & 0x08)
+				break;
+		}
+		x[0] = AXISDATA_REG;
+		lis2hh_acc_i2c_read(stat, x, 6);
+		NO_ST[0] += (s16)(x[1] << 8 | x[0]);
+		NO_ST[1] += (s16)(x[3] << 8 | x[2]);
+		NO_ST[2] += (s16)(x[5] << 8 | x[4]);
+	}
+	NO_ST[0] /= 5;
+	NO_ST[1] /= 5;
+	NO_ST[2] /= 5;
+
+	x[0] = CTRL5;
+	x[1] = 0x04;
+	lis2hh_acc_i2c_write(stat, x, 1);
+
+	mdelay(80);
+
+	x[0] = AXISDATA_REG;
+	lis2hh_acc_i2c_read(stat, x, 6);
+
+	for (i = 0; i < 5; i++) {
+		while (1) {
+			x[0] = 0x27;
+			val = lis2hh_acc_i2c_read(stat, x, 1);
+			if (val < 0) {
+				ret = sprintf(buf, "I2C fail. (%d)\n", val);
+				goto ST_EXIT;
+			}
+			if (x[0] & 0x08)
+				break;
+		}
+		x[0] = AXISDATA_REG;
+		lis2hh_acc_i2c_read(stat, x, 6);
+		ST[0] += (s16)(x[1] << 8 | x[0]);
+		ST[1] += (s16)(x[3] << 8 | x[2]);
+		ST[2] += (s16)(x[5] << 8 | x[4]);
+	}
+	ST[0] /= 5;
+	ST[1] /= 5;
+	ST[2] /= 5;
+
+	for (val = 1, i = 0; i < 3; i++) {
+		ST[i] -= NO_ST[i];
+		ST[i] = abs(ST[i]);
+
+		if ((SELF_TEST_2G_MIN_LSB > ST[i]) || (ST[i] > SELF_TEST_2G_MAX_LSB)) {
+			pr_info("ST[%d]: Out of range!! (%d)\n", i, ST[i]);
+			val = 0;
+		}
+	}
+
+	if (val)
+		ret = sprintf(buf, "1, %d, %d, %d \n", ST[0], ST[1], ST[2]);
+	else
+		ret = sprintf(buf, "0, %d, %d, %d \n", ST[0], ST[1], ST[2]);
+
+ST_EXIT:
+	x[0] = CTRL1;
+	x[1] = 0x00;
+	lis2hh_acc_i2c_write(stat, x, 1);
+	x[0] = CTRL5;
+	x[1] = 0x00;
+	lis2hh_acc_i2c_write(stat, x, 1);
+
+	lis2hh_acc_device_power_off(stat);
+
+	if (en_state) lis2hh_acc_enable(stat);
+
+	return ret;
+}
+
 /*
 static ssize_t
 k2hh_accel_position_show(struct device *dev,
@@ -1369,6 +1497,7 @@ k2hh_accel_position_store(struct device *dev,
 	static DEVICE_ATTR(int1_source, 0444, attr_get_source1, NULL);
 	static DEVICE_ATTR(raw_data, 0664, k2hh_fs_read, NULL);
 	static DEVICE_ATTR(calibration, 0664, k2hh_calibration_show, k2hh_calibration_store);
+	static DEVICE_ATTR(selftest, 0444, attr_get_selftest, NULL);
 #ifdef DEBUG
 	static DEVICE_ATTR(reg_value, 0600, attr_reg_get, attr_reg_set);
 	static DEVICE_ATTR(reg_addr, 0200, NULL, attr_addr_set);
@@ -1399,6 +1528,7 @@ static struct device_attribute *sensor_attrs[] = {
 	&dev_attr_int1_source,
 	&dev_attr_raw_data,
 	&dev_attr_calibration,
+	&dev_attr_selftest,
 #ifdef DEBUG
 	&dev_attr_reg_value,
 	&dev_attr_reg_addr,
@@ -1436,9 +1566,7 @@ static void lis2hh_acc_input_poll_work_func(struct work_struct *work)
 	stat = container_of((struct work_struct *) work,
 			struct lis2hh_acc_status, input_poll_work);
 
-	mutex_lock(&stat->lock);
 	lis2hh_acc_report_triple(stat);
-	mutex_unlock(&stat->lock);
 
 	if (atomic_read(&stat->enable))
 		hrtimer_start(&stat->hr_timer_poll, stat->polling_ktime, HRTIMER_MODE_REL);
@@ -1610,7 +1738,7 @@ static int k2hh_parse_dt(struct device *dev,
 	of_property_read_u32(dNode,"stm,axis_map_z" ,&axis_map_z);
 	of_property_read_u32(dNode,"stm,negate_x" ,&negate_x);
 	of_property_read_u32(dNode,"stm,negate_y" ,&negate_y);
-	of_property_read_u32(dNode,"stm,negate_y" ,&negate_z);
+	of_property_read_u32(dNode,"stm,negate_z" ,&negate_z);
 	of_property_read_u32(dNode,"stm,poll_interval" ,&poll_interval);
 	of_property_read_u32(dNode,"stm,min_interval" ,&min_interval);
 
@@ -1623,6 +1751,7 @@ static int k2hh_parse_dt(struct device *dev,
 	pdata->negate_z = negate_z;
 	pdata->poll_interval = poll_interval;
 	pdata->min_interval = min_interval;
+	pdata->gpio_int2 = -1;
 	if (pdata->gpio_int1 < 0) {
 		pr_err("[SENSOR]: %s - get irq_gpio error\n", __func__);
 		return -ENODEV;
@@ -1703,20 +1832,12 @@ static int lis2hh_acc_probe(struct i2c_client *client,
 	stat->client = client;
 	i2c_set_clientdata(client, stat);
 	k2hh_power_on(stat,1);
-	stat->pdata = kmalloc(sizeof(*stat->pdata), GFP_KERNEL);
-	if (stat->pdata == NULL) {
-		err = -ENOMEM;
-		dev_err(&client->dev,
-				"failed to allocate memory for pdata: %d\n",
-				err);
-		goto err_mutexunlock;
-	}
 	stat->pdata= pdata;
 	stat->hr_timer_poll_work_queue = 0;
 	err = lis2hh_acc_validate_pdata(stat);
 	if (err < 0) {
 		dev_err(&client->dev, "failed to validate platform data\n");
-		goto exit_kfree_pdata;
+		goto err_mutexunlock;
 	}
 
 	if (stat->pdata->init) {
@@ -1832,7 +1953,7 @@ err_destoyworkqueue1:
 	if (stat->pdata->gpio_int1 >= 0)
 		destroy_workqueue(stat->irq1_work_queue);
 err_remove_hr_work_queue:
-	if(!stat->hr_timer_poll_work_queue) {
+	if(stat->hr_timer_poll_work_queue) {
 			flush_workqueue(stat->hr_timer_poll_work_queue);
 			destroy_workqueue(stat->hr_timer_poll_work_queue);
 	}
@@ -1841,8 +1962,6 @@ err_power_off:
 err_pdata_init:
 	if (stat->pdata->exit)
 		stat->pdata->exit();
-exit_kfree_pdata:
-	kfree(stat->pdata);
 err_mutexunlock:
 	mutex_unlock(&stat->lock);
 exit_check_functionality_failed:
@@ -1879,14 +1998,13 @@ static int __devexit lis2hh_acc_remove(struct i2c_client *client)
 
 	//remove_sysfs_interfaces(&client->dev);
 
-	if(!stat->hr_timer_poll_work_queue) {
+	if(stat->hr_timer_poll_work_queue) {
 			flush_workqueue(stat->hr_timer_poll_work_queue);
 			destroy_workqueue(stat->hr_timer_poll_work_queue);
 	}
 
 	if (stat->pdata->exit)
 		stat->pdata->exit();
-	kfree(stat->pdata);
 	kfree(stat);
 
 	return 0;

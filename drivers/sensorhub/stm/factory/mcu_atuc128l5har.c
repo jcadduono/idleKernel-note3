@@ -245,14 +245,14 @@ ssize_t mcu_sleep_factorytest_show(struct device *dev,
 
 exit:
 	ssp_dbg("[SSP]: %s Result\n"
-		"accel %d,%d,%d\n"
-		"gyro %d,%d,%d\n"
-		"mag %d,%d,%d\n"
-		"baro %d,%d\n"
-		"ges %d,%d,%d,%d\n"
-		"prox %u,%u\n"
-		"temp %d,%d,%d\n"
-		"light %u,%u,%u,%u,%u,%u\n", __func__,
+		"[SSP] accel %d,%d,%d\n"
+		"[SSP] gyro %d,%d,%d\n"
+		"[SSP] mag %d,%d,%d\n"
+		"[SSP] baro %d,%d\n"
+		"[SSP] ges %d,%d,%d,%d\n"
+		"[SSP] prox %u,%u\n"
+		"[SSP] temp %d,%d,%d\n"
+		"[SSP] light %u,%u,%u,%u,%u,%u\n", __func__,
 		fsb[ACCELEROMETER_SENSOR].x, fsb[ACCELEROMETER_SENSOR].y,
 		fsb[ACCELEROMETER_SENSOR].z, fsb[GYROSCOPE_SENSOR].x,
 		fsb[GYROSCOPE_SENSOR].y, fsb[GYROSCOPE_SENSOR].z,

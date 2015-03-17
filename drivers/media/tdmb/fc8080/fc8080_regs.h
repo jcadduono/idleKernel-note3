@@ -34,7 +34,7 @@ extern "C" {
 	/* INTERFACE */
 #if defined(CONFIG_TDMB_SPI)
 #define FC8080_SPI
-#elif defined(CONFIG_TDMB_TSIF)
+#elif defined(CONFIG_TDMB_TSIF_SLSI) || defined(CONFIG_TDMB_TSIF_QC)
 #define FC8080_I2C
 #elif defined(CONFIG_TDMB_EBI)
 #define FC8080_PPI
@@ -87,6 +87,8 @@ extern "C" {
 #define BBM_RF_XTAL_EN              0x0033
 #define BBM_RFRST_HIGH_HOLD         0x0035
 #define BBM_ADC_OPMODE              0x0036
+#define BBM_DM_CTRL                 0x0039
+#define BBM_OVERRUN_GAP             0x003c
 
 	/* RxFRONT */
 #define BBM_SYNC_RST_REQ_EN         0x0100
@@ -117,13 +119,13 @@ extern "C" {
 #define BBM_UNLOCK_DETECT_EN        0x0150
 
 	/* SYNC */
-#define BBM_SYNC_MTH                0x0235
-#define BBM_SYNC_CNTRL              0x0236
 #define BBM_OFDM_DET                0x0220
 #define BBM_OFDM_DET_MAX_THRESHOLD  0x0222
 #define BBM_DETECT_OFDM             0x0228
 #define BBM_OFDM_DET_MODE_EN        0x022b
 #define BBM_FTOFFSET_RANGE          0x0234
+#define BBM_SYNC_MTH                0x0235
+#define BBM_SYNC_CNTRL              0x0236
 #define BBM_SYNC_STAT               0x0238
 #define BBM_NCO_OFFSET              0x0278
 #define BBM_NCO_INV                 0x027c
@@ -187,6 +189,8 @@ extern "C" {
 	/* FEC */
 #define BBM_FEC_RST                 0x0e00
 #define BBM_FEC_ON                  0x0e02
+#define BBM_FIC_CER_RXD_CRC         0x0e50
+#define BBM_FIC_CER_ERR_CRC         0x0e52
 #define BBM_FIC_CFG_CRC16           0x0e08
 #define BBM_MSC_CFG_SCH0            0x0e0a
 #define BBM_MSC_CFG_SCH1            0x0e0b
@@ -205,19 +209,19 @@ extern "C" {
 #define FIC_BUF_THR     (FIC_BUF_LENGTH / 2 - 1)
 
 #define CH0_BUF_START   (FIC_BUF_START + FIC_BUF_LENGTH)
-#if defined(CONFIG_TDMB_TSIF)
+#if defined(CONFIG_TDMB_TSIF_SLSI) || defined(CONFIG_TDMB_TSIF_QC)
 #define CH0_BUF_LENGTH  (188*2)
 #else
-#define CH0_BUF_LENGTH  (188*20*2)
+#define CH0_BUF_LENGTH  (188*40*2)
 #endif
 #define CH0_BUF_END     (CH0_BUF_START + CH0_BUF_LENGTH - 1)
 #define CH0_BUF_THR     (CH0_BUF_LENGTH / 2 - 1)
 
 #define CH1_BUF_START   (FIC_BUF_START + FIC_BUF_LENGTH)
-#if defined(CONFIG_TDMB_TSIF)
+#if defined(CONFIG_TDMB_TSIF_SLSI) || defined(CONFIG_TDMB_TSIF_QC)
 #define CH1_BUF_LENGTH  (188*2)
 #else
-#define CH1_BUF_LENGTH  (188*20*2)
+#define CH1_BUF_LENGTH  (188*40*2)
 #endif
 #define CH1_BUF_END     (CH1_BUF_START + CH1_BUF_LENGTH - 1)
 #define CH1_BUF_THR     (CH1_BUF_LENGTH / 2 - 1)

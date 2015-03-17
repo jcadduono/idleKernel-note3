@@ -1785,7 +1785,7 @@ void smscusbnet_disconnect (struct usb_interface *intf)
 	}
 
 	/* we don't hold rtnl here ... */
-	flush_scheduled_work ();
+	cancel_work_sync(&dev->kevent);
 	flush_workqueue(dev->MyWorkQueue);
 	destroy_workqueue(dev->MyWorkQueue);
 

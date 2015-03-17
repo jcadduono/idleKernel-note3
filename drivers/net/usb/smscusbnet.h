@@ -42,7 +42,7 @@ enum{
 	DEV_SMSC9500
 };
 
-//#define RX_SKB_COPY
+#define RX_SKB_COPY
 enum{
 	RX_FIXUP_VALID_SKB,
 	RX_FIXUP_INVALID_SKB,

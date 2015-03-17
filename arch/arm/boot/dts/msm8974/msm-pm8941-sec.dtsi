@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -18,31 +18,31 @@
 };
 
 &pm8941_lsid0 {
-        spmi-slave-container;
-        #address-cells = <1>;
-        #size-cells = <1>;
-        
-        pm8941_misc: qcom,misc@900 {
-	        compatible = "qcom,qpnp-misc";
-	        reg = <0x900 0x100>;
-        };
-        
-        qcom,revid@100 {
-	        compatible = "qcom,qpnp-revid";
-	        reg = <0x100 0x100>;
-        };
-        
-        qcom,temp-alarm@2400 {
-	        compatible = "qcom,qpnp-temp-alarm";
-	        reg = <0x2400 0x100>;
-	        interrupts = <0x0 0x24 0x0>;
-	        label = "pm8941_tz";
-	        qcom,channel-num = <8>;
-	        qcom,threshold-set = <0>;
-		qcom,temp_alarm-vadc = <&pm8941_vadc>;
-        };
+	spmi-slave-container;
+	#address-cells = <1>;
+	#size-cells = <1>;
 
-        qcom,power-on@800 {
+	pm8941_misc: qcom,misc@900 {
+		compatible = "qcom,qpnp-misc";
+		reg = <0x900 0x100>;
+	};
+
+	pm8941_revid: qcom,revid@100 {
+		compatible = "qcom,qpnp-revid";
+		reg = <0x100 0x100>;
+	};
+
+	qcom,temp-alarm@2400 {
+		compatible = "qcom,qpnp-temp-alarm";
+		reg = <0x2400 0x100>;
+		interrupts = <0x0 0x24 0x0>;
+		label = "pm8941_tz";
+		qcom,channel-num = <8>;
+		qcom,threshold-set = <0>;
+		qcom,temp_alarm-vadc = <&pm8941_vadc>;
+	};
+
+	qcom,power-on@800 {
 		compatible = "qcom,qpnp-power-on";
 		reg = <0x800 0x100>;
 		interrupts = <0x0 0x8 0x0>,
@@ -57,6 +57,10 @@
 
 		qcom,pon_1 {
 			qcom,pon-type = <0>;
+			qcom,support-reset = <1>;
+			qcom,s1-timer = <6720>;
+			qcom,s2-timer = <1000>;
+			qcom,s2-type = <1>;
 			qcom,pull-up = <1>;
 			linux,code = <116>;
 		};
@@ -85,6 +89,7 @@
 	};
 
 	bif_ctrl: qcom,bsi@1b00 {
+		status = "disabled";
 		compatible = "qcom,qpnp-bsi";
 		reg = <0x1b00 0x100>,
 		      <0x1208 0x1>;
@@ -136,11 +141,15 @@
 		qcom,low-voltage-threshold = <3420000>;
 		qcom,tm-temp-margin = <5000>;
 		qcom,low-ocv-correction-limit-uv = <100>;
-		qcom,high-ocv-correction-limit-uv = <50>;
+		qcom,high-ocv-correction-limit-uv = <250>;
 		qcom,hold-soc-est = <3>;
 		qcom,bms-vadc = <&pm8941_vadc>;
 		qcom,bms-iadc = <&pm8941_iadc>;
 		qcom,bms-adc_tm = <&pm8941_adc_tm>;
+
+		qcom,batt-pres-status@1208 {
+			reg = <0x1208 0x1>;
+		};
 
 		qcom,bms-iadc@3800 {
 			reg = <0x3800 0x100>;
@@ -220,7 +229,9 @@
 		qcom,resume-soc = <99>;
 			qcom,tchg-mins = <150>;
 		qcom,chg-vadc = <&pm8941_vadc>;
+		qcom,chg-iadc = <&pm8941_iadc>;
 		qcom,chg-adc_tm = <&pm8941_adc_tm>;
+		qcom,ibat-calibration-enabled;
 
 		qcom,chgr@1000 {
 			status = "disabled";
@@ -586,6 +597,7 @@
 		qcom,adc-bit-resolution = <15>;
 		qcom,adc-vdd-reference = <1800>;
 		qcom,vadc-poll-eoc;
+		qcom,pmic-revid = <&pm8941_revid>;
 
 		chan@0 {
 			label = "usb_in";
@@ -700,6 +712,28 @@
 		chan@a {
 			label = "ref_1250v";
 			reg = <0xa>;
+			qcom,decimation = <0>;
+			qcom,pre-div-channel-scaling = <0>;
+			qcom,calibration-type = "absolute";
+			qcom,scale-function = <0>;
+			qcom,hw-settle-time = <0>;
+			qcom,fast-avg-setup = <0>;
+		};
+
+		chan@13 {
+			label = "mpp4_div1";
+			reg = <0x13>;
+			qcom,decimation = <0>;
+			qcom,pre-div-channel-scaling = <0>; /* 1:1 scaling */
+			qcom,calibration-type = "absolute";
+			qcom,scale-function = <0>;
+			qcom,hw-settle-time = <0>;
+			qcom,fast-avg-setup = <0>;
+		};
+		
+		chan@14 {
+			label = "v_battery_sense";
+			reg = <0x14>;
 			qcom,decimation = <0>;
 			qcom,pre-div-channel-scaling = <0>;
 			qcom,calibration-type = "absolute";
@@ -843,7 +877,9 @@
 
 	pm8941_iadc: iadc@3600 {
 		compatible = "qcom,qpnp-iadc";
-		reg = <0x3600 0x100>;
+		reg = <0x3600 0x100>,
+		      <0x12f1 0x1>;
+		reg-names = "iadc-base", "batt-id-trim-cnst-rds";
 		#address-cells = <1>;
 		#size-cells = <0>;
 		interrupts = <0x0 0x36 0x0>;
@@ -852,6 +888,8 @@
 		qcom,adc-vdd-reference = <1800>;
 		qcom,iadc-vadc = <&pm8941_vadc>;
 		qcom,iadc-poll-eoc;
+		qcom,use-default-rds-trim = <0>;
+		qcom,pmic-revid = <&pm8941_revid>;
 
 		chan@0 {
 			label = "internal_rsense";
@@ -903,6 +941,7 @@
 			qcom,hw-settle-time = <2>;
 			qcom,fast-avg-setup = <3>;
 			qcom,btm-channel-number = <0x68>;
+			qcom,meas-interval-timer-idx = <2>;
 		};
 
 		chan@8 {

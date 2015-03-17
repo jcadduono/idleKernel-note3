@@ -43,6 +43,7 @@
 static struct mfd_cell max77828_devs[] = {
 	{ .name = "max77828-muic", },
 	{ .name = "max77828-haptic", },
+	{ .name = "max77828-led",},
 };
 
 int max77828_read_reg(struct i2c_client *i2c, u8 reg, u8 *dest)
@@ -130,7 +131,11 @@ static int of_max77828_dt(struct device *dev, struct max77828_platform_data *pda
 {
 	struct device_node *np = dev->of_node;
 	int retval = 0;
+	struct max77828_haptic_platform_data  *haptic_data;
 	
+	haptic_data = kzalloc(sizeof(struct max77828_haptic_platform_data), GFP_KERNEL);
+	if (haptic_data == NULL)
+		return -ENOMEM;
 	if(!np)
 		return -EINVAL;
 
@@ -147,6 +152,19 @@ static int of_max77828_dt(struct device *dev, struct max77828_platform_data *pda
 	pr_info("%s: irq-gpio: %u \n", __func__, pdata->irq_gpio);
 	pr_info("%s: irq-base: %u \n", __func__, pdata->irq_base);
 	pr_info("%s: wc-irq-gpio: %u \n", __func__, pdata->wc_irq_gpio);
+
+#ifdef CONFIG_VIBETONZ
+	if (!of_property_read_u32(np, "haptic,mode", &haptic_data->mode))
+		haptic_data->mode = 0;
+
+	if (!of_property_read_u32(np, "haptic,divisor", &haptic_data->divisor))
+		haptic_data->divisor = 128;
+
+	pr_info("%s: mode: %u \n", __func__, haptic_data->mode);
+	pr_info("%s: divisor: %u \n", __func__, haptic_data->divisor);
+
+	pdata->haptic_data = haptic_data;
+#endif
 
 	return 0;
 }
@@ -185,7 +203,9 @@ static int max77828_i2c_probe(struct i2c_client *i2c,
 
 		/*pdata update to other modules*/
 		pdata->muic_data = &max77828_muic;
-		
+#ifdef CONFIG_LEDS_MAX77828
+        pdata->led_data = &max77828_led_pdata;
+#endif
 		i2c->dev.platform_data = pdata;
 	} else
 		pdata = i2c->dev.platform_data;
@@ -435,11 +455,8 @@ static struct i2c_driver max77828_i2c_driver = {
 	.id_table = max77828_i2c_id,
 };
 
-//module_i2c_driver(max77828_i2c_driver);
-
 static int __init max77828_i2c_init(void)
 {
-	printk("%s\n", __func__);
 	return i2c_add_driver(&max77828_i2c_driver);
 }
 /* init early so consumer devices can complete system boot */

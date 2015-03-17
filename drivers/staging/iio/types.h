@@ -28,6 +28,9 @@ enum iio_chan_type {
 	IIO_TIMESTAMP,
 	IIO_CAPACITANCE,
 	IIO_GRIP,
+#if defined(CONFIG_SEC_LOCALE_KOR_FRESCO)
+	IIO_QUATERNION,
+#endif
 };
 
 enum iio_modifier {

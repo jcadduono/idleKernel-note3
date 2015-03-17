@@ -113,11 +113,14 @@ void LoadProgramData(struct cypress_touchkey_info *info, unsigned char bBlockNum
      Function InitTargetTestData fills buffer for demo
 */
 	int dataNum;
+ 	int header_diff;
+
+	header_diff = 16 - info->fw_img->hdr_len;	/* Header Ver 01 Length = 16 */
 
 	for (dataNum = 0; dataNum < TARGET_DATABUFF_LEN; dataNum++) {
 		#ifdef TKEY_REQUEST_FW_UPDATE
 		abTargetDataOUT[dataNum] =
-			info->fw_img->data[bBlockNum * TARGET_DATABUFF_LEN + dataNum];
+			info->fw_img->data[bBlockNum * TARGET_DATABUFF_LEN + dataNum - header_diff];
 		#else
 		abTargetDataOUT[dataNum] =
 			firmware_data[bBlockNum * TARGET_DATABUFF_LEN + dataNum];

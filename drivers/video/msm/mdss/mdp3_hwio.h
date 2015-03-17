@@ -1,4 +1,4 @@
-/* Copyright (c) 2013, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -117,6 +117,10 @@
 #define MDP3_REG_DMA_S_IBUF_ADDR			0xA0008
 #define MDP3_REG_DMA_S_IBUF_Y_STRIDE			0xA000C
 #define MDP3_REG_DMA_S_OUT_XY				0xA0010
+
+/*DMA MASK*/
+#define MDP3_DMA_IBUF_FORMAT_MASK 0x06000000
+#define MDP3_DMA_PACK_PATTERN_MASK 0x00003f00
 
 /*MISR*/
 #define MDP3_REG_MODE_CLK				0x000D0000
@@ -268,6 +272,8 @@
 #define MDP3_PPP_BLEND_PARAM		0x1014C
 
 #define MDP3_PPP_BLEND_BG_ALPHA_SEL	0x70010
+
+#define MDP3_PPP_ACTIVE BIT(0)
 
 /*interrupt mask*/
 

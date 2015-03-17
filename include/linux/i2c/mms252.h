@@ -36,6 +36,7 @@ struct melfas_tsi_platform_data {
 	int tsp_vendor1;
 	int tsp_vendor2;
 	int tkey_led_en;
+	int key1;
 
 	/*int (*mux_fw_flash) (bool to_gpios);
 	int (*is_vdd_on) (void);

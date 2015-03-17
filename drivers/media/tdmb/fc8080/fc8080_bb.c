@@ -269,6 +269,10 @@ s32 fc8080_probe(HANDLE handle)
 
 s32 fc8080_init(HANDLE handle)
 {
+#ifdef FC8080_I2C
+	bbm_write(handle, BBM_TSO_SELREG, 0xc4);
+#endif
+
 	fc8080_reset(handle);
 	fc8080_set_xtal(handle);
 
@@ -331,12 +335,14 @@ s32 fc8080_init(HANDLE handle)
 	bbm_word_write(handle, BBM_BUF_CH2_END,   CH2_BUF_END);
 	bbm_word_write(handle, BBM_BUF_CH2_THR,   CH2_BUF_THR);
 
+	bbm_write(handle, BBM_DM_CTRL, 0xa0);
+	bbm_write(handle, BBM_OVERRUN_GAP, 0x06);
+
 	bbm_word_write(handle, BBM_BUF_INT, 0x0107);
 	bbm_word_write(handle, BBM_BUF_ENABLE, 0x0000);
 
 #ifdef FC8080_I2C
 	bbm_write(handle, BBM_TSO_CLKDIV, 0x01);
-	bbm_write(handle, BBM_TSO_SELREG, 0xc4);
 #else
 	bbm_write(handle, BBM_MD_INT_EN, BBM_MF_INT);
 	bbm_write(handle, BBM_MD_INT_STATUS, BBM_MF_INT);

@@ -28,6 +28,13 @@
 #include <linux/netfilter/x_tables.h>
 #include <linux/netfilter/xt_connmark.h>
 
+// ------------- START of KNOX_VPN ------------------//
+#include <linux/types.h>
+#include <linux/tcp.h>
+#include <linux/ip.h>
+#include <net/ip.h>
+// ------------- END of KNOX_VPN -------------------//
+
 MODULE_AUTHOR("Henrik Nordstrom <hno@marasystems.com>");
 MODULE_DESCRIPTION("Xtables: connection mark operations");
 MODULE_LICENSE("GPL");
@@ -35,6 +42,57 @@ MODULE_ALIAS("ipt_CONNMARK");
 MODULE_ALIAS("ip6t_CONNMARK");
 MODULE_ALIAS("ipt_connmark");
 MODULE_ALIAS("ip6t_connmark");
+
+// ------------- START of KNOX_VPN ------------------//
+   
+/* KNOX framework uses mark value 100 to 500 
+ * when the special meta data is added
+ * This will indicate to the kernel code that
+ * it needs to append meta data to the packets
+ */
+    
+#define META_MARK_BASE_LOWER 100
+#define META_UID_PID_MARK_BASE_LOWER 150
+#define META_UID_PID_MARK_BASE_UPPER 199
+#define META_MARK_BASE_UPPER 500
+    
+/* Structure to hold metadata values
+ * intended for VPN clients to make 
+ * more intelligent decisions
+ * when the KNOX meta mark 
+ * feature is enabled
+ */
+    
+struct knox_meta_param {
+    uid_t uid;
+    pid_t pid;
+};
+
+union ip_address {
+    u8 a[4];
+    __be32 addr;
+};
+    
+static unsigned int knoxvpn_uidpid(struct sk_buff *skb, u_int32_t newmark){
+    int szMetaData;
+    struct skb_shared_info * temp = NULL;
+
+    szMetaData = sizeof(struct knox_meta_param);
+    temp = skb_shinfo(skb);
+    
+    if (skb == NULL || newmark < META_UID_PID_MARK_BASE_LOWER || META_UID_PID_MARK_BASE_UPPER < newmark || skb->sk == NULL || temp == NULL ){
+        return 0;
+    }
+    else{
+        temp->uid = skb->sk->knox_uid;
+        temp->pid = skb->sk->knox_pid;
+        temp->knox_mark = newmark;
+    }
+
+    return 0;
+}
+
+// ------------- END of KNOX_VPN -------------------//
 
 static unsigned int
 connmark_tg(struct sk_buff *skb, const struct xt_action_param *par)
@@ -63,14 +121,23 @@ connmark_tg(struct sk_buff *skb, const struct xt_action_param *par)
 			ct->mark = newmark;
 			nf_conntrack_event_cache(IPCT_MARK, ct);
 		}
+        
+// ------------- START of KNOX_VPN -----------------//        
+        knoxvpn_uidpid(skb,newmark);
+// ------------- END of KNOX_VPN -------------------//
+
 		break;
 	case XT_CONNMARK_RESTORE:
 		newmark = (skb->mark & ~info->nfmask) ^
 		          (ct->mark & info->ctmask);
 		skb->mark = newmark;
+
+// ------------- START of KNOX_VPN -----------------//		
+        knoxvpn_uidpid(skb,newmark);
+// ------------- END of KNOX_VPN -------------------//
+
 		break;
 	}
-
 	return XT_CONTINUE;
 }
 

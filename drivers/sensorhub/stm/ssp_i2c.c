@@ -250,14 +250,12 @@ int ssp_send_cmd(struct ssp_data *data, char command, int arg)
 	msg->free_buffer = 0;
 
 	iRet = ssp_spi_async(data, msg);
-
 	if (iRet != SUCCESS) {
 		pr_err("[SSP]: %s - command 0x%x failed %d\n",
 				__func__, command, iRet);
 		return ERROR;
 	}
 
-	data->uInstFailCnt = 0;
 	ssp_dbg("[SSP]: %s - command 0x%x %d\n", __func__, command, arg);
 
 	return SUCCESS;
@@ -312,6 +310,9 @@ int send_instruction(struct ssp_data *data, u8 uInst,
 		iRet = -ENOMEM;
 		return iRet;
 	}
+
+	if(uSensorType == GEOMAGNETIC_SENSOR)
+		uLength += 1;
 	msg->cmd = command;
 	msg->length = uLength + 1;
 	msg->options = AP2HUB_WRITE;
@@ -320,7 +321,9 @@ int send_instruction(struct ssp_data *data, u8 uInst,
 
 	msg->buffer[0] = uSensorType;
 	memcpy(&msg->buffer[1], uSendBuf, uLength);
-
+	if(uSensorType == GEOMAGNETIC_SENSOR) {
+		msg->buffer[10] = MAG_LOG_MODE;
+	}
 	ssp_dbg("[SSP]: %s - Inst = 0x%x, Sensor Type = 0x%x, data = %u\n",
 			__func__, command, uSensorType, msg->buffer[1]);
 
@@ -330,8 +333,6 @@ int send_instruction(struct ssp_data *data, u8 uInst,
 		pr_err("[SSP]: %s - Instruction CMD Fail %d\n", __func__, iRet);
 		return ERROR;
 	}
-
-	data->uInstFailCnt = 0;
 
 	return iRet;
 }
@@ -400,8 +401,6 @@ int send_instruction_sync(struct ssp_data *data, u8 uInst,
 		return ERROR;
 	}
 
-	data->uInstFailCnt = 0;
-
 	return buffer[0];
 }
 
@@ -417,15 +416,15 @@ int flush(struct ssp_data *data, u8 uSensorType) {
 	msg->buffer = &buffer;
 	msg->free_buffer = 0;
 
+	ssp_dbg("[SSP]: %s Sensor Type = 0x%x, data = %u\n", __func__,
+		uSensorType, buffer);
+
 	iRet = ssp_spi_sync(data, msg, 1000);
 
 	if (iRet != SUCCESS) {
 		pr_err("[SSP]: %s - fail %d\n", __func__, iRet);
 		return ERROR;
 	}
-
-	ssp_dbg("[SSP]: %s Sensor Type = 0x%x, data = %u\n", __func__, uSensorType,
-			buffer);
 
 	return buffer ? 0 : -1;
 }
@@ -468,8 +467,7 @@ retries:
 	msg = kzalloc(sizeof(*msg), GFP_KERNEL);
 	if (msg == NULL) {
 		pr_err("[SSP] %s, failed to alloc memory for ssp_msg\n", __func__);
-		iRet = -ENOMEM;
-		return iRet;
+		return -ENOMEM;
 	}
 	msg->cmd = MSG2SSP_AP_WHOAMI;
 	msg->length = 1;
@@ -535,21 +533,32 @@ void set_proximity_threshold(struct ssp_data *data,
 
 	msg= kzalloc(sizeof(*msg), GFP_KERNEL);
 	msg->cmd = MSG2SSP_AP_SENSOR_PROXTHRESHOLD;
+#if defined(CONFIG_SENSORS_SSP_MAX88921)
+	msg->length = 4;
+#else
 	msg->length = 2;
+#endif
 	msg->options = AP2HUB_WRITE;
 	msg->buffer = (char*) kzalloc(4, GFP_KERNEL);
 	msg->free_buffer = 1;
 
 	pr_err("[SSP]: %s - SENSOR_PROXTHRESHOL",__func__);
 
-	//msg->buffer[0] = ((char) (uData1 >> 8) & 0x07);
-	//msg->buffer[1] = (char) uData1;
-	//msg->buffer[2] = ((char) (uData2 >> 8) & 0x07);
-	//msg->buffer[3] = (char) uData2;
-
+#if defined(CONFIG_SENSORS_SSP_MAX88921)
+	msg->buffer[0] = ((char) (uData1 >> 8) & 0x07);
+	msg->buffer[1] = (char) uData1;
+	msg->buffer[2] = ((char) (uData2 >> 8) & 0x07);
+	msg->buffer[3] = (char) uData2;
+#else
+	if (uData1 < uData2) {
+		pr_info("[SSP] %s - invalid threshold (%u, %u)\n",
+			__func__, uData1, uData2);
+		uData1 = DEFUALT_HIGH_THRESHOLD;
+		uData2 = DEFUALT_LOW_THRESHOLD;
+	}
 	msg->buffer[0] = (char)uData1;
 	msg->buffer[1] = (char)uData2;
-
+#endif
 	iRet = ssp_spi_async(data, msg);
 
 	if (iRet != SUCCESS) {
@@ -557,8 +566,6 @@ void set_proximity_threshold(struct ssp_data *data,
 			__func__, iRet);
 		return;
 	}
-
-	data->uInstFailCnt = 0;
 	pr_info("[SSP]: Proximity Threshold - %u, %u\n", uData1, uData2);
 }
 
@@ -582,8 +589,6 @@ void set_proximity_barcode_enable(struct ssp_data *data, bool bEnable)
 				__func__, iRet);
 		return;
 	}
-
-	data->uInstFailCnt = 0;
 	pr_info("[SSP] Proximity Barcode En : %u\n", bEnable);
 }
 
@@ -600,91 +605,59 @@ void set_gesture_current(struct ssp_data *data, unsigned char uData1)
 
 	msg->buffer[0] = uData1;
 	iRet = ssp_spi_async(data, msg);
-
 	if (iRet != SUCCESS) {
 		pr_err("[SSP]: %s - SENSOR_GESTURE_CURRENT CMD fail %d\n", __func__,
 				iRet);
 		return;
 	}
-
-	data->uInstFailCnt = 0;
 	pr_info("[SSP]: Gesture Current Setting - %u\n", uData1);
 }
 
-unsigned int get_sensor_scanning_info(struct ssp_data *data)
-{
-	int iRet, iReties = 0;
-	unsigned int iSensorState = 0;
-	char buffer[4] = { 0, };
-	struct ssp_msg *msg;
+unsigned int get_sensor_scanning_info(struct ssp_data *data) {
+	int iRet = 0, z = 0;
+	u32 result = 0;
+	char bin[SENSOR_MAX + 1];
 
-retries:
-	msg = kzalloc(sizeof(*msg), GFP_KERNEL);
+	struct ssp_msg *msg = kzalloc(sizeof(*msg), GFP_KERNEL);
 	if (msg == NULL) {
 		pr_err("[SSP] %s, failed to alloc memory for ssp_msg\n", __func__);
-		iRet = -ENOMEM;
-		return iRet;
+		return -ENOMEM;
 	}
 	msg->cmd = MSG2SSP_AP_SENSOR_SCANNING;
 	msg->length = 4;
 	msg->options = AP2HUB_READ;
-	msg->buffer = buffer;
-	msg->free_buffer = 0;
-
-	iRet = ssp_spi_sync(data, msg, 1000);
-
-	if (iRet != SUCCESS) {
-		pr_err("[SSP] %s -fail to get_sensor_scanning_info %d\n",
-				__func__, iRet);
-
-		if(iReties++ < 2) {
-			pr_err("[SSP] %s get_sensor_scanning_info fail retry\n",
-				__func__);
-			mdelay(5);
-			goto retries;
-		}
-		return 0;
-	} else {
-		iSensorState = (unsigned int)(buffer[0] << 24 |
-			buffer[1] << 16 | buffer[2] << 8 | buffer[3] );
-
-		// exception for abnormail sensorstatus
-		if(iReties++ < 2 && (iSensorState < 0x10000 ||
-			(iSensorState >> 5 & 0x01) != 0x01 || 
-			(iSensorState & 0x03) != 0x03)) {
-			pr_err("[SSP] %s get_sensor_scanning_info val retry %d\n",
-				__func__, iSensorState);
-			mdelay(5);
-			goto retries;
-		}
-	}
-
-	pr_err("[SSP]: %s - %x %x %x %x\n", __func__,
-		buffer[0], buffer[1], buffer[2], buffer[3]);
-	return iSensorState;
-}
-
-unsigned int get_firmware_rev(struct ssp_data *data)
-{
-	unsigned int uRev = SSP_INVALID_REVISION;
-	int iRet;
-	char buffer[3] = { 0, };
-
-	struct ssp_msg *msg = kzalloc(sizeof(*msg), GFP_KERNEL);
-	msg->cmd = MSG2SSP_AP_FIRMWARE_REV;
-	msg->length = 3;
-	msg->options = AP2HUB_READ;
-	msg->buffer = buffer;
+	msg->buffer = (char*) &result;
 	msg->free_buffer = 0;
 
 	iRet = ssp_spi_sync(data, msg, 1000);
 
 	if (iRet != SUCCESS)
+		pr_err("[SSP]: %s - i2c fail %d\n", __func__, iRet);
+
+	bin[SENSOR_MAX] = '\0';
+	for (z = 0; z < SENSOR_MAX; z++)
+		bin[SENSOR_MAX - 1 - z] = (result & (1 << z)) ? '1' : '0';
+	pr_err("[SSP]: state: %s\n", bin);
+
+	return result;
+}
+
+unsigned int get_firmware_rev(struct ssp_data *data) {
+	int iRet;
+	u32 result = SSP_INVALID_REVISION;
+
+	struct ssp_msg *msg = kzalloc(sizeof(*msg), GFP_KERNEL);
+	msg->cmd = MSG2SSP_AP_FIRMWARE_REV;
+	msg->length = 4;
+	msg->options = AP2HUB_READ;
+	msg->buffer = (char*) &result;
+	msg->free_buffer = 0;
+
+	iRet = ssp_spi_sync(data, msg, 1000);
+	if (iRet != SUCCESS)
 		pr_err("[SSP]: %s - transfer fail %d\n", __func__, iRet);
-	else
-		uRev = ((unsigned int)buffer[0] << 16)
-			| ((unsigned int)buffer[1] << 8) | buffer[2];
-	return uRev;
+
+	return result;
 }
 
 int get_fuserom_data(struct ssp_data *data)

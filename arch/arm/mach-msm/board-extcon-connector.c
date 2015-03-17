@@ -25,7 +25,12 @@
 #include <linux/regulator/machine.h>
 #include <linux/slab.h>
 #include <linux/pm_runtime.h>
+#ifndef CONFIG_USB_DWC3
+#include <linux/mfd/max77804k.h>
+#include <linux/host_notify.h>
+#endif
 
+static int jig_state;
 struct muic_cable {
 	struct work_struct work;
 	struct delayed_work cable_init;
@@ -36,17 +41,38 @@ struct muic_cable {
 	int cable_state;
 };
 
+int get_jig_state(void)
+{
+	return jig_state;
+}
+
 static struct switch_dev switch_dock = {
 	.name = "dock",
 };
-
 struct device *switch_dev;
 EXPORT_SYMBOL(switch_dev);
 static struct muic_cable support_cable_list[] = {
+#ifndef CONFIG_USB_DWC3
+	{ .cable_type = EXTCON_USB, },
+	{ .cable_type = EXTCON_CHARGE_DOWNSTREAM, },
+	{ .cable_type = EXTCON_USB_HOST, },
+	{ .cable_type = EXTCON_USB_HOST_5V, },
+#if defined (CONFIG_MUIC_MAX77804K_SUPPORT_LANHUB)
+	{ .cable_type = EXTCON_LANHUB, },
+	{ .cable_type = EXTCON_LANHUB_TA, },
+#endif
+#endif
 	{ .cable_type = EXTCON_DESKDOCK, },
 	{ .cable_type = EXTCON_CARDOCK, },
 	{ .cable_type = EXTCON_AUDIODOCK, },
 	{ .cable_type = EXTCON_SMARTDOCK, },
+#if defined(CONFIG_MUIC_MAX77804K_SUPPORT_HMT_DETECTION)
+	{ .cable_type = EXTCON_HMT,	},
+#endif
+	{ .cable_type = EXTCON_JIG_USBON, },
+	{ .cable_type = EXTCON_JIG_USBOFF, },
+	{ .cable_type = EXTCON_JIG_UARTON, },
+	{ .cable_type = EXTCON_JIG_UARTOFF, },
 };
 
 static void muic_cable_event_worker(struct work_struct *work)
@@ -59,17 +85,60 @@ static void muic_cable_event_worker(struct work_struct *work)
 			cable->cable_state ? "attached" : "detached");
 
 	switch (cable->cable_type) {
-	case EXTCON_DESKDOCK:
-		switch_set_state(&switch_dock, cable->cable_state);
+#ifndef CONFIG_USB_DWC3
+	case EXTCON_USB:	/*	USB cable VBUS update*/
+	case EXTCON_CHARGE_DOWNSTREAM:
+		sec_otg_set_vbus_state(cable->cable_state);
 		break;
-	case EXTCON_CARDOCK:
-		switch_set_state(&switch_dock, cable->cable_state);
+	case EXTCON_USB_HOST:
+		if (cable->cable_state)
+			sec_otg_notify(HNOTIFY_ID);
+		else
+			sec_otg_notify(HNOTIFY_ID_PULL);
 		break;
-	case EXTCON_AUDIODOCK:
-		switch_set_state(&switch_dock, cable->cable_state);
+	case EXTCON_USB_HOST_5V:
+		if (cable->cable_state)
+			sec_otg_notify(HNOTIFY_OTG_POWER_ON);
+		else
+			sec_otg_notify(HNOTIFY_OTG_POWER_OFF);
 		break;
-	case EXTCON_SMARTDOCK:
-		switch_set_state(&switch_dock, cable->cable_state);
+#if defined (CONFIG_MUIC_MAX77804K_SUPPORT_LANHUB)
+	case EXTCON_LANHUB:
+		if (cable->cable_state)
+			sec_otg_notify(HNOTIFY_LANHUB_ON);
+		else
+			sec_otg_notify(HNOTIFY_LANHUB_OFF);
+		break;
+	case EXTCON_LANHUB_TA:
+		if (cable->cable_state)
+			sec_otg_notify(HNOTIFY_LANHUBTA_ON);
+		else
+			sec_otg_notify(HNOTIFY_LANHUBTA_OFF);
+		break;
+#endif
+#endif
+	case EXTCON_DESKDOCK:	/*	Deskdock	#1	*/
+		switch_set_state(&switch_dock, cable->cable_state ? 1 : 0);
+		break;
+	case EXTCON_CARDOCK:	/*	Cardock		#2	*/
+		switch_set_state(&switch_dock, cable->cable_state ? 2 : 0);
+		break;
+	case EXTCON_AUDIODOCK:	/*	Audiodock	#7	*/
+		switch_set_state(&switch_dock, cable->cable_state ? 7 : 0);
+		break;
+	case EXTCON_SMARTDOCK:	/*	Smartdock	#8	*/
+		switch_set_state(&switch_dock, cable->cable_state ? 8 : 0);
+		break;
+#if defined(CONFIG_MUIC_MAX77804K_SUPPORT_HMT_DETECTION)
+	case EXTCON_HMT:		/*	HMT			#11	*/
+		switch_set_state(&switch_dock, cable->cable_state ? 11 : 0);
+		break;
+#endif
+	case EXTCON_JIG_USBON:
+	case EXTCON_JIG_USBOFF:
+	case EXTCON_JIG_UARTON:
+	case EXTCON_JIG_UARTOFF:
+		jig_state = cable->cable_state;
 		break;
 	default:
 		pr_err("%s: invalid cable value (%d, %d)\n", __func__,

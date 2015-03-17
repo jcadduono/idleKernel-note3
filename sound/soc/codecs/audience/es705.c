@@ -11,6 +11,7 @@
  *            - FW download functions update
  *            - Add optional UART VS FW download
  *            - Add external Clock support
+ *            - Add 3d party support for RDB / WDB features
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -19,6 +20,12 @@
 
 #define DEBUG
 #define SAMSUNG_ES705_FEATURE
+
+/*
+ * Uncomment WDB_RDB_OVER_SLIMBUS
+ * to enable WDB / RDB operations over SLIMBus
+ */
+/*#define WDB_RDB_OVER_SLIMBUS*/
 
 #include <linux/module.h>
 #include <linux/moduleparam.h>
@@ -61,6 +68,7 @@
 #include "es705-cdev.h"
 #include "es705-uart.h"
 #include "es705-uart-common.h"
+#include "es705-veq-params.h"
 
 #define ES705_CMD_ACCESS_WR_MAX 2
 #define ES705_CMD_ACCESS_RD_MAX 2
@@ -75,6 +83,7 @@ struct es705_api_access {
 
 #include "es705-access.h"
 
+#define ENABLE_VS_DATA_DUMP
 #define NARROW_BAND	0
 #define WIDE_BAND	1
 #define NETWORK_OFFSET	21
@@ -131,6 +140,7 @@ struct es705_priv es705_priv = {
 	.use_uart_for_wakeup_gpio = 0,
 	/* for tuning : 1 */
 	.change_uart_config = 0,
+	.internal_route_num = 5,
 #endif
 };
 
@@ -142,6 +152,51 @@ const char *esxxx_mode[] = {
 
 struct snd_soc_dai_driver es705_dai[];
 
+static struct file *file_open(const char *path, int flags, int rights)
+{
+	mm_segment_t oldfs;
+	int err = 0;
+	struct file *filp = NULL;
+	oldfs = get_fs();
+	set_fs(get_ds());
+	filp = filp_open(path, flags, rights);
+	set_fs(oldfs);
+	if (IS_ERR(filp)) {
+		err = PTR_ERR(filp);
+		dev_err(es705_priv.dev, "%s:Error (%d) Opening file %s",
+				__func__, err, path);
+		return NULL;
+	}
+	return filp;
+}
+
+static inline void file_close(struct file *file)
+{
+	filp_close(file, NULL);
+}
+
+static int file_read(struct file *file, unsigned long long offset,
+		unsigned char *data, unsigned int size)
+{
+	mm_segment_t oldfs;
+	int ret;
+	oldfs = get_fs();
+	set_fs(get_ds());
+	ret = vfs_read(file, data, size, &offset);
+	set_fs(oldfs);
+	return ret;
+}
+
+static int abort_request = 0;
+static int es705_vs_load(struct es705_priv *es705);
+static int es705_write_then_read(struct es705_priv *es705,
+				const void *buf, int len,
+				u32 *rspn, int match);
+
+#if defined(PREVENT_CALL_MUTE_WHEN_SWITCH_NB_AND_WB)
+static void es705_restore_bwe_veq(void);
+#endif
+
 /* indexed by ES705 INTF number */
 u32 es705_streaming_cmds[4] = {
 	0x90250200,		/* ES705_SLIM_INTF */
@@ -150,98 +205,146 @@ u32 es705_streaming_cmds[4] = {
 	0x90250100,		/* ES705_UART_INTF */
 };
 
+#define SAMSUNG_ES70X_RESTORE_FW_IN_SLEEP
+#define SAMSUNG_ES70X_RESTORE_FW_IN_WAKEUP
+
+#if defined(SAMSUNG_ES70X_RESTORE_FW_IN_SLEEP) || defined(SAMSUNG_ES70X_RESTORE_FW_IN_WAKEUP)
+static int cnt_restore_std_fw_in_sleep = 0;
+static int cnt_restore_std_fw_in_wakeup = 0;
+
+int restore_std_fw(struct es705_priv *es705)
+{
+	int rc;
+	dev_info(es705->dev, "%s(): START!\n", __func__);
+
+	es705->mode = SBL;
+	es705_gpio_reset(es705);
+	rc = es705_bootup(es705);
+
+	dev_info(es705->dev, "%s(): rc = %d\n", __func__, rc);
+	return rc;
+}
+#endif
+#define SAMSUNG_ES70X_BACK_TO_BACK_CMD_DELAY
+#ifdef SAMSUNG_ES70X_BACK_TO_BACK_CMD_DELAY
+static int preset_delay_time = 5;
+#endif
+
 int es705_write_block(struct es705_priv *es705, const u32 *cmd_block)
 {
 	u32 api_word;
 	u8 msg[4];
 	int rc = 0;
 
-	dev_dbg(es705->dev, "%s(): pm_runtime_get_sync()\n", __func__);
-	dev_dbg(es705->dev, "%s(): mutex lock\n", __func__);
 	mutex_lock(&es705->api_mutex);
 	while (*cmd_block != 0xffffffff) {
 		api_word = cpu_to_le32(*cmd_block);
 		memcpy(msg, (char *)&api_word, 4);
 		es705->dev_write(es705, msg, 4);
+#ifndef SAMSUNG_ES70X_BACK_TO_BACK_CMD_DELAY
 		usleep_range(1000, 1000);
-		dev_dbg(es705->dev, "%s(): msg = %02x%02x%02x%02x\n",
-			__func__, msg[0], msg[1], msg[2], msg[3]);
+#else /* SAMSUNG_ES70X_BACK_TO_BACK_CMD_DELAY */
+		if (msg[3] == 0x90 && msg[2] == 0x31)
+			usleep_range(preset_delay_time*1000, preset_delay_time*1000);
+		else
+			usleep_range(1000, 1000);
+#endif /* SAMSUNG_ES70X_BACK_TO_BACK_CMD_DELAY */
+		dev_dbg(es705->dev, "%s(): msg = 0x%02x%02x%02x%02x\n",
+			__func__, msg[3], msg[2], msg[1], msg[0]);
 		cmd_block++;
 	}
-	dev_dbg(es705->dev, "%s(): mutex unlock\n", __func__);
 	mutex_unlock(&es705->api_mutex);
-	dev_dbg(es705->dev, "%s(): pm_runtime_put_autosuspend()\n", __func__);
 
 	return rc;
 }
 
-
-
 /* Note: this may only end up being called in a api locked context. In
  * that case the mutex locks need to be removed.
  */
-int es705_read_vs_data_block(struct es705_priv *es705)
+#define WDB_RDB_BLOCK_MAX_SIZE	512
+int es705_read_vs_data_block(struct es705_priv *es705, char *dump_data,
+			     unsigned max_size)
 {
 	/* This function is not re-entrant so avoid stack bloat. */
-	static u8 block[ES705_VS_KEYWORD_PARAM_MAX];
-
-	u32 cmd;
+	u32 cmd = 0x802e0008;
 	u32 resp;
 	int ret;
 	unsigned size;
-	unsigned rdcnt;
 
+	es705->vs_keyword_param_size = 0;
 	mutex_lock(&es705->api_mutex);
+	if (es705->rdb_wdb_open) {
+		ret = es705->rdb_wdb_open(es705);
+		if (ret < 0) {
+			dev_err(es705->dev, "%s(): RDB open fail\n",
+				__func__);
+			goto rdb_open_error;
+		}
+	}
 
-	/* Read voice sense keyword data block request. */
-	cmd = cpu_to_le32(0x802e0006);
-	es705->dev_write(es705, (char *)&cmd, 4);
+	if (es705->rdb_wdb_open)
+		cmd = cpu_to_be32(cmd); /* over UART */
+	else
+		cmd = cpu_to_le32(cmd); /* over SLIMBus */
 
-	usleep_range(5000, 5000);
-
-	ret = es705->dev_read(es705, (char *)&resp, 4);
+	es705->wdb_write(es705, (char *)&cmd, 4);
+	ret = es705->rdb_read(es705, (char *)&resp, 4);
 	if (ret < 0) {
 		dev_dbg(es705->dev, "%s(): error sending request = %d\n",
 			__func__, ret);
 		goto OUT;
 	}
 
-	le32_to_cpus(resp);
-	size = resp & 0xffff;
-	dev_dbg(es705->dev, "%s(): resp=0x%08x size=%d\n",
-		__func__, resp, size);
+	if (es705->rdb_wdb_open)
+		resp = be32_to_cpu(resp); /* over UART */
+	else
+		resp = le32_to_cpu(resp); /* over SLIMBus */
+
 	if ((resp & 0xffff0000) != 0x802e0000) {
-		dev_err(es705->dev, "%s(): invalid read v-s data block response = 0x%08x\n",
+		dev_err(es705->dev, "%s(): invalid read v-s data block size = 0x%08x\n",
 			__func__, resp);
 		goto OUT;
 	}
-
+	size = resp & 0xffff;
+	dev_dbg(es705->dev, "%s(): resp=0x%08x size=%d\n", __func__, resp, size);
 	BUG_ON(size == 0);
-	BUG_ON(size > ES705_VS_KEYWORD_PARAM_MAX);
-	BUG_ON(size % 4 != 0);
+	BUG_ON(size > max_size);
 
-	/* This assumes we need to transfer the block in 4 byte
+	/*
+	 * This assumes we need to transfer the block in 4 byte
 	 * increments. This is true on slimbus, but may not hold true
 	 * for other buses.
 	 */
-	for (rdcnt = 0; rdcnt < size; rdcnt += 4) {
-		ret = es705->dev_read(es705, (char *)&resp, 4);
+	while (es705->vs_keyword_param_size < size) {
+		if (es705->rdb_wdb_open)
+			/* over UART */
+			ret = es705->rdb_read(es705, dump_data +
+					es705->vs_keyword_param_size,
+						size - es705->vs_keyword_param_size);
+		else
+			/* over SLIMBus */
+			ret = es705->rdb_read(es705, dump_data +
+					es705->vs_keyword_param_size,
+						4);
 		if (ret < 0) {
-			dev_dbg(es705->dev, "%s(): error reading data block at %d bytes\n",
-				__func__, rdcnt);
+			dev_dbg(es705->dev, "%s(): error reading data block\n",
+				__func__);
+			es705->vs_keyword_param_size = 0;
 			goto OUT;
 		}
-		memcpy(&block[rdcnt], &resp, 4);
+		es705->vs_keyword_param_size += ret;
+		dev_dbg(es705->dev, "%s(): stored v-s read and saved of %d bytes\n",
+			__func__, ret);
 	}
-
-	memcpy(es705->vs_keyword_param, block, rdcnt);
-	es705->vs_keyword_param_size = rdcnt;
 	dev_dbg(es705->dev, "%s(): stored v-s keyword block of %d bytes\n",
-		__func__, rdcnt);
+		__func__, es705->vs_keyword_param_size);
 
 OUT:
+	if (es705->rdb_wdb_close)
+		es705->rdb_wdb_close(es705);
+rdb_open_error:
 	mutex_unlock(&es705->api_mutex);
-	if (ret)
+	if (ret < 0)
 		dev_err(es705->dev, "%s(): v-s read data block failure=%d\n",
 			__func__, ret);
 	return ret;
@@ -251,10 +354,13 @@ int es705_write_vs_data_block(struct es705_priv *es705)
 {
 	u32 cmd;
 	u32 resp;
-	int ret;
+	int ret = 0;
 	u8 *dptr;
 	u16 rem;
 	u8 wdb[4];
+	int end_data = 0;
+	int sz;
+	int blocks;
 
 	if (es705->vs_keyword_param_size == 0) {
 		dev_warn(es705->dev, "%s(): attempt to write empty keyword data block\n",
@@ -265,68 +371,117 @@ int es705_write_vs_data_block(struct es705_priv *es705)
 	BUG_ON(es705->vs_keyword_param_size % 4 != 0);
 
 	mutex_lock(&es705->api_mutex);
-
-	cmd = 0x802f0000 | (es705->vs_keyword_param_size & 0xffff);
-	cmd = cpu_to_le32(cmd);
-	ret = es705->dev_write(es705, (char *)&cmd, 4);
-	if (ret < 0) {
-		dev_err(es705->dev, "%s(): error writing cmd 0x%08x to device\n",
-		    __func__, cmd);
-		goto EXIT;
-	}
-
-	usleep_range(10000, 10000);
-	ret = es705->dev_read(es705, (char *)&resp, 4);
-	if (ret < 0) {
-		dev_dbg(es705->dev, "%s(): error sending request = %d\n",
-			__func__, ret);
-		goto EXIT;
-	}
-
-	le32_to_cpus(resp);
-	dev_dbg(es705->dev, "%s(): resp=0x%08x\n", __func__, resp);
-	if ((resp & 0xffff0000) != 0x802f0000) {
-		dev_err(es705->dev, "%s(): invalid write data block 0x%08x\n",
-			__func__, resp);
-		goto EXIT;
-	}
-
-	dptr = es705->vs_keyword_param;
-	for (rem = es705->vs_keyword_param_size; rem > 0; rem -= 4, dptr += 4) {
-		wdb[0] = dptr[3];
-		wdb[1] = dptr[2];
-		wdb[2] = dptr[1];
-		wdb[3] = dptr[0];
-		ret = es705->dev_write(es705, (char *)wdb, 4);
+	/* Add code to support UART WDB feature */
+	/* Get 512 blocks number */
+	blocks = es705->vs_keyword_param_size / WDB_RDB_BLOCK_MAX_SIZE;
+	sz = WDB_RDB_BLOCK_MAX_SIZE;
+SEND_DATA:
+	if (blocks) {
+		cmd = 0x802f0000 | (sz & 0xffff);
+		if (es705->rdb_wdb_open)
+			cmd = cpu_to_be32(cmd);
+		else
+			cmd = cpu_to_le32(cmd);
+	
+		ret = es705->wdb_write(es705, (char *)&cmd, 4);
 		if (ret < 0) {
-			dev_err(es705->dev, "%s(): v-s wdb error offset=%hu\n",
-			    __func__, dptr - es705->vs_keyword_param);
+			dev_err(es705->dev, "%s(): error writing cmd 0x%08x to device\n",
+		    	__func__, cmd);
 			goto EXIT;
 		}
+	
+		ret = es705->rdb_read(es705, (char *)&resp, 4);
+		if (ret < 0) {
+			dev_dbg(es705->dev, "%s(): error sending request = %d\n",
+				__func__, ret);
+			goto EXIT;
+		}
+
+		if (es705->rdb_wdb_open)
+			resp = be32_to_cpu(resp);
+		else
+			resp = le32_to_cpu(resp);
+		dev_dbg(es705->dev, "%s(): resp=0x%08x\n", __func__, resp);
+		if ((resp & 0xffff0000) != 0x802f0000) {
+			dev_err(es705->dev, "%s(): invalid write data block 0x%08x\n",
+				__func__, resp);
+			goto EXIT;
+		}
+
+		if (es705->rdb_wdb_open) {
+			/* send data over UART */
+			do {
+				ret = es705->wdb_write(es705,
+					(char *)es705->vs_keyword_param, sz);
+				if (ret < 0) {
+					dev_err(es705->dev, "%s(): v-s wdb UART write error\n",
+						__func__);
+					goto EXIT;
+				}
+				dev_dbg(es705->dev, "%s(): v-s wdb %d bytes written\n",
+					__func__, sz);
+				
+				resp = 0;
+				ret = es705->rdb_read(es705, (char *)&resp, 4);
+				if (ret < 0) {
+					dev_err(es705->dev, "%s(): WDB ACK request fFAIL\n",
+						__func__);
+					goto EXIT;
+				}
+				resp = be32_to_cpu(resp);
+				dev_dbg(es705->dev, "%s(): resp=0x%08x\n", __func__, resp);
+				if (resp & 0xFFFF) {
+					dev_err(es705->dev, "%s(): write WDB FAIL. ACK=0x%08x\n",
+						__func__, resp);
+					goto EXIT;
+				}
+			} while (--blocks);
+		} else {
+			/* send data over SLIMBus */
+			dptr = es705->vs_keyword_param;
+			for (rem = es705->vs_keyword_param_size; rem > 0; rem -= 4, dptr += 4) {
+				wdb[0] = dptr[3];
+				wdb[1] = dptr[2];
+				wdb[2] = dptr[1];
+				wdb[3] = dptr[0];
+				ret = es705->wdb_write(es705, (char *)wdb, 4);
+				if (ret < 0) {
+					dev_err(es705->dev, "%s(): v-s WDB write over SLIMBus FAIL, offset=%hu\n",
+						__func__, dptr - es705->vs_keyword_param);
+					goto EXIT;
+				}
+				resp = 0;
+				ret = es705->rdb_read(es705, (char *)&resp, 4);
+				if (ret < 0) {
+					dev_err(es705->dev, "%s(): WDB ACK request FAIL\n",
+						__func__);
+					goto EXIT;
+				}
+				resp = le32_to_cpu(resp);
+				dev_dbg(es705->dev, "%s(): resp=0x%08x\n",
+					__func__, resp);
+				if (resp & 0xFFFF) {
+					dev_err(es705->dev, "%s(): write WDB FAIL. ACK=0x%08x\n",
+						__func__, resp);
+					goto EXIT;
+				}
+			}
+		}
 	}
-
-	usleep_range(10000, 10000);
-	memset(&resp, 0, 4);
-
-	ret = es705->dev_read(es705, (char *)&resp, 4);
-	if (ret < 0) {
-		dev_dbg(es705->dev, "%s(): error sending request = %d\n",
-			__func__, ret);
-		goto EXIT;
+	if (!end_data) {
+		sz = es705->vs_keyword_param_size -
+				(es705->vs_keyword_param_size / WDB_RDB_BLOCK_MAX_SIZE) *
+					WDB_RDB_BLOCK_MAX_SIZE;
+		if (sz) {
+			blocks = 1;
+			end_data = 1;
+			goto SEND_DATA;
+		}
 	}
-
-	le32_to_cpus(resp);
-	dev_dbg(es705->dev, "%s(): resp=0x%08x\n", __func__, resp);
-	if (resp & 0xffff) {
-		dev_err(es705->dev, "%s(): write data block error 0x%08x\n",
-			__func__, resp);
-		goto EXIT;
-	}
-
-	dev_info(es705->dev, "%s(): v-s wdb success\n", __func__);
+	dev_dbg(es705->dev, "%s(): v-s wdb success\n", __func__);
 EXIT:
 	mutex_unlock(&es705->api_mutex);
-	if (ret != 0)
+	if (ret < 0)
 		dev_err(es705->dev, "%s(): v-s wdb failed ret=%d\n",
 			__func__, ret);
 	return ret;
@@ -364,38 +519,62 @@ static void es705_switch_route_config(long route_index)
 {
 	struct es705_priv *es705 = &es705_priv;
 	int rc;
+	long route_config_idx = route_index; 
 
-	if (route_index >= ROUTE_MAX) {
-		dev_dbg(es705->dev, "%s(): new es705_internal_route = %ld is out of range\n",
+	if (!(route_index < ARRAY_SIZE(es705_route_configs))) {
+		dev_err(es705->dev, 
+				"%s(): new es705_internal_route = %ld is out of range\n",
 			 __func__, route_index);
 		return;
 	}
 
-	es705->internal_route_num = route_index;
+	es705->current_bwe = 0;
+	/* default veq on in the handset mode */
+	if ((route_config_idx == 2) || (route_config_idx == 4)) {
+		es705->current_veq_preset = 1;
+		es705->current_veq = -1;
+	}
+	else
+		es705->current_veq_preset = 0;
+
+#if defined(PREVENT_CALL_MUTE_WHEN_SWITCH_NB_AND_WB)
+	if (delayed_work_pending(&es705->reroute_work))
+		cancel_delayed_work_sync(&es705->reroute_work);
+#endif
+
 	if (network_type == WIDE_BAND) {
-		if (es705->internal_route_num >= 0 &&
-			es705->internal_route_num < 5) {
-			es705->internal_route_num += NETWORK_OFFSET;
-			dev_dbg(es705->dev, "%s() adjust wideband offset\n",
-				__func__);
+		if (route_config_idx >= 0 &&
+			route_config_idx < 5) {
+				route_config_idx += NETWORK_OFFSET;
+				dev_dbg(es705->dev,
+					"%s() adjust wideband offset\n", __func__);
+#if defined(PREVENT_CALL_MUTE_WHEN_SWITCH_NB_AND_WB)
+				schedule_delayed_work(&es705->reroute_work,
+								msecs_to_jiffies(es705->reroute_delay));
+#endif
+		}
+	}
+	else if (network_type == NARROW_BAND) {
+		if (route_config_idx >= 0 + NETWORK_OFFSET &&
+			route_config_idx < 5 + NETWORK_OFFSET) {
+				route_config_idx -= NETWORK_OFFSET;
+				dev_dbg(es705->dev,
+					"%s() adjust narrowband offset\n", __func__);
+#if defined(PREVENT_CALL_MUTE_WHEN_SWITCH_NB_AND_WB)
+				schedule_delayed_work(&es705->reroute_work,
+								msecs_to_jiffies(es705->reroute_delay));
+#endif
 		}
 	}
 
-	if (network_type == NARROW_BAND) {
-		if (es705->internal_route_num >= 0 + NETWORK_OFFSET &&
-			es705->internal_route_num < 5 + NETWORK_OFFSET) {
-			es705->internal_route_num -= NETWORK_OFFSET;
-			dev_dbg(es705->dev, "%s() adjust narrowband offset\n",
-				__func__);
-		}
+	dev_info(es705->dev,
+			"%s(): converts route_index = %ld to %ld and old num is %ld\n",
+			__func__, route_index, route_config_idx, es705->internal_route_num);
+
+	if (es705->internal_route_num != route_config_idx) {
+		es705->internal_route_num = route_config_idx;
+		rc = es705_write_block(es705, &es705_route_configs[route_config_idx][0]);
 	}
-
-
-	dev_dbg(es705->dev, "%s(): switch current es705_internal_route = %ld to new route = %ld\n",
-		__func__, es705->internal_route_num, route_index);
-
-	rc = es705_write_block(es705,
-			  &es705_route_configs[es705->internal_route_num][0]);
 }
 
 /* Send a single command to the chip.
@@ -432,6 +611,46 @@ int es705_cmd(struct es705_priv *es705, u32 cmd)
 	return err;
 }
 
+static void es705_switch_to_normal_mode(struct es705_priv *es705)
+{
+	int rc;
+	int match = 1;
+	u32 cmd = (ES705_SET_POWER_STATE << 16) | ES705_SET_POWER_STATE_NORMAL;
+	u32 sync_cmd = (ES705_SYNC_CMD << 16) | ES705_SYNC_POLLING;
+	u32 sync_rspn = sync_cmd;
+
+	es705_cmd(es705, cmd);
+	msleep(20);
+	es705->pm_state = ES705_POWER_AWAKE;
+
+	rc = es705_write_then_read(es705, &sync_cmd,
+				sizeof(sync_cmd), &sync_rspn, match);
+	if (rc)
+		dev_err(es705->dev, "%s(): es705 Sync FAIL\n", __func__);
+}
+
+static int es705_switch_to_vs_mode(struct es705_priv *es705)
+{
+	int rc = 0;
+	u32 cmd = (ES705_SET_POWER_STATE << 16) |
+			ES705_SET_POWER_STATE_VS_OVERLAY;
+
+	if (!abort_request) {
+		rc = es705_cmd(es705, cmd);
+		if (rc < 0) {
+			dev_err(es705->dev, "%s(): Set VS SBL Fail", __func__);
+		} else {
+			msleep(20);
+			dev_dbg(es705->dev, "%s(): VS Overlay Mode", __func__);
+			rc = es705_vs_load(es705);
+		}
+	} else {
+		es705->es705_power_state = ES705_SET_POWER_STATE_NORMAL;
+		dev_info(es705->dev, "%s(): Skip to switch to vs mode", __func__);
+	}
+	return rc;
+}
+
 static unsigned int es705_read(struct snd_soc_codec *codec,
 			       unsigned int reg)
 {
@@ -446,7 +665,7 @@ static unsigned int es705_read(struct snd_soc_codec *codec,
 	int match = 0;
 	int rc;
 
-	if (reg > ES705_API_ADDR_MAX) {
+	if (reg >= ES705_API_ADDR_MAX) {
 		dev_err(es705->dev, "%s(): invalid address = 0x%04x\n",
 			__func__, reg);
 		return -EINVAL;
@@ -490,7 +709,7 @@ static int es705_write(struct snd_soc_codec *codec, unsigned int reg,
 	unsigned int val_mask;
 	int rc = 0;
 
-	if (reg > ES705_API_ADDR_MAX) {
+	if (reg >= ES705_API_ADDR_MAX) {
 		dev_err(es705->dev, "%s(): invalid address = 0x%04x\n",
 			__func__, reg);
 		return -EINVAL;
@@ -538,7 +757,7 @@ static unsigned short crc_update(char *buf, int length, unsigned short crc)
 {
 	unsigned char i;
 	unsigned short data;
-	
+
 	while (length--) {
 		data = (unsigned short)(*buf++) & 0xff;
 		for (i = 0; i < 8; i++) {
@@ -576,7 +795,7 @@ static void es705_write_sensory_vs_data_block(int type)
 		cmd[1] = 0x90180002;
 		cmd_confirm[0] = 0x9017e003;
 	}
-	
+
 	/* rdb/wdb mode = 1 for the grammar file */
 	rc = es705_write_block(&es705_priv, cmd);
 
@@ -594,7 +813,7 @@ static void es705_write_sensory_vs_data_block(int type)
 
 	while (size < size4)
 		buf[size++] = 0;
-	
+
 	crc = crc_update(buf, size, 0xffff);
 	buf[size++] = (unsigned char)(crc & 0xff);
 	crc >>= 8;
@@ -615,7 +834,6 @@ static void es705_write_sensory_vs_data_block(int type)
 		es705_write_vs_data_block(&es705_priv);
 		memset(es705_priv.vs_keyword_param, 0, ES705_VS_KEYWORD_PARAM_MAX);
 	}
-
 	kfree(buf);
 
 	/* verify the download count and the CRC */
@@ -640,20 +858,60 @@ static int es705_write_sensory_vs_keyword(void)
 	u32 grammar_confirm[] = {0x9017e002, 0x90180001, 0xffffffff};
 	u32 net_confirm[] = {0x9017e003, 0x90180001, 0xffffffff};
 	u32 start_confirm[] = {0x9017e000, 0x90180001, 0xffffffff};
-	
+
+	dev_info(es705_priv.dev, "%s(): ********* START VS Keyword Download\n", __func__);
+
+	if (abort_request) {
+		dev_info(es705_priv.dev, "%s(): Skip to download VS Keyword\n", __func__);
+		es705_switch_to_normal_mode(&es705_priv);
+		return rc;
+	}
+
+	if (es705_priv.rdb_wdb_open) {
+		rc = es705_priv.rdb_wdb_open(&es705_priv);
+		if (rc < 0) {
+			dev_err(es705_priv.dev, "%s(): WDB UART open FAIL\n", __func__);
+			return rc;
+		}
+	}
+
 	/* download keyword using WDB */
 	es705_write_sensory_vs_data_block(0);
 	es705_write_sensory_vs_data_block(1);
+
+	if (es705_priv.rdb_wdb_close)
+		es705_priv.rdb_wdb_close(&es705_priv);
 
 	/* mark the grammar and net as valid */
 	rc = es705_write_block(&es705_priv, grammar_confirm);
 	rc = es705_write_block(&es705_priv, net_confirm);
 	rc = es705_write_block(&es705_priv, start_confirm);
+	dev_info(es705_priv.dev, "%s(): ********* END VS Keyword Download\n", __func__);
 
 	return rc;
-
 }
 #endif
+
+#if defined(PREVENT_CALL_MUTE_WHEN_SWITCH_NB_AND_WB)
+static void es705_reroute(struct work_struct *w)
+{
+	struct es705_priv *es705 = &es705_priv;
+	int rc;
+	unsigned int value = 0;
+
+	value = es705_read(NULL, ES705_CHANGE_STATUS);
+
+	if (value) {
+		dev_err(es705->dev,
+				"%s(): route_status : 0x%04x, reroute to %ld\n",
+				__func__, value, es705->internal_route_num);
+		rc = es705_write_block(es705,
+							&es705_route_configs[es705->internal_route_num][0]);
+		es705_restore_bwe_veq();
+	}
+}
+#endif
+
 static ssize_t es705_route_status_show(struct device *dev,
 				       struct device_attribute *attr,
 				       char *buf)
@@ -716,15 +974,18 @@ static ssize_t es705_fw_version_show(struct device *dev,
 
 	memset(verbuf, 0, SIZE_OF_VERBUF);
 
-	value = es705_read(NULL, ES705_FW_FIRST_CHAR);
-	*verbuf++ = (value & 0x00ff);
-	for (idx = 0; idx < (SIZE_OF_VERBUF-2); idx++) {
-		value = es705_read(NULL, ES705_FW_NEXT_CHAR);
+	if (es705_priv.pm_state == ES705_POWER_AWAKE) {
+		value = es705_read(NULL, ES705_FW_FIRST_CHAR);
 		*verbuf++ = (value & 0x00ff);
-	}
-	/* Null terminate the string*/
-	*verbuf = '\0';
-	dev_info(dev, "Audience fw ver %s\n", versionbuffer);
+		for (idx = 0; idx < (SIZE_OF_VERBUF-2); idx++) {
+			value = es705_read(NULL, ES705_FW_NEXT_CHAR);
+			*verbuf++ = (value & 0x00ff);
+		}
+		/* Null terminate the string*/
+		*verbuf = '\0';
+		dev_info(dev, "Audience fw ver %s\n", versionbuffer);
+	} else
+		dev_info(dev, "Audience is not awake\n");
 	return snprintf(buf, PAGE_SIZE, "FW Version = %s\n", versionbuffer);
 }
 
@@ -936,36 +1197,48 @@ static ssize_t es705_tuning_set(struct device *dev,
 	else
 		es705->change_uart_config = 1;
 
-	return count;	
+	return count;
 }
 
 static DEVICE_ATTR(tuning, 0644, NULL, es705_tuning_set);
 /* /sys/devices/platform/msm_slim_ctrl.1/es705-codec-gen0/tuning */
-
+#define PATH_SIZE 100
 static ssize_t es705_keyword_grammar_path_set(struct device *dev,
 				struct device_attribute *attr,
 				const char *buf, size_t count)
 {
-	char path[100];
+	char path[PATH_SIZE], path2[PATH_SIZE] = {'\0'};
+	char *index = 0;
 	int rc = 0;
 
+	if (strlen(buf) > PATH_SIZE) {
+		dev_err(es705_priv.dev, "%s(): invalid buf length\n", __func__);
+		return count;
+	}
+
 	sscanf(buf, "%s", path);
-	pr_info("%s : [ES705] keyword_grammar_path = %s\n", __func__, path);
+	pr_info("%s : [ES705] grammar path = %s\n", __func__, path);
+
+	/* replace absolute path with relative path */
+	index = strrchr(path, '/');
+	if (index)
+		strncpy(path2, index + 1, strlen(index + 1));
+	else {
+		pr_info("%s : [ES705] cannot find /\n", __func__);
+		strncpy(path2, path, strlen(path));
+	}
+	pr_info("%s : [ES705] keyword_grammar_final_path = %s\n", __func__, path2);
+
 	/* get the grammar file */
 	rc = request_firmware((const struct firmware **)&es705_priv.vs_grammar,
-			      path, es705_priv.dev);
+			      path2, es705_priv.dev);
 	if (rc) {
 		dev_err(es705_priv.dev, "%s(): request_firmware(%s) failed %d\n",
-			__func__, path, rc);
-		sprintf(path, "higalaxy_en_us_gram6.bin");
-		dev_info(es705_priv.dev, "%s(): request default grammar\n", __func__);
-		rc = request_firmware((const struct firmware **)&es705_priv.vs_grammar,
-			      path, es705_priv.dev);
-		if (rc)
-			dev_err(es705_priv.dev, "%s(): request_firmware(%s) failed %d\n",
-				__func__, path, rc);
-
+			__func__, path2, rc);
+		return count;
 	}
+
+	es705_priv.vs_grammar_set_flag = 1;
 
 	return count;
 }
@@ -977,25 +1250,38 @@ static ssize_t es705_keyword_net_path_set(struct device *dev,
 				struct device_attribute *attr,
 				const char *buf, size_t count)
 {
-	char path[100];
+	char path[PATH_SIZE], path2[PATH_SIZE] = {'\0'};
+	char *index = 0;
 	int rc = 0;
 
-	sscanf(buf, "%s", path);
-	pr_info("%s : [ES705] keyword_net_path = %s\n", __func__, path);
+	if (strlen(buf) > PATH_SIZE) {
+		dev_err(es705_priv.dev, "%s(): invalid buf length\n", __func__);
+		return count;
+	}
 
+	sscanf(buf, "%s", path);
+	pr_info("%s : [ES705] net path = %s\n", __func__, path);
+
+	/* replace absolute path with relative path */
+	index = strrchr(path, '/');
+	if (index)
+		strncpy(path2, index + 1, strlen(index + 1));
+	else {
+		pr_info("%s : [ES705] cannot find /\n", __func__);
+		strncpy(path2, path, strlen(path));
+	}
+	pr_info("%s : [ES705] keyword_net_final_path = %s\n", __func__, path2);
+
+	/* get the net file */
 	rc = request_firmware((const struct firmware **)&es705_priv.vs_net,
-			      path, es705_priv.dev);
+			      path2, es705_priv.dev);
 	if (rc) {
 		dev_err(es705_priv.dev, "%s(): request_firmware(%s) failed %d\n",
-			__func__, path, rc);
-		sprintf(path, "higalaxy_en_us_am.bin");
-		dev_info(es705_priv.dev, "%s(): request default net\n", __func__);
-		rc = request_firmware((const struct firmware **)&es705_priv.vs_net,
-			      path, es705_priv.dev);
-		if (rc)
-			dev_err(es705_priv.dev, "%s(): request_firmware(%s) failed %d\n",
-				__func__, path, rc);
+			__func__, path2, rc);
+		return count;
 	}
+
+	es705_priv.vs_net_set_flag = 1;
 
 	return count;
 }
@@ -1021,8 +1307,169 @@ static ssize_t es705_sleep_delay_set(struct device *dev,
 		__func__, es705_priv.sleep_delay);
 	return count;
 }
-static DEVICE_ATTR(sleep_delay, 0666, es705_sleep_delay_show, es705_sleep_delay_set);
+static DEVICE_ATTR(sleep_delay, 0644, es705_sleep_delay_show, es705_sleep_delay_set);
 /* /sys/devices/platform/msm_slim_ctrl.1/es705-codec-gen0/sleep_delay */
+
+#if defined(PREVENT_CALL_MUTE_WHEN_SWITCH_NB_AND_WB)
+static ssize_t es705_reroute_delay_show(struct device *dev,
+					struct device_attribute *attr,
+					char *buf)
+{
+	int ret = 0;
+	ret = snprintf(buf, PAGE_SIZE, "%d\n", es705_priv.reroute_delay);
+	return ret;
+}
+
+static ssize_t es705_reroute_delay_set(struct device *dev,
+					struct device_attribute *attr,
+					const char *buf, size_t count)
+{
+	int rc;
+	rc = kstrtoint(buf, 0, &es705_priv.reroute_delay);
+	dev_info(es705_priv.dev, "%s(): reroute_delay = %d\n",
+		__func__, es705_priv.reroute_delay);
+	return count;
+}
+static DEVICE_ATTR(reroute_delay, 0644, es705_reroute_delay_show, es705_reroute_delay_set);
+#endif
+
+#ifdef SAMSUNG_ES70X_BACK_TO_BACK_CMD_DELAY		
+static ssize_t es705_preset_delay_time_show(struct device *dev,
+					struct device_attribute *attr,
+					char *buf)
+{
+	int ret = 0;
+	ret = snprintf(buf, PAGE_SIZE, "%d\n", preset_delay_time);
+	return ret;
+}
+
+static ssize_t es705_preset_delay_time_set(struct device *dev,
+					struct device_attribute *attr,
+					const char *buf, size_t count)
+{
+	int rc;
+	rc = kstrtoint(buf, 0, &preset_delay_time);
+	dev_info(es705_priv.dev, "%s(): preset_delay_time = %d\n",
+		__func__, preset_delay_time);
+	return count;
+}
+static DEVICE_ATTR(preset_delay, 0644, es705_preset_delay_time_show, es705_preset_delay_time_set);
+#endif
+
+static ssize_t es705_veq_filter_set(struct device *dev,
+					struct device_attribute *attr,
+					const char *buf, size_t count)
+{
+	struct es705_priv *es705 = &es705_priv;
+	struct file *fp = NULL;
+	u8 *cur = NULL;
+	int vol_step = es705->current_veq;
+	int ret = 0, i=0;
+	int filter_size = 0;
+	int input = 0;
+
+	sscanf(buf, "%d", &input);
+
+	if (network_type == WIDE_BAND) {
+		cur = &veq_coefficients_wb[vol_step][0];
+		filter_size = 0x4A;
+	} else {
+		cur = &veq_coefficients_nb[vol_step][0];
+		filter_size = 0x3E;
+	}
+
+	if (input == 1) {
+		fp = file_open("/etc/filter.bin", O_RDONLY, 0);
+		if (fp) {
+			ret = file_read(fp, 0, cur, filter_size);
+
+			if (ret < filter_size)
+				dev_err(es705->dev, "%s : file read error\n", __func__);
+			else
+				dev_info(es705->dev, "%s : Success to change the values (%d): 0x%x",
+						__func__, vol_step, ret);
+			file_close(fp);
+			fp = NULL;
+		} else {
+			dev_info(es705->dev, "%s : Current filter values (%d): ", __func__, vol_step);
+
+			for (i=0; i < 10; i++)
+				dev_info(es705->dev, "0x%02x ", *cur++);
+		}
+	}else if (input == 2) {
+		dev_info(es705->dev, "%s : All filter values (%d): ", __func__, vol_step);
+
+		for (i=0; i < filter_size; i++) {
+			dev_info(es705->dev, "0x%02x ", *cur++);
+		}
+	} else
+		dev_err(es705->dev, "%s : enter the value again\n", __func__);
+
+	return count;
+}
+static DEVICE_ATTR(veq_filter, 0644, NULL, es705_veq_filter_set);
+
+static ssize_t es705_veq_max_set(struct device *dev,
+					struct device_attribute *attr,
+					const char *buf, size_t count)
+{
+	struct es705_priv *es705 = &es705_priv;
+	u32 *cur = NULL;
+	int vol_step = es705->current_veq;
+	int i=0;
+	int size = 0;
+	int input = 0;
+
+	sscanf(buf, "%d", &input);
+
+	if (network_type == WIDE_BAND)
+		cur = veq_max_gains_wb;
+	else
+		cur = veq_max_gains_nb;
+
+	size = ARRAY_SIZE(veq_max_gains_nb);
+
+	for (i=0; i < size; i++)
+		dev_info(es705->dev, "%s : max gain (%d %d): ",
+			__func__, i, (cur[i] & 0xff));
+	cur[vol_step] = 0x90180000 | (input & 0xffff);
+	dev_info(es705->dev, "%s : max gain is changed(%d %d): ",
+		__func__, vol_step, (cur[vol_step] & 0xff));
+
+	return count;
+}
+static DEVICE_ATTR(veq_max, 0644, NULL, es705_veq_max_set);
+
+static ssize_t es705_veq_adj_set(struct device *dev,
+					struct device_attribute *attr,
+					const char *buf, size_t count)
+{
+	struct es705_priv *es705 = &es705_priv;
+	u32 *cur = NULL;
+	int vol_step = es705->current_veq;
+	int i=0;
+	int size = 0;
+	int input = 0;
+
+	sscanf(buf, "%d", &input);
+
+	if (network_type == WIDE_BAND)
+		cur = veq_noise_estimate_adjs_wb;
+	else
+		cur = veq_noise_estimate_adjs_nb;
+
+	size = ARRAY_SIZE(veq_noise_estimate_adjs_nb);
+
+	for (i=0; i < size; i++)
+		dev_info(es705->dev, "%s : adj gain (%d %d): ",
+			__func__, i, (cur[i] & 0xff));
+	cur[vol_step] = 0x90180000 | (input & 0xffff);
+	dev_info(es705->dev, "%s : adj gain is changed(%d %d): ",
+		__func__, vol_step, (cur[vol_step] & 0xff));
+
+	return count;
+}
+static DEVICE_ATTR(veq_adj, 0644, NULL, es705_veq_adj_set);
 
 static struct attribute *core_sysfs_attrs[] = {
 	&dev_attr_route_status.attr,
@@ -1040,6 +1487,15 @@ static struct attribute *core_sysfs_attrs[] = {
 	&dev_attr_keyword_grammar_path.attr,
 	&dev_attr_keyword_net_path.attr,
 	&dev_attr_sleep_delay.attr,
+#if defined(PREVENT_CALL_MUTE_WHEN_SWITCH_NB_AND_WB)
+	&dev_attr_reroute_delay.attr,
+#endif
+#ifdef SAMSUNG_ES70X_BACK_TO_BACK_CMD_DELAY		
+	&dev_attr_preset_delay.attr,
+#endif
+	&dev_attr_veq_filter.attr,
+	&dev_attr_veq_max.attr,
+	&dev_attr_veq_adj.attr,
 	NULL
 };
 
@@ -1050,6 +1506,9 @@ extern unsigned int system_rev;
 
 #if defined(CONFIG_MACH_KLTE_JPN)
 #define UART_DOWNLOAD_WAKEUP_HWREV 7
+#elif defined(CONFIG_MACH_KACTIVELTE_EUR) || defined(CONFIG_MACH_KACTIVELTE_ATT) || defined(CONFIG_MACH_KSPORTSLTE_SPR) \
+	|| defined(CONFIG_MACH_KACTIVELTE_SKT) || defined(CONFIG_SEC_S_PROJECT) || defined(CONFIG_MACH_KACTIVELTE_CAN) || defined(CONFIG_MACH_KACTIVELTE_DCM)
+#define UART_DOWNLOAD_WAKEUP_HWREV 0
 #else
 #define UART_DOWNLOAD_WAKEUP_HWREV 6 /* HW rev0.7 */
 #endif
@@ -1058,6 +1517,8 @@ static int es705_fw_download(struct es705_priv *es705, int fw_type)
 {
 	int rc = 0;
 
+	dev_info(es705->dev, "%s(): fw download type %d begin\n",
+							__func__, fw_type);
 	mutex_lock(&es705->api_mutex);
 	if (fw_type != VOICESENSE && fw_type != STANDARD) {
 		dev_err(es705->dev, "%s(): Unexpected FW type\n", __func__);
@@ -1099,10 +1560,10 @@ static int es705_fw_download(struct es705_priv *es705, int fw_type)
 			__func__);
 			goto es705_fw_download_exit;
 	}
-	dev_info(es705->dev, "%s(): fw download done\n", __func__);
+	dev_info(es705->dev, "%s(): fw download type %d done\n",
+							__func__, fw_type);
 
 es705_fw_download_exit:
-	//es705->uart_fw_download_rate = 0;
 	mutex_unlock(&es705->api_mutex);
 	return rc;
 }
@@ -1110,16 +1571,19 @@ es705_fw_download_exit:
 int es705_bootup(struct es705_priv *es705)
 {
 	int rc;
+	int fw_max_retry_cnt = 10;
 	BUG_ON(es705->standard->size == 0);
 
 	mutex_lock(&es705->pm_mutex);
 	es705->pm_state = ES705_POWER_FW_LOAD;
 	mutex_unlock(&es705->pm_mutex);
 
+do{
 	rc = es705_fw_download(es705, STANDARD);
 	if (rc) {
 		dev_err(es705->dev, "%s(): STANDARD fw download error\n",
 			__func__);
+		es705_gpio_reset(es705);
 	} else {
 		mutex_lock(&es705->pm_mutex);
 		es705->pm_state = ES705_POWER_AWAKE;
@@ -1128,6 +1592,7 @@ int es705_bootup(struct es705_priv *es705)
 #endif
 		mutex_unlock(&es705->pm_mutex);
 	}
+}while( rc && fw_max_retry_cnt--);
 	return rc;
 }
 
@@ -1137,7 +1602,7 @@ static int es705_set_lpm(struct es705_priv *es705)
 	const int max_retry_to_switch_to_lpm = 5;
 	int retry = max_retry_to_switch_to_lpm;
 
-	rc = es705_write(NULL, 	ES705_VS_INT_OSC_MEASURE_START, 0);
+	rc = es705_write(NULL, ES705_VS_INT_OSC_MEASURE_START, 0);
 	if (rc) {
 		dev_err(es705_priv.dev, "%s(): OSC Measure Start fail\n",
 			__func__);
@@ -1157,6 +1622,12 @@ static int es705_set_lpm(struct es705_priv *es705)
 			__func__, rc);
 	} while (rc && --retry);
 
+	if (rc) {
+		dev_err(es705_priv.dev, "%s(): OSC Measure Read Status fail\n",
+			__func__);
+		goto es705_set_lpm_exit;
+	}
+
 	dev_dbg(es705_priv.dev, "%s(): Activate Low Power Mode\n", __func__);
 	rc = es705_write(NULL, ES705_POWER_STATE,
 			 ES705_SET_POWER_STATE_VS_LOWPWR);
@@ -1167,10 +1638,12 @@ static int es705_set_lpm(struct es705_priv *es705)
 
 	es705_priv.es705_power_state = ES705_SET_POWER_STATE_VS_LOWPWR;
 
-	if (es705_priv.pdata->esxxx_clk_cb)
+	if (es705_priv.pdata->esxxx_clk_cb) {
 		/* ext clock off */
 		es705_priv.pdata->esxxx_clk_cb(0);
-
+		dev_info(es705_priv.dev,
+				"%s(): external clock off\n", __func__);
+	}
 es705_set_lpm_exit:
 	return rc;
 }
@@ -1184,10 +1657,12 @@ static int es705_vs_load(struct es705_priv *es705)
 	msleep(50);
 
 	es705->es705_power_state = ES705_SET_POWER_STATE_VS_OVERLAY;
+	mutex_lock(&es705->pm_mutex);
 	rc = es705_fw_download(es705, VOICESENSE);
+	mutex_unlock(&es705->pm_mutex);
 	if (rc < 0) {
-                dev_err(es705->dev, "%s(): FW download fail\n",
-                        __func__);
+		dev_err(es705->dev, "%s(): FW download fail\n",
+			__func__);
 		goto es705_vs_load_fail;
 	}
 	msleep(50);
@@ -1228,11 +1703,44 @@ int fw_download(void *arg)
 }
 
 /* Hold the pm_mutex before calling this function */
+#define CLK_OFF_DELAY 30
 static int es705_sleep(struct es705_priv *es705)
 {
 	u32 cmd = (ES705_SET_SMOOTH << 16) | ES705_SET_SMOOTH_RATE;
 	int rc;
+#ifdef SAMSUNG_ES70X_BACK_TO_BACK_CMD_DELAY
+	u32 sync_cmd = (ES705_SYNC_CMD << 16) | ES705_SYNC_POLLING;
+	u32 sync_rspn = sync_cmd;
+	int match = 1;
+	unsigned int value = 0;
+#endif /* SAMSUNG_ES70X_BACK_TO_BACK_CMD_DELAY */
+
 	dev_info(es705->dev, "%s\n",__func__);
+
+	mutex_lock(&es705->pm_mutex);
+
+	es705->current_bwe = 0;
+	es705->current_veq_preset = 0;
+	es705->current_veq = -1;
+
+#ifdef SAMSUNG_ES70X_BACK_TO_BACK_CMD_DELAY
+	rc = es705_write_then_read(es705, &sync_cmd, sizeof(sync_cmd),
+								&sync_rspn, match);
+	if (rc)
+		dev_err(es705->dev, "%s(): send sync command failed rc = %d\n", __func__, rc);
+#ifdef SAMSUNG_ES70X_RESTORE_FW_IN_SLEEP
+	if (rc) {
+		mutex_unlock(&es705->pm_mutex);	
+		rc = restore_std_fw(es705);
+		cnt_restore_std_fw_in_sleep++;
+		mutex_lock(&es705->pm_mutex);
+	}
+	
+	if (cnt_restore_std_fw_in_sleep)
+		dev_info(es705->dev, "%s(): cnt_restore_std_fw_in_sleep = %d\n",
+								__func__, cnt_restore_std_fw_in_sleep);
+#endif /* SAMSUNG_ES70X_RESTORE_FW_IN_SLEEP */
+#endif /* SAMSUNG_ES70X_BACK_TO_BACK_CMD_DELAY */
 
 	/* Avoid smoothing time */
 	rc = es705_cmd(es705, cmd);
@@ -1241,23 +1749,22 @@ static int es705_sleep(struct es705_priv *es705)
 			__func__);
 		goto es705_sleep_exit;
 	}
+	
+#ifdef SAMSUNG_ES70X_BACK_TO_BACK_CMD_DELAY
+	value = es705_read(NULL, ES705_CHANGE_STATUS);
+	if (value)
+		dev_err(es705->dev, "%s(): Route Status = 0x%04x\n", __func__, value);
+#endif /* SAMSUNG_ES70X_BACK_TO_BACK_CMD_DELAY */
+
+#ifdef AUDIENCE_VS_IMPLEMENTATION
 	if (es705->voice_wakeup_enable) {
-		u32 cmd = (ES705_SET_POWER_STATE << 16) |
-				ES705_SET_POWER_STATE_VS_OVERLAY;
-		rc = es705_cmd(es705, cmd);
-		if (rc < 0) {
-			dev_err(es705->dev, "%s(): Set VS SBL Fail",
-			__func__);
-			goto es705_sleep_exit;
-		}
-		msleep(20);
-		dev_dbg(es705->dev, "%s(): VS Overlay Mode", __func__);
-		rc = es705_vs_load(es705);
+		rc = es705_switch_to_vs_mode(&es705_priv);
 		if (rc) {
 			dev_err(es705->dev, "%s(): Set VS Overlay FAIL", __func__);
 		} else {
 			/* Set PDM route */
 			es705_switch_route(22);
+			msleep(20);
 			rc = es705_set_lpm(es705);
 			if (rc) {
 				dev_err(es705->dev, "%s(): Set LPM FAIL", __func__);
@@ -1267,6 +1774,7 @@ static int es705_sleep(struct es705_priv *es705)
 			}
 		}
 	}
+#endif
 	/*
 	 * write Set Power State Sleep - 0x9010_0001
 	 * wait 20 ms, and then turn ext clock off
@@ -1274,16 +1782,24 @@ static int es705_sleep(struct es705_priv *es705)
 	 * sleep command from chip
 	 */
 	cmd = (ES705_SET_POWER_STATE << 16) | ES705_SET_POWER_STATE_SLEEP;
-	es705_cmd(es705, cmd);
-	msleep(20);
+	rc = es705_cmd(es705, cmd);
+	if (rc)
+	   	dev_err(es705->dev, "%s(): send sleep command failed rc = %d\n", __func__, rc);
+
+	dev_dbg(es705->dev, "%s: wait %dms for execution\n",__func__, CLK_OFF_DELAY);
+	msleep(CLK_OFF_DELAY);
 
 	es705->es705_power_state = ES705_SET_POWER_STATE_SLEEP;
 	es705->pm_state = ES705_POWER_SLEEP;
 
-	if (es705->pdata->esxxx_clk_cb)
+	if (es705->pdata->esxxx_clk_cb) {
 		es705->pdata->esxxx_clk_cb(0);
+		dev_info(es705->dev, "%s(): external clock off\n", __func__);
+	}
 
 es705_sleep_exit:
+	dev_info(es705->dev, "%s(): Exit\n",__func__);
+	mutex_unlock(&es705->pm_mutex);	
 	return rc;
 }
 
@@ -1305,13 +1821,12 @@ static void es705_delayed_sleep(struct work_struct *w)
 	ch_tot += es705_priv.dai[ES705_SLIM_1_CAP].ch_tot;
 	dev_dbg(es705_priv.dev, "%s %d active channels, ports_active: %d\n",
 		__func__, ch_tot, ports_active);
-
-	mutex_lock(&es705_priv.pm_mutex);
+/*	mutex_lock(&es705_priv.pm_mutex); */
 	if ((ch_tot <= 0) && (ports_active == 0) &&
 		(es705_priv.pm_state ==  ES705_POWER_SLEEP_PENDING))
 		es705_sleep(&es705_priv);
 
-	mutex_unlock(&es705_priv.pm_mutex);
+/*	mutex_unlock(&es705_priv.pm_mutex); */
 }
 
 static void es705_sleep_request(struct es705_priv *es705)
@@ -1322,6 +1837,7 @@ static void es705_sleep_request(struct es705_priv *es705)
 	mutex_lock(&es705->pm_mutex);
 	if (es705->uart_state == UART_OPEN)
 		es705_uart_close(es705);
+	
 	if (es705->pm_state == ES705_POWER_AWAKE) {
 		schedule_delayed_work(&es705->sleep_work,
 			msecs_to_jiffies(es705->sleep_delay));
@@ -1330,13 +1846,18 @@ static void es705_sleep_request(struct es705_priv *es705)
 	mutex_unlock(&es705->pm_mutex);
 }
 
-#define SYNC_DELAY 30
+#define SYNC_DELAY 35
+#define MAX_RETRY_WAKEUP_CNT 1
 static int es705_wakeup(struct es705_priv *es705)
 {
 	int rc = 0;
 	u32 sync_cmd = (ES705_SYNC_CMD << 16) | ES705_SYNC_POLLING;
 	u32 sync_rspn = sync_cmd;
 	int match = 1;
+#ifndef SAMSUNG_ES70X_RESTORE_FW_IN_WAKEUP
+	int retry = 0;	
+	int retry_wakeup_cnt = 0;
+#endif
 	dev_info(es705->dev, "%s\n",__func__);
 	/* 1 - clocks on
 	 * 2 - wakeup 1 -> 0
@@ -1353,7 +1874,6 @@ static int es705_wakeup(struct es705_priv *es705)
 	if (delayed_work_pending(&es705->sleep_work) ||
 		(es705->pm_state == ES705_POWER_SLEEP_PENDING)) {
 		cancel_delayed_work_sync(&es705->sleep_work);
-		dev_dbg(es705->dev, "%s(): cancel delayed work\n", __func__);
 		es705->pm_state = ES705_POWER_AWAKE;
 		goto es705_wakeup_exit;
 	}
@@ -1368,8 +1888,16 @@ static int es705_wakeup(struct es705_priv *es705)
 	if (es705->pdata->esxxx_clk_cb) {
 		es705->pdata->esxxx_clk_cb(1);
 		usleep_range(3000, 3100);
+		dev_info(es705->dev,
+				"%s(): external clock on\n", __func__);
 	}
-	
+#ifndef SAMSUNG_ES70X_RESTORE_FW_IN_WAKEUP
+RETRY_TO_WAKEUP:
+#endif
+	if (es705->change_uart_config) {
+		es705_uart_pin_preset(es705);
+	}
+
 #if defined(SAMSUNG_ES705_FEATURE)
 	if (es705_priv.use_uart_for_wakeup_gpio) {
 		dev_info(es705->dev, "%s(): begin uart wakeup\n",
@@ -1386,34 +1914,67 @@ static int es705_wakeup(struct es705_priv *es705)
 		es705_gpio_wakeup(es705);
 	}
 #endif
-	dev_dbg(es705->dev, "%s(): wait %dms wakeup, then ping SYNC to es705\n",
-		__func__, SYNC_DELAY);
-	msleep(SYNC_DELAY);
 
+	if (es705->change_uart_config) {
+		es705_uart_pin_postset(es705);
+	}
+
+	msleep(SYNC_DELAY);
+#ifdef SAMSUNG_ES70X_RESTORE_FW_IN_WAKEUP
 	rc = es705_write_then_read(es705, &sync_cmd, sizeof(sync_cmd),
-					 &sync_rspn, match);
+								&sync_rspn, match);
+	if (rc) {
+		mutex_unlock(&es705->pm_mutex); 
+		rc = restore_std_fw(es705);
+		cnt_restore_std_fw_in_wakeup++;
+		mutex_lock(&es705->pm_mutex);
+	}
+	
+	if (cnt_restore_std_fw_in_wakeup)
+		dev_info(es705->dev, "%s(): cnt_restore_std_fw_in_wakeup = %d\n",
+								__func__, cnt_restore_std_fw_in_wakeup);
+#else /* !SAMSUNG_ES70X_RESTORE_FW_IN_WAKEUP */		
+	/* retry wake up */
+	retry = 0;
+	do {
+		rc = es705_write_then_read(es705, &sync_cmd, sizeof(sync_cmd),
+						 &sync_rspn, match);
+		if (rc) {
+			dev_info(es705->dev, "%s(): wait %dms wakeup, then ping SYNC to es705, retry(%d) rspn=0x%08x\n", __func__, SYNC_DELAY, retry, sync_rspn);
+			msleep(SYNC_DELAY);
+		}
+		else
+			break;
+	} while (++retry < MAX_RETRY_WAKEUP_CNT);
+
+	/* if wakeup fail Retry wakeup pin falling */
+	if (rc) {
+		if (retry_wakeup_cnt++ < MAX_RETRY_WAKEUP_CNT) {
+			dev_info(es705->dev, "%s(): Retry wakeup pin falling (%d)\n", __func__, retry_wakeup_cnt);
+			goto RETRY_TO_WAKEUP;
+		}
+	}
+#endif /* SAMSUNG_ES70X_RESTORE_FW_IN_WAKEUP */
+
 	if (rc) {
 		dev_err(es705->dev, "%s(): es705 wakeup FAIL\n", __func__);
 		if (es705->pdata->esxxx_clk_cb) {
 			es705->pdata->esxxx_clk_cb(0);
 			usleep_range(3000, 3100);
+			dev_info(es705->dev,
+					"%s(): external clock off\n", __func__);
 		}
 		goto es705_wakeup_exit;
 	}
+	if (es705->es705_power_state != ES705_SET_POWER_STATE_VS_LOWPWR &&
+		es705->es705_power_state != ES705_SET_POWER_STATE_VS_OVERLAY)
+		es705_switch_to_normal_mode(&es705_priv);
 
 	dev_dbg(es705->dev, "%s(): wakeup success, SYNC response 0x%08x\n",
 		__func__, sync_rspn);
-	if (es705->es705_power_state != ES705_SET_POWER_STATE_VS_LOWPWR &&
-		es705->es705_power_state != ES705_SET_POWER_STATE_VS_OVERLAY) {
-		u32 cmd = (ES705_SET_POWER_STATE << 16) | ES705_SET_POWER_STATE_NORMAL;
-
-		es705_cmd(es705, cmd);
-		msleep(20);
-		es705->pm_state = ES705_POWER_AWAKE;
-	}
-	/* TODO use GPIO reset, if wakeup fail ? */
 
 es705_wakeup_exit:
+	dev_info(es705->dev, "%s(): Exit\n",__func__);
 	mutex_unlock(&es705->pm_mutex);
 	return rc;
 }
@@ -1451,12 +2012,16 @@ static int es705_get_control_value(struct snd_kcontrol *kcontrol,
 	struct soc_mixer_control *mc =
 		(struct soc_mixer_control *)kcontrol->private_value;
 	unsigned int reg = mc->reg;
-	unsigned int value;
+	unsigned int value =0;
 
 #if defined(SAMSUNG_ES705_FEATURE)
 	es705_read_write_power_control(1);
 #endif
+	if (es705_priv.rx1_route_enable ||
+		es705_priv.tx1_route_enable ||
+		es705_priv.rx2_route_enable) {
 	value = es705_read(NULL, reg);
+	}
 	ucontrol->value.integer.value[0] = value;
 #if defined(SAMSUNG_ES705_FEATURE)
 	es705_read_write_power_control(0);
@@ -1486,12 +2051,16 @@ static int es705_get_control_enum(struct snd_kcontrol *kcontrol,
 	struct soc_enum *e =
 		(struct soc_enum *)kcontrol->private_value;
 	unsigned int reg = e->reg;
-	unsigned int value;
+	unsigned int value=0;
 
 #if defined(SAMSUNG_ES705_FEATURE)
 	es705_read_write_power_control(1);
 #endif
+	if (es705_priv.rx1_route_enable ||
+		es705_priv.tx1_route_enable ||
+		es705_priv.rx2_route_enable) {
 	value = es705_read(NULL, reg);
+}
 
 	ucontrol->value.enumerated.item[0] = value;
 #if defined(SAMSUNG_ES705_FEATURE)
@@ -1587,14 +2156,7 @@ static int es705_sleep_power_control(unsigned int value, unsigned int reg)
 					__func__);
 				return rc;
 			}
-			rc = es705_write(NULL, reg, value);
-			if (rc < 0) {
-				dev_err(es705_priv.dev, "%s(): Power state command write failed\n",
-					__func__);
-				return rc;
-			} else {
-				es705_vs_load(&es705_priv);
-			}
+			rc = es705_switch_to_vs_mode(&es705_priv);
 		}
 		break;
 
@@ -1653,14 +2215,9 @@ static int es705_sleep_pending_power_control(unsigned int value,
 					__func__);
 				return rc;
 			}
-			rc = es705_write(NULL, reg, value);
-			if (rc < 0) {
-				dev_err(es705_priv.dev, "%s(): Power state command write failed\n",
-					__func__);
+			rc = es705_switch_to_vs_mode(&es705_priv);
+			if (rc < 0)
 				return rc;
-			} else {
-				es705_vs_load(&es705_priv);
-			}
 		}
 		break;
 
@@ -1709,8 +2266,8 @@ static int es705_sleep_pending_power_control(unsigned int value,
 		}
 		break;
 
-	case ES705_SET_POWER_STATE_VS_LOWPWR :
-	default :
+	case ES705_SET_POWER_STATE_VS_LOWPWR:
+	default:
 		return -EINVAL;
 	}
 
@@ -1723,26 +2280,21 @@ static int es705_awake_power_control(unsigned int value, unsigned int reg)
 	int retry = 10;
 
 	switch (es705_priv.es705_power_state) {
-	case ES705_SET_POWER_STATE_SLEEP :
+	case ES705_SET_POWER_STATE_SLEEP:
 		return -EINVAL;
 
-	case ES705_SET_POWER_STATE_NORMAL :
+	case ES705_SET_POWER_STATE_NORMAL:
 		if (value == ES705_SET_POWER_STATE_SLEEP)
 			es705_sleep_request(&es705_priv);
 		else if (value == ES705_SET_POWER_STATE_VS_OVERLAY) {
-			rc = es705_write(NULL, reg, value);
-			if (rc < 0) {
-				dev_err(es705_priv.dev, "%s(): Power state command write failed\n",
-					__func__);
+			rc = es705_switch_to_vs_mode(&es705_priv);
+			if (rc < 0)
 				return rc;
-			} else {
-				es705_vs_load(&es705_priv);
-			}
 		} else
 			return -EINVAL;
 		break;
 
-	case ES705_SET_POWER_STATE_VS_OVERLAY :
+	case ES705_SET_POWER_STATE_VS_OVERLAY:
 		if (value == ES705_SET_POWER_STATE_SLEEP)
 			es705_sleep_request(&es705_priv);
 		else if (value == ES705_SET_POWER_STATE_NORMAL) {
@@ -1775,12 +2327,13 @@ static int es705_awake_power_control(unsigned int value, unsigned int reg)
 					/* Disable external clock */
 					msleep(20);
 					/* clocks off */
-					if (es705_priv.pdata->esxxx_clk_cb)
-						es705_priv.
-							pdata->esxxx_clk_cb(0);
-
+					if (es705_priv.pdata->esxxx_clk_cb) {
+						es705_priv.pdata->esxxx_clk_cb(0);
+						dev_info(es705_priv.dev,
+								"%s(): external clock off\n", __func__);
+					}
 					es705_priv.es705_power_state =
-					ES705_SET_POWER_STATE_VS_LOWPWR;
+						ES705_SET_POWER_STATE_VS_LOWPWR;
 					es705_priv.pm_state =
 						ES705_POWER_SLEEP;
 					return rc;
@@ -1789,7 +2342,7 @@ static int es705_awake_power_control(unsigned int value, unsigned int reg)
 		}
 		break;
 
-	case ES705_SET_POWER_STATE_VS_LOWPWR :
+	case ES705_SET_POWER_STATE_VS_LOWPWR:
 		dev_dbg(es705_priv.dev, "%s(): Set Overlay mode\n", __func__);
 		es705_priv.mode = VOICESENSE;
 		es705_priv.es705_power_state = ES705_SET_POWER_STATE_VS_OVERLAY;
@@ -1798,7 +2351,8 @@ static int es705_awake_power_control(unsigned int value, unsigned int reg)
 			__func__);
 		dev_info(es705_priv.dev, "%s(): After successful VOICESENSE download,"
 			"Enable Event Intr to Host\n", __func__);
-	default :
+		break;
+	default:
 		return -EINVAL;
 	}
 	return rc;
@@ -1819,28 +2373,27 @@ static int es705_power_control(unsigned int value, unsigned int reg)
 		return -EINVAL;
 	}
 	switch (es705_priv.pm_state) {
-	case ES705_POWER_FW_LOAD :
+	case ES705_POWER_FW_LOAD:
 		return -EINVAL;
- 
-	case ES705_POWER_SLEEP :
+
+	case ES705_POWER_SLEEP:
 		rc = es705_sleep_power_control(value, reg);
 		break;
 
-	case ES705_POWER_SLEEP_PENDING :
+	case ES705_POWER_SLEEP_PENDING:
 		rc = es705_sleep_pending_power_control(value, reg);
 		break;
 
 
-	case ES705_POWER_AWAKE :
+	case ES705_POWER_AWAKE:
 		rc = es705_awake_power_control(value, reg);
 		break;
 
-	default :
+	default:
 		dev_err(es705_priv.dev, "%s(): Unsupported pm state [%d] in es705\n",
 			__func__, es705_priv.pm_state);
 		break;
 	}
-
 	dev_info(es705_priv.dev, "%s(): exit pm state %d es705 state %d value %d\n",
 		__func__, es705_priv.pm_state,
 		es705_priv.es705_power_state, value);
@@ -1853,8 +2406,6 @@ static int es705_power_control(unsigned int value, unsigned int reg)
 static int es705_put_power_control_enum(struct snd_kcontrol *kcontrol,
 		struct snd_ctl_elem_value *ucontrol)
 {
-	struct soc_enum *e = (struct soc_enum *)kcontrol->private_value;
-	unsigned int reg = e->reg;
 	unsigned int value;
 	int rc = 0;
 
@@ -1933,14 +2484,9 @@ static int es705_put_power_control_enum(struct snd_kcontrol *kcontrol,
 				es705_priv.es705_power_state =
 					     ES705_SET_POWER_STATE_VS_OVERLAY;
 			} else {
-				rc = es705_write(NULL, reg, value);
-				if (rc) {
-					dev_err(es705_priv.dev, "%s(): Power state command write failed\n",
-						__func__);
+				rc = es705_switch_to_vs_mode(&es705_priv);
+				if (rc)
 					goto es705_put_power_control_enum_exit;
-				} else {
-					es705_vs_load(&es705_priv);
-				}
 			}
 		}
 	}
@@ -2048,6 +2594,30 @@ return 0;
 }
 
 #if defined(SAMSUNG_ES705_FEATURE)
+static int es705_get_default_keyword(void)
+{
+	char path[30];
+	int rc;
+
+	sprintf(path, "higalaxy_en_us_gram6.bin");
+	dev_info(es705_priv.dev, "%s(): request default grammar\n", __func__);
+	rc = request_firmware((const struct firmware **)&es705_priv.vs_grammar,
+		      path, es705_priv.dev);
+	if (rc)
+		dev_err(es705_priv.dev, "%s(): request_firmware(%s) failed %d\n",
+			__func__, path, rc);
+
+	sprintf(path, "higalaxy_en_us_am.bin");
+	dev_info(es705_priv.dev, "%s(): request default net\n", __func__);
+	rc = request_firmware((const struct firmware **)&es705_priv.vs_net,
+		      path, es705_priv.dev);
+	if (rc)
+		dev_err(es705_priv.dev, "%s(): request_firmware(%s) failed %d\n",
+			__func__, path, rc);
+
+	return rc;
+
+}
 static int es705_get_voice_wakeup_enable_value(struct snd_kcontrol *kcontrol,
 				       struct snd_ctl_elem_value *ucontrol)
 {
@@ -2062,37 +2632,63 @@ static int es705_put_voice_wakeup_enable_value(struct snd_kcontrol *kcontrol,
 				       struct snd_ctl_elem_value *ucontrol)
 {
 	int rc = 0;
-	u32 sync_cmd = (ES705_SYNC_CMD << 16) | ES705_SYNC_POLLING;
+	u32 sync_cmd = (ES705_SYNC_CMD << 16) | ES705_SYNC_INTR_RISING_EDGE;
 	u32 sync_rspn = sync_cmd;
+	u32 cmd_lpsd[] = {0x9017e03c, 0x901800c8,
+			0x9017e03d, 0x901804b0,
+			0x9017e03e, 0x90180580,
+			0x9017e03f, 0x90180000,
+			0x9017e040, 0x90180002,
+			0x9017e000, 0x90180002,
+			0xffffffff};
 	int match = 1;
 
+	if (es705_priv.voice_wakeup_enable == ucontrol->value.integer.value[0]) {
+		dev_info(es705_priv.dev, "%s(): skip to set voice_wakeup_enable[%d->%ld]\n",
+			__func__, es705_priv.voice_wakeup_enable,
+			ucontrol->value.integer.value[0]);
+		return rc;
+	}
 	es705_priv.voice_wakeup_enable = ucontrol->value.integer.value[0];
-	dev_dbg(es705_priv.dev, "%s(): voice_wakeup_enable = %d\n",
+	dev_info(es705_priv.dev, "%s(): voice_wakeup_enable = %d\n",
 		__func__, es705_priv.voice_wakeup_enable);
 
 	if (es705_priv.power_control) {
-		if(es705_priv.voice_wakeup_enable) {
+		if(es705_priv.voice_wakeup_enable == 1) { /* Voice wakeup */
+			if (!es705_priv.vs_grammar_set_flag || !es705_priv.vs_net_set_flag)
+				es705_get_default_keyword();
 			es705_priv.power_control(ES705_SET_POWER_STATE_VS_OVERLAY, ES705_POWER_STATE);
-			es705_switch_route_config(27);
-			rc = es705_write_then_read(&es705_priv, &sync_cmd, sizeof(sync_cmd),
-					 &sync_rspn, match);
-			if (rc) {
-				dev_err(es705_priv.dev, "%s(): es705 Sync FAIL\n", __func__);
-				return rc;
+			if (es705_priv.es705_power_state == ES705_SET_POWER_STATE_VS_OVERLAY) {
+				es705_switch_route_config(27);
+				rc = es705_write_then_read(&es705_priv, &sync_cmd,
+								sizeof(sync_cmd), &sync_rspn, match);
+				if (rc) {
+					dev_err(es705_priv.dev, "%s(): es705 Sync FAIL\n", __func__);
+				} else {
+					rc = es705_write_sensory_vs_keyword();
+					if (rc)
+						dev_err(es705_priv.dev, "%s(): es705 keyword download FAIL\n",
+							__func__);
+				}
 			}
-			rc = es705_write_sensory_vs_keyword();
-			if (rc) {
-				dev_err(es705_priv.dev, "%s(): es705 keyword download FAIL\n", __func__);
-				return rc;
+		} else if(es705_priv.voice_wakeup_enable == 2) { /* Voice wakeup LPSD - for Baby cry */
+			es705_priv.power_control(ES705_SET_POWER_STATE_VS_OVERLAY, ES705_POWER_STATE);
+			if (es705_priv.es705_power_state == ES705_SET_POWER_STATE_VS_OVERLAY) {
+				es705_switch_route_config(27);
+				es705_write_block(&es705_priv, cmd_lpsd);
+				rc = es705_write_then_read(&es705_priv, &sync_cmd, sizeof(sync_cmd),
+							&sync_rspn, match);
+				if (rc)
+					dev_err(es705_priv.dev, "%s(): es705 Sync FAIL\n", __func__);
 			}
-		}
-		else {
+		} else {
 			if (es705_priv.es705_power_state == ES705_SET_POWER_STATE_VS_LOWPWR)
 				es705_priv.power_control(ES705_SET_POWER_STATE_VS_OVERLAY, ES705_POWER_STATE);
-			es705_switch_route_config(5);
-			es705_priv.power_control(ES705_SET_POWER_STATE_NORMAL, ES705_POWER_STATE);
-			es705_read_write_power_control(0);
-
+			if (es705_priv.es705_power_state == ES705_SET_POWER_STATE_VS_OVERLAY) {
+				es705_switch_route_config(5);
+				es705_priv.power_control(ES705_SET_POWER_STATE_NORMAL, ES705_POWER_STATE);
+				es705_read_write_power_control(0);
+			}
 		}
 	}
 	return rc;
@@ -2111,17 +2707,144 @@ static int es705_get_voice_lpm_enable_value(struct snd_kcontrol *kcontrol,
 static int es705_put_voice_lpm_enable_value(struct snd_kcontrol *kcontrol,
 				       struct snd_ctl_elem_value *ucontrol)
 {
+	if (es705_priv.voice_lpm_enable == ucontrol->value.integer.value[0]) {
+		dev_info(es705_priv.dev, "%s(): skip to set voice_lpm_enable[%d->%ld]\n",
+			__func__, es705_priv.voice_lpm_enable,
+			ucontrol->value.integer.value[0]);
+		return 0;
+	}
 	es705_priv.voice_lpm_enable = ucontrol->value.integer.value[0];
 
-	dev_dbg(es705_priv.dev, "%s(): voice_lpm_enable = %d\n",
+	dev_info(es705_priv.dev, "%s(): voice_lpm_enable = %d\n",
 		__func__, es705_priv.voice_lpm_enable);
 
-	if (!es705_priv.voice_lpm_enable)
-		return 0;
-
-	if (es705_priv.power_control)
+	if (!es705_priv.power_control) {
+		dev_err(es705_priv.dev, "%s(): lpm enable error\n", __func__);
+		return -ENODEV;
+	}
+	if (es705_priv.voice_lpm_enable)
 		es705_priv.power_control(ES705_SET_POWER_STATE_VS_LOWPWR, ES705_POWER_STATE);
+	else if (es705_priv.es705_power_state == ES705_SET_POWER_STATE_VS_LOWPWR) {
+		es705_priv.power_control(ES705_SET_POWER_STATE_VS_OVERLAY, ES705_POWER_STATE);
+		if (!es705_priv.voice_wakeup_enable) {
+			es705_switch_route_config(5);
+			es705_priv.power_control(ES705_SET_POWER_STATE_NORMAL, ES705_POWER_STATE);
+			es705_read_write_power_control(0);
+		}
+	}
+
 	return 0;
+}
+
+static int es705_get_vs_abort_value(struct snd_kcontrol *kcontrol,
+				     struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] = abort_request;
+	dev_dbg(es705_priv.dev, "%s(): abort request = %d\n",
+		__func__, abort_request);
+	return 0;
+}
+
+static int es705_put_vs_abort_value(struct snd_kcontrol *kcontrol,
+				     struct snd_ctl_elem_value *ucontrol)
+{
+	abort_request = ucontrol->value.integer.value[0];
+	dev_info(es705_priv.dev, "%s(): abort request = %d\n",
+		__func__, abort_request);
+	return 0;
+}
+
+static int es705_get_vs_make_internal_dump(struct snd_kcontrol *kcontrol,
+				     struct snd_ctl_elem_value *ucontrol)
+{
+	return 0;
+}
+
+static int es705_put_vs_make_internal_dump(struct snd_kcontrol *kcontrol,
+				     struct snd_ctl_elem_value *ucontrol)
+{
+	u32 cmd_capture_mode[] = {0x9017e039, 0x90180001, 0xffffffff};
+	int mode = ucontrol->value.integer.value[0];
+	int rc;
+
+	dev_info(es705_priv.dev, "%s(): start internal dump, mode=%d\n",
+		__func__, mode);
+	if (mode == 2)
+		cmd_capture_mode[1] = 0x90180002;
+	/* sensory pid capture mode = 1 for audio capture 960msec */
+	rc = es705_write_block(&es705_priv, cmd_capture_mode);
+
+	msleep(10);
+
+	return rc;
+}
+
+static int es705_get_vs_make_external_dump(struct snd_kcontrol *kcontrol,
+				     struct snd_ctl_elem_value *ucontrol)
+{
+	return 0;
+}
+
+#define MAX_VS_RECORD_SIZE	65536 /* 64 KB */
+static int es705_put_vs_make_external_dump(struct snd_kcontrol *kcontrol,
+				     struct snd_ctl_elem_value *ucontrol)
+{
+	u32 cmd_rwdb_mode[] = {0x9017e021, 0x90180003, 0xffffffff};
+	u32 cmd_get_capture_mode = 0x8016e039;
+	u32 check_rspn;
+	mm_segment_t old_fs;
+	struct file *fp;
+	int match = 1;
+	char *dump_data;
+	int rc;
+
+	dev_info(es705_priv.dev, "%s(): start\n", __func__);
+
+	/* check that 0xE039 = 255 */
+	check_rspn = 0x801600ff;
+	rc = es705_write_then_read(&es705_priv, &cmd_get_capture_mode,
+			sizeof(cmd_get_capture_mode), &check_rspn, match);
+	if (rc)
+		dev_err(es705_priv.dev, "%s(): internal dump is failed rspn 0x%08x\n",
+		__func__, check_rspn);
+	else
+		dev_info(es705_priv.dev, "%s(): internal dump is generated rspn 0x%08x\n",
+		__func__, check_rspn);
+
+	old_fs = get_fs();
+	set_fs(KERNEL_DS);
+
+	dump_data = kmalloc(MAX_VS_RECORD_SIZE, GFP_KERNEL);
+	if (!dump_data) {
+		dev_err(es705_priv.dev, "%s(): Memory allocation FAIL\n", __func__);
+		rc = -ENOMEM;
+		goto es705_put_vs_make_external_dump_exit;
+	}
+
+	fp = filp_open("/sdcard/vs_capture.bin", O_RDWR | O_CREAT, S_IRWXU);
+	if (!fp) {
+		dev_err(es705_priv.dev, "%s() : fail to open fp\n", __func__);
+		rc = -ENOENT;
+		set_fs(old_fs);
+		goto es705_put_vs_make_external_dump_exit;
+	}
+
+	/* set the rwdbmode to 3 to upload the audio buffer contents via RDB */
+	rc = es705_write_block(&es705_priv, cmd_rwdb_mode);
+
+	es705_read_vs_data_block(&es705_priv, dump_data, MAX_VS_RECORD_SIZE);
+
+	dev_info(es705_priv.dev, "%s(): pos %d write = %d bytes\n", __func__,
+		 (int)fp->f_pos, es705_priv.vs_keyword_param_size);
+	fp->f_pos = 0;
+	vfs_write(fp, dump_data, es705_priv.vs_keyword_param_size, &fp->f_pos);
+	filp_close(fp, NULL);
+
+es705_put_vs_make_external_dump_exit:
+	if (dump_data)
+		kfree(dump_data);
+	set_fs(old_fs);
+	return rc;
 }
 #endif
 
@@ -2177,6 +2900,196 @@ static int es705_put_ns_value(struct snd_kcontrol *kcontrol,
 	return rc;
 }
 
+static int es705_get_sw_value(struct snd_kcontrol *kcontrol,
+				       struct snd_ctl_elem_value *ucontrol)
+{
+	return 0;
+}
+
+static int es705_put_sw_value(struct snd_kcontrol *kcontrol,
+				       struct snd_ctl_elem_value *ucontrol)
+{
+	int value = ucontrol->value.enumerated.item[0];
+	int rc = 0;
+	dev_dbg(es705_priv.dev, "%s(): SW = %d\n", __func__, value);
+
+	/* 0 = off, 1 = on*/
+	if (value)
+		rc = es705_write(NULL, ES705_PRESET,
+			ES705_SW_ON_PRESET);
+	else
+		rc = es705_write(NULL, ES705_PRESET,
+			ES705_SW_OFF_PRESET);
+
+	return rc;
+}
+
+static int es705_get_sts_value(struct snd_kcontrol *kcontrol,
+				       struct snd_ctl_elem_value *ucontrol)
+{
+	return 0;
+}
+
+static int es705_put_sts_value(struct snd_kcontrol *kcontrol,
+				       struct snd_ctl_elem_value *ucontrol)
+{
+	int value = ucontrol->value.enumerated.item[0];
+	int rc = 0;
+	dev_dbg(es705_priv.dev, "%s(): STS = %d\n", __func__, value);
+
+	/* 0 = off, 1 = on*/
+	if (value)
+		rc = es705_write(NULL, ES705_PRESET,
+			ES705_STS_ON_PRESET);
+	else
+		rc = es705_write(NULL, ES705_PRESET,
+			ES705_STS_OFF_PRESET);
+
+	return rc;
+}
+
+static int es705_get_rx_ns_value(struct snd_kcontrol *kcontrol,
+				       struct snd_ctl_elem_value *ucontrol)
+{
+	return 0;
+}
+
+static int es705_put_rx_ns_value(struct snd_kcontrol *kcontrol,
+				       struct snd_ctl_elem_value *ucontrol)
+{
+	int value = ucontrol->value.enumerated.item[0];
+	int rc = 0;
+	dev_dbg(es705_priv.dev, "%s(): RX_NS = %d\n", __func__, value);
+
+	/* 0 = off, 1 = on*/
+	if (value)
+		rc = es705_write(NULL, ES705_PRESET,
+			ES705_RX_NS_ON_PRESET);
+	else
+		rc = es705_write(NULL, ES705_PRESET,
+			ES705_RX_NS_OFF_PRESET);
+
+	return rc;
+}
+
+static int es705_get_wnf_value(struct snd_kcontrol *kcontrol,
+				       struct snd_ctl_elem_value *ucontrol)
+{
+	return 0;
+}
+
+static int es705_put_wnf_value(struct snd_kcontrol *kcontrol,
+				       struct snd_ctl_elem_value *ucontrol)
+{
+	int value = ucontrol->value.enumerated.item[0];
+	int rc = 0;
+	dev_dbg(es705_priv.dev, "%s(): WNF = %d\n", __func__, value);
+
+	/* 0 = off, 1 = on */
+	if (value)
+		rc = es705_write(NULL, ES705_PRESET,
+			ES705_WNF_ON_PRESET);
+	else
+		rc = es705_write(NULL, ES705_PRESET,
+			ES705_WNF_OFF_PRESET);
+
+	return rc;
+}
+
+static int es705_get_bwe_value(struct snd_kcontrol *kcontrol,
+				       struct snd_ctl_elem_value *ucontrol)
+{
+	return 0;
+}
+
+static int es705_put_bwe_value(struct snd_kcontrol *kcontrol,
+				       struct snd_ctl_elem_value *ucontrol)
+{
+	struct es705_priv *es705 = &es705_priv;
+	int value = ucontrol->value.enumerated.item[0];
+	int rc = 0;
+
+	dev_dbg(es705->dev, "%s(): BWE = %d\n", __func__, value);
+
+	if (es705->pm_state != ES705_POWER_AWAKE) {
+		dev_info(es705->dev,
+				"%s(): can't bwe on/off, pm_state(%d)\n",
+				__func__, es705->pm_state);
+		return rc;
+	}
+
+	if (es705->current_bwe == value) {
+		dev_info(es705->dev, "%s(): Avoid duplication value (%d)\n", __func__, value);
+		return 0;
+	}	
+
+	if (network_type == WIDE_BAND) {
+		dev_dbg(es705->dev, "%s(): WideBand does not need BWE feature\n", __func__);
+		return rc;
+	}
+	
+	/* 0 = off, 1 = on */
+	if (value)
+		rc = es705_write(NULL, ES705_PRESET,
+			ES705_BWE_ON_PRESET);
+	else
+		rc = es705_write(NULL, ES705_PRESET,
+			ES705_BWE_OFF_PRESET);
+
+	es705->current_bwe = value;
+	return rc;
+}
+
+static int es705_get_avalon_value(struct snd_kcontrol *kcontrol,
+				       struct snd_ctl_elem_value *ucontrol)
+{
+	return 0;
+}
+
+static int es705_put_avalon_value(struct snd_kcontrol *kcontrol,
+				       struct snd_ctl_elem_value *ucontrol)
+{
+	int value = ucontrol->value.enumerated.item[0];
+	int rc = 0;
+	dev_dbg(es705_priv.dev, "%s(): Avalon Wind Noise = %d\n",
+		__func__, value);
+
+	/* 0 = off, 1 = on */
+	if (value)
+		rc = es705_write(NULL, ES705_PRESET,
+			ES705_AVALON_WN_ON_PRESET);
+	else
+		rc = es705_write(NULL, ES705_PRESET,
+			ES705_AVALON_WN_OFF_PRESET);
+
+	return rc;
+}
+
+static int es705_get_vbb_value(struct snd_kcontrol *kcontrol,
+				       struct snd_ctl_elem_value *ucontrol)
+{
+	return 0;
+}
+
+static int es705_put_vbb_value(struct snd_kcontrol *kcontrol,
+				       struct snd_ctl_elem_value *ucontrol)
+{
+	int value = ucontrol->value.enumerated.item[0];
+	int rc = 0;
+	dev_dbg(es705_priv.dev, "%s(): Virtual Bass Boost = %d\n",
+		__func__, value);
+
+	/* 0 = off, 1 = on */
+	if (value)
+		rc = es705_write(NULL, ES705_PRESET,
+			ES705_VBB_ON_PRESET);
+	else
+		rc = es705_write(NULL, ES705_PRESET,
+			ES705_VBB_OFF_PRESET);
+
+	return rc;
+}
+
 static int es705_get_aud_zoom(struct snd_kcontrol *kcontrol,
 				       struct snd_ctl_elem_value *ucontrol)
 {
@@ -2217,6 +3130,55 @@ static int es705_put_aud_zoom(struct snd_kcontrol *kcontrol,
 	return rc;
 }
 
+static int es705_get_veq_preset_value(struct snd_kcontrol *kcontrol,
+				       struct snd_ctl_elem_value *ucontrol)
+{
+	return 	es705_priv.current_veq_preset;
+}
+
+static int es705_put_veq_preset_value(struct snd_kcontrol *kcontrol,
+				       struct snd_ctl_elem_value *ucontrol)
+{
+	struct es705_priv *es705 = &es705_priv;
+	int value = ucontrol->value.enumerated.item[0];
+	int rc = 0;
+
+	dev_dbg(es705->dev, "%s(): VEQ Preset = %d\n", __func__, value);
+
+	if (es705->pm_state != ES705_POWER_AWAKE) {
+		dev_info(es705->dev,
+				"%s(): can't bwe on/off, pm_state(%d)\n",
+				__func__, es705->pm_state);
+		return rc;
+	}
+
+	if (es705->current_veq_preset == value) {
+		dev_info(es705->dev, "%s(): Avoid duplication value (%d)\n", __func__, value);
+		return 0;
+	}
+
+	/* 0 = off, 1 = on */
+	if (value)
+		rc = es705_write(NULL, ES705_PRESET,
+						ES705_VEQ_ON_PRESET);
+	else
+		rc = es705_write(NULL, ES705_PRESET,
+						ES705_VEQ_OFF_PRESET);
+
+	es705->current_veq_preset = value;
+	return rc;
+}
+
+/* Get for streming is not avaiable. Tinymix "set" method first executes get
+ * and then put method. Thus dummy get method is implemented. */
+static int es705_get_streaming_select(struct snd_kcontrol *kcontrol,
+				       struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.enumerated.item[0] = -1;
+
+	return 0;
+}
+
 int es705_remote_route_enable(struct snd_soc_dai *dai)
 {
 	dev_dbg(es705_priv.dev, "%s():dai->name = %s dai->id = %d\n",
@@ -2234,6 +3196,183 @@ int es705_remote_route_enable(struct snd_soc_dai *dai)
 	}
 }
 EXPORT_SYMBOL_GPL(es705_remote_route_enable);
+
+int es705_put_veq_block(int volume)
+{
+	struct es705_priv *es705 = &es705_priv;
+
+	u32 cmd;
+	u32 resp;
+	int ret;
+	u8 veq_coeff_size = 0;
+	u32 fin_resp;
+	u8 count = 0;
+	u8 *wdbp = NULL;
+	u8 wr = 0;
+	int max_retry_cnt = 10;
+
+	if (es705->pm_state != ES705_POWER_AWAKE) {
+		dev_info(es705->dev,
+				"%s(): can't set veq block, pm_state(%d)\n",
+				__func__, es705->pm_state);
+		return 0;
+	}
+
+	if ((volume > (sizeof(veq_max_gains_nb) / sizeof(veq_max_gains_nb[0])) - 1) ||
+		(volume < 0)) {
+		dev_info(es705->dev, "%s(): Invalid volume (%d)\n", __func__, volume);
+		return 0;
+	}
+
+	if ((es705->current_veq_preset == 0) ||
+		(es705->current_veq == volume)) {
+		dev_info(es705->dev, "%s(): veq off or avoid duplication value(%d)\n", __func__, volume);
+		return 0;
+	}
+
+	mutex_lock(&es705->api_mutex);
+
+	es705->current_veq = volume;
+
+	/* VEQ Max Gain */
+	cmd = 0xB017003d;
+	cmd = cpu_to_le32(cmd);
+	ret = es705->dev_write(es705, (char *)&cmd, 4);
+	if (ret < 0) {
+		dev_err(es705->dev, "%s(): write veq max gain cmd 0x%08x failed\n",
+		    __func__, cmd);
+		goto EXIT;
+	}
+
+	/* 0x00 ~ 0x0f(15dB) */
+	if (network_type == WIDE_BAND)
+		cmd = veq_max_gains_wb[volume];
+	else
+		cmd = veq_max_gains_nb[volume];
+
+	if (cmd > 0x9018000f)
+		cmd = 0x9018000f;
+
+	cmd = cpu_to_le32(cmd);
+	ret = es705->dev_write(es705, (char *)&cmd, 4);
+	dev_dbg(es705->dev, "%s(): write veq max gain 0x%08x to volume (%d)\n",
+		    __func__, cmd, volume);	
+	if (ret < 0) {
+		dev_err(es705->dev, "%s(): write veq max gain 0x%08x failed\n",
+		    __func__, cmd);
+		goto EXIT;
+	}
+
+	/* VEQ Noise Estimate Adj */
+	cmd = 0xB0170025;
+	cmd = cpu_to_le32(cmd);
+	ret = es705->dev_write(es705, (char *)&cmd, 4);
+	if (ret < 0) {
+		dev_err(es705->dev, "%s(): write veq estimate adj 0x%08x failed\n",
+		    __func__, cmd);
+		goto EXIT;
+	}
+
+	/* 0x00 ~ 0x1e(30dB) */
+	if (network_type == WIDE_BAND)
+		cmd = veq_noise_estimate_adjs_wb[volume];
+	else
+		cmd = veq_noise_estimate_adjs_nb[volume];
+	if (cmd > 0x9018001e) cmd = 0x9018001e;
+	cmd = cpu_to_le32(cmd);
+	ret = es705->dev_write(es705, (char *)&cmd, 4);
+	dev_dbg(es705->dev, "%s(): write veq estimate adj 0x%08x to volume (%d)\n",
+		    __func__, cmd, volume);
+	if (ret < 0) {
+		dev_err(es705->dev, "%s(): write veq estimate adj 0x%08x failed\n",
+		    __func__, cmd);
+		goto EXIT;
+	}
+
+	/* VEQ Coefficients Filter */
+	if (network_type == WIDE_BAND) {
+		veq_coeff_size = 0x4A;
+		wdbp = (char *)&veq_coefficients_wb[volume][0];
+	}
+	else {
+		veq_coeff_size = 0x3E;
+		wdbp = (char *)&veq_coefficients_nb[volume][0];
+	}
+	cmd = 0x802f0000 | (veq_coeff_size & 0xffff);
+	cmd = cpu_to_le32(cmd);
+	ret = es705->dev_write(es705, (char *)&cmd, 4);
+	dev_dbg(es705->dev, "%s(): write veq coeff size 0x%08x\n",
+		    __func__, cmd);
+	if (ret < 0) {
+		dev_err(es705->dev, "%s(): write veq coeff size 0x%08x failed\n",
+		    __func__, cmd);
+		goto EXIT;
+	}
+
+	usleep_range(10000, 10000);
+
+	do {
+		ret = es705->dev_read(es705, (char *)&resp,
+				ES705_READ_VE_WIDTH);
+		count++;
+		usleep_range(2000, 2000);
+	} while (resp != cmd && count < max_retry_cnt);
+
+	if (resp != cmd) {
+		dev_err(es705->dev, "%s(): error writing veq coeff size, resp is 0x%08x\n",
+				__func__, resp);
+		goto EXIT;
+	}
+
+	while (wr < veq_coeff_size) {
+		int sz = min(veq_coeff_size - wr, ES705_WRITE_VE_WIDTH);
+
+		if (sz < ES705_WRITE_VE_WIDTH) {
+			cmd = 0;
+			count = 0;
+			while (sz>0) {
+				cmd = cmd << 8;
+				cmd = cmd | wdbp[wr++];
+				sz--;
+				count++;
+			}
+			cmd = cmd << ((ES705_WRITE_VE_WIDTH-count)*8);
+		}
+		else {
+			cmd = *((int *)(wdbp+wr));
+			cmd = cpu_to_be32(cmd);
+	        }
+		es705->dev_write(es705, (char *)&cmd, ES705_WRITE_VE_WIDTH);
+		wr += sz;
+	}
+
+	usleep_range(10000, 10000);
+
+	count = 0;
+	do {
+		fin_resp = 0xFFFFFFFF;
+		ret = es705->dev_read(es705, (char *)&fin_resp,
+				ES705_READ_VE_WIDTH);
+		count++;
+		usleep_range(2000, 2000);
+	} while (fin_resp != 0x802f0000 && count < max_retry_cnt);
+
+	if (fin_resp != 0x802f0000) {
+		dev_err(es705->dev, "%s(): error writing veq coeff block, resp is 0x%08x\n",
+				__func__, fin_resp);
+		goto EXIT;
+	}
+
+	dev_info(es705->dev, "%s(): success\n", __func__);
+	
+EXIT:
+	mutex_unlock(&es705->api_mutex);
+	if (ret != 0)
+		dev_err(es705->dev, "%s(): failed ret=%d\n",
+			__func__, ret);
+	return ret;
+}
+EXPORT_SYMBOL_GPL(es705_put_veq_block);
 
 static int es705_put_internal_route_config(struct snd_kcontrol *kcontrol,
 					   struct snd_ctl_elem_value *ucontrol)
@@ -2253,6 +3392,61 @@ static int es705_get_internal_route_config(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+#if defined(PREVENT_CALL_MUTE_WHEN_SWITCH_NB_AND_WB)
+static void es705_restore_bwe_veq(void)
+{
+	struct es705_priv *es705 = &es705_priv;
+	int rc;
+	static int latest_bwe = -1;
+	static int latest_veq = -1;
+	static int latest_veq_preset = -1;
+	
+	dev_info(es705->dev, 
+			"%s(): latest_bwe : %d, current_bwe : %d\n",
+			__func__, latest_bwe, es705->current_bwe);
+
+	dev_info(es705->dev, 
+			"%s(): latest_veq : %d, current_veq : %d\n",
+			__func__, latest_veq, es705->current_veq);
+
+	dev_info(es705->dev, 
+			"%s(): latest_veq_preset : %d, current_veq_preset : %d\n",
+			__func__, latest_veq_preset, es705->current_veq_preset);
+
+	/* Restore BWE */
+	if (latest_bwe != es705->current_bwe) {
+		latest_bwe = es705->current_bwe;
+		if (network_type == NARROW_BAND) {
+			/* 0 = off, 1 = on */
+			if (es705->current_bwe)
+				rc = es705_write(NULL, ES705_PRESET,
+								ES705_BWE_ON_PRESET);
+			else
+				rc = es705_write(NULL, ES705_PRESET,
+								ES705_BWE_OFF_PRESET);
+		}
+	}
+
+
+	/* Restore VEQ */
+	if (latest_veq != es705->current_veq) {
+		latest_veq = es705->current_veq;
+		es705_put_veq_block(es705->current_veq);
+	}
+
+	if (latest_veq_preset != es705->current_veq_preset) {
+		latest_veq_preset = es705->current_veq_preset;
+		/* 0 = off, 1 = on */
+		if (es705->current_veq_preset)
+			rc = es705_write(NULL, ES705_PRESET,
+							ES705_VEQ_ON_PRESET);
+		else
+			rc = es705_write(NULL, ES705_PRESET,
+							ES705_VEQ_OFF_PRESET);
+	}
+}
+#endif
+
 static int es705_put_network_type(struct snd_kcontrol *kcontrol,
 	struct snd_ctl_elem_value *ucontrol)
 {
@@ -2267,11 +3461,14 @@ static int es705_put_network_type(struct snd_kcontrol *kcontrol,
 		network_type = NARROW_BAND;
 
 	mutex_lock(&es705->pm_mutex);
-	if (es705->pm_state == ES705_POWER_AWAKE)
+	if (es705->pm_state == ES705_POWER_AWAKE) {
 		es705_switch_route_config(es705->internal_route_num);
-
+#if defined(PREVENT_CALL_MUTE_WHEN_SWITCH_NB_AND_WB)
+		es705_restore_bwe_veq();
+#endif
+	}
 	mutex_unlock(&es705->pm_mutex);
-
+ 
 	return 0;
 }
 
@@ -2286,7 +3483,7 @@ static int es705_get_network_type(struct snd_kcontrol *kcontrol,
 static int es705_put_internal_route(struct snd_kcontrol *kcontrol,
 				    struct snd_ctl_elem_value *ucontrol)
 {
-	pr_info("%s : put internal route = %ld\n", __func__, ucontrol->value.integer.value[0]);
+	dev_info(es705_priv.dev, "%s : put internal route = %ld\n", __func__, ucontrol->value.integer.value[0]);
 	es705_switch_route(ucontrol->value.integer.value[0]);
 	return 0;
 }
@@ -2354,6 +3551,37 @@ static int es705_get_internal_rate(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
+static int es705_put_preset_value(struct snd_kcontrol *kcontrol,
+					struct snd_ctl_elem_value *ucontrol)
+{
+	struct soc_mixer_control *mc =
+		(struct soc_mixer_control *)kcontrol->private_value;
+	unsigned int reg = mc->reg;
+	unsigned int value;
+	int rc = 0;
+
+	value = ucontrol->value.integer.value[0];
+
+	rc = es705_write(NULL, reg, value);
+	if (rc) {
+		dev_err(es705_priv.dev, "%s(): Set Preset failed\n",
+			__func__);
+		return rc;
+	}
+
+	es705_priv.preset = value;
+
+	return rc;
+}
+
+static int es705_get_preset_value(struct snd_kcontrol *kcontrol,
+					struct snd_ctl_elem_value *ucontrol)
+{
+	ucontrol->value.integer.value[0] = es705_priv.preset;
+
+	return 0;
+}
+
 static int es705_get_audio_custom_profile(struct snd_kcontrol *kcontrol,
 					  struct snd_ctl_elem_value *ucontrol)
 {
@@ -2375,6 +3603,7 @@ static int es705_ap_put_tx1_ch_cnt(struct snd_kcontrol *kcontrol,
 				   struct snd_ctl_elem_value *ucontrol)
 {
 	es705_priv.ap_tx1_ch_cnt = ucontrol->value.enumerated.item[0] + 1;
+	pr_info("%s : cnt = %d\n", __func__, es705_priv.ap_tx1_ch_cnt);
 	return 0;
 }
 
@@ -2389,7 +3618,7 @@ static int es705_ap_get_tx1_ch_cnt(struct snd_kcontrol *kcontrol,
 }
 
 static const char * const es705_ap_tx1_ch_cnt_texts[] = {
-	"One", "Two"
+	"One", "Two", "Three"
 };
 static const struct soc_enum es705_ap_tx1_ch_cnt_enum =
 	SOC_ENUM_SINGLE(SND_SOC_NOPM, 0,
@@ -2438,12 +3667,16 @@ static int es705_get_dereverb_gain_value(struct snd_kcontrol *kcontrol,
 	struct soc_mixer_control *mc =
 		(struct soc_mixer_control *)kcontrol->private_value;
 	unsigned int reg = mc->reg;
-	unsigned int value;
+	unsigned int value=0;
 
 #if defined(SAMSUNG_ES705_FEATURE)
 	es705_read_write_power_control(1);
 #endif
+	if (es705_priv.rx1_route_enable ||
+		es705_priv.tx1_route_enable ||
+		es705_priv.rx2_route_enable) {
 	value = es705_read(NULL, reg);
+}
 	ucontrol->value.integer.value[0] = es705_gain_to_index(-12, 1, value);
 #if defined(SAMSUNG_ES705_FEATURE)
 	es705_read_write_power_control(0);
@@ -2475,12 +3708,16 @@ static int es705_get_bwe_high_band_gain_value(struct snd_kcontrol *kcontrol,
 	struct soc_mixer_control *mc =
 		(struct soc_mixer_control *)kcontrol->private_value;
 	unsigned int reg = mc->reg;
-	unsigned int value;
+	unsigned int value=0;
 
 #if defined(SAMSUNG_ES705_FEATURE)
 	es705_read_write_power_control(1);
 #endif
+	if (es705_priv.rx1_route_enable ||
+		es705_priv.tx1_route_enable ||
+		es705_priv.rx2_route_enable) {
 	value = es705_read(NULL, reg);
+}
 	ucontrol->value.integer.value[0] = es705_gain_to_index(-10, 1, value);
 #if defined(SAMSUNG_ES705_FEATURE)
 	es705_read_write_power_control(0);
@@ -2513,12 +3750,16 @@ static int es705_get_bwe_max_snr_value(struct snd_kcontrol *kcontrol,
 	struct soc_mixer_control *mc =
 		(struct soc_mixer_control *)kcontrol->private_value;
 	unsigned int reg = mc->reg;
-	unsigned int value;
+	unsigned int value=0;
 
 #if defined(SAMSUNG_ES705_FEATURE)
 	es705_read_write_power_control(1);
 #endif
+	if (es705_priv.rx1_route_enable ||
+		es705_priv.tx1_route_enable ||
+		es705_priv.rx2_route_enable) {
 	value = es705_read(NULL, reg);
+}
 	ucontrol->value.integer.value[0] = es705_gain_to_index(-20, 1, value);
 #if defined(SAMSUNG_ES705_FEATURE)
 	es705_read_write_power_control(0);
@@ -2600,6 +3841,30 @@ static const struct soc_enum es705_ns_enable_enum =
 static const struct soc_enum es705_audio_zoom_enum =
 	SOC_ENUM_SINGLE(ES705_PRESET, 0, ARRAY_SIZE(es705_audio_zoom_texts),
 			es705_audio_zoom_texts);
+static const struct soc_enum es705_rx_enable_enum =
+	SOC_ENUM_SINGLE(ES705_RX_ENABLE, 0, ARRAY_SIZE(es705_off_on_texts),
+			es705_off_on_texts);
+static const struct soc_enum es705_sw_enable_enum =
+	SOC_ENUM_SINGLE(ES705_PRESET, 0, ARRAY_SIZE(es705_off_on_texts),
+			es705_off_on_texts);
+static const struct soc_enum es705_sts_enable_enum =
+	SOC_ENUM_SINGLE(ES705_PRESET, 0, ARRAY_SIZE(es705_off_on_texts),
+			es705_off_on_texts);
+static const struct soc_enum es705_rx_ns_enable_enum =
+	SOC_ENUM_SINGLE(ES705_PRESET, 0, ARRAY_SIZE(es705_off_on_texts),
+			es705_off_on_texts);
+static const struct soc_enum es705_wnf_enable_enum =
+	SOC_ENUM_SINGLE(ES705_PRESET, 0, ARRAY_SIZE(es705_off_on_texts),
+			es705_off_on_texts);
+static const struct soc_enum es705_bwe_preset_enable_enum =
+	SOC_ENUM_SINGLE(ES705_PRESET, 0, ARRAY_SIZE(es705_off_on_texts),
+			es705_off_on_texts);
+static const struct soc_enum es705_avalon_wn_enable_enum =
+	SOC_ENUM_SINGLE(ES705_PRESET, 0, ARRAY_SIZE(es705_off_on_texts),
+			es705_off_on_texts);
+static const struct soc_enum es705_vbb_enable_enum =
+	SOC_ENUM_SINGLE(ES705_PRESET, 0, ARRAY_SIZE(es705_off_on_texts),
+			es705_off_on_texts);
 
 static int es705_put_power_state_enum(struct snd_kcontrol *kcontrol,
 				      struct snd_ctl_elem_value *ucontrol)
@@ -2663,12 +3928,26 @@ static int es705_put_vs_stored_keyword(struct snd_kcontrol *kcontrol,
 	case 0:
 		dev_dbg(es705_priv.dev, "%s(): keyword params put...\n",
 			__func__);
+		if (es705_priv.rdb_wdb_open) {
+			ret = es705_priv.rdb_wdb_open(&es705_priv);
+			if (ret < 0) {
+				dev_err(es705_priv.dev, "%s(): WDB UART open FAIL\n", __func__);
+				break;
+			}
+		}
 		ret = es705_write_vs_data_block(&es705_priv);
+		if (es705_priv.rdb_wdb_close) {
+			ret = es705_priv.rdb_wdb_close(&es705_priv);
+			if (ret < 0)
+				dev_err(es705_priv.dev, "%s(): WDB UART close FAIL\n", __func__);
+		}
 		break;
 	case 1:
 		dev_dbg(es705_priv.dev, "%s(): keyword params get...\n",
 			__func__);
-		ret = es705_read_vs_data_block(&es705_priv);
+		ret = es705_read_vs_data_block(&es705_priv,
+					       (char *)es705_priv.vs_keyword_param,
+					       ES705_VS_KEYWORD_PARAM_MAX);
 		break;
 	case 2:
 		dev_dbg(es705_priv.dev, "%s(): keyword params clear...\n",
@@ -2709,12 +3988,16 @@ int es705_get_vs_detection_sensitivity(struct snd_kcontrol *kcontrol,
 	struct soc_mixer_control *mc =
 		(struct soc_mixer_control *)kcontrol->private_value;
 	unsigned int reg = mc->reg;
-	unsigned int value;
+	unsigned int value=0;
 
 #if defined(SAMSUNG_ES705_FEATURE)
 	es705_read_write_power_control(1);
 #endif
+	if (es705_priv.rx1_route_enable ||
+		es705_priv.tx1_route_enable ||
+		es705_priv.rx2_route_enable) {
 	value = es705_read(NULL, reg);
+}
 	ucontrol->value.integer.value[0] = value;
 
 	dev_dbg(es705_priv.dev, "%s(): value = %d ucontrol = %ld\n",
@@ -2753,12 +4036,16 @@ int es705_get_vad_sensitivity(struct snd_kcontrol *kcontrol,
 	struct soc_mixer_control *mc =
 		(struct soc_mixer_control *)kcontrol->private_value;
 	unsigned int reg = mc->reg;
-	unsigned int value;
+	unsigned int value=0;
 
 #if defined(SAMSUNG_ES705_FEATURE)
 	es705_read_write_power_control(1);
 #endif
+	if (es705_priv.rx1_route_enable ||
+		es705_priv.tx1_route_enable ||
+		es705_priv.rx2_route_enable) {
 	value = es705_read(NULL, reg);
+}
 	ucontrol->value.integer.value[0] = value;
 
 	dev_dbg(es705_priv.dev, "%s(): value = %d ucontrol = %ld\n",
@@ -2837,8 +4124,13 @@ static struct snd_kcontrol_new es705_digital_ext_snd_controls[] = {
 		     es705_get_control_enum, es705_put_control_enum),
 	SOC_ENUM_EXT("AEC Mode", es705_aec_mode_enum,
 		     es705_get_control_enum, es705_put_control_enum),
+#if defined(SAMSUNG_ES705_FEATURE)
+	SOC_ENUM_EXT("VEQ Enable", es705_veq_enable_enum,
+		     es705_get_veq_preset_value, es705_put_veq_preset_value),
+#else
 	SOC_ENUM_EXT("VEQ Enable", es705_veq_enable_enum,
 		     es705_get_control_enum, es705_put_control_enum),
+#endif			   
 	SOC_ENUM_EXT("Dereverb Enable", es705_dereverb_enable_enum,
 		     es705_get_control_enum, es705_put_control_enum),
 	SOC_SINGLE_EXT("Dereverb Gain",
@@ -2875,8 +4167,8 @@ static struct snd_kcontrol_new es705_digital_ext_snd_controls[] = {
 		      es705_get_internal_rate,
 		      es705_put_internal_rate),
 	SOC_SINGLE_EXT("Preset",
-		       ES705_PRESET, 0, 2047, 0, es705_get_control_value,
-		       es705_put_control_value),
+		       ES705_PRESET, 0, 65535, 0, es705_get_preset_value,
+		       es705_put_preset_value),
 	SOC_SINGLE_EXT("Audio Custom Profile",
 		       SND_SOC_NOPM, 0, 100, 0, es705_get_audio_custom_profile,
 		       es705_put_audio_custom_profile),
@@ -2920,6 +4212,34 @@ static struct snd_kcontrol_new es705_digital_ext_snd_controls[] = {
 	SOC_ENUM_EXT("Audio Zoom", es705_audio_zoom_enum,
 		       es705_get_aud_zoom,
 		       es705_put_aud_zoom),
+	SOC_SINGLE_EXT("Enable/Disable Streaming PATH/Endpoint",
+		       ES705_FE_STREAMING, 0, 65535, 0,
+		       es705_get_streaming_select,
+		       es705_put_control_value),
+	SOC_ENUM_EXT("RX Enable", es705_rx_enable_enum,
+		       es705_get_control_enum,
+		       es705_put_control_enum),
+	SOC_ENUM_EXT("Stereo Widening", es705_sw_enable_enum,
+		       es705_get_sw_value,
+		       es705_put_sw_value),
+	SOC_ENUM_EXT("Speech Time Stretching", es705_sts_enable_enum,
+			   es705_get_sts_value,
+			   es705_put_sts_value),
+	SOC_ENUM_EXT("RX Noise Suppression", es705_rx_ns_enable_enum,
+			   es705_get_rx_ns_value,
+			   es705_put_rx_ns_value),
+	SOC_ENUM_EXT("Wind Noise Filter", es705_wnf_enable_enum,
+			   es705_get_wnf_value,
+			   es705_put_wnf_value),
+	SOC_ENUM_EXT("BWE Preset", es705_bwe_preset_enable_enum,
+			   es705_get_bwe_value,
+			   es705_put_bwe_value),
+	SOC_ENUM_EXT("AVALON Wind Noise", es705_avalon_wn_enable_enum,
+			   es705_get_avalon_value,
+			   es705_put_avalon_value),
+	SOC_ENUM_EXT("Virtual Bass Boost", es705_vbb_enable_enum,
+			   es705_get_vbb_value,
+			   es705_put_vbb_value),
 	SOC_SINGLE_EXT("UART FW Download Rate", SND_SOC_NOPM,
 			0, 3, 0,
 			es705_get_uart_fw_download_rate,
@@ -2928,9 +4248,18 @@ static struct snd_kcontrol_new es705_digital_ext_snd_controls[] = {
 		       0, 1, 0,
 		       es705_get_vs_stream_enable, es705_put_vs_stream_enable),
 #if defined(SAMSUNG_ES705_FEATURE)
-	SOC_SINGLE_EXT("ES705 Voice Wakeup Enable", SND_SOC_NOPM, 0, 1, 0,
+	SOC_SINGLE_EXT("ES705 Voice Wakeup Enable", SND_SOC_NOPM, 0, 2, 0,
 		       es705_get_voice_wakeup_enable_value,
 		       es705_put_voice_wakeup_enable_value),
+	SOC_SINGLE_EXT("ES705 VS Abort", SND_SOC_NOPM, 0, 1, 0,
+		       es705_get_vs_abort_value,
+		       es705_put_vs_abort_value),
+	SOC_SINGLE_EXT("ES705 VS Make Internal Dump", SND_SOC_NOPM, 0, 2, 0,
+		       es705_get_vs_make_internal_dump,
+		       es705_put_vs_make_internal_dump),
+	SOC_SINGLE_EXT("ES705 VS Make External Dump", SND_SOC_NOPM, 0, 1, 0,
+		       es705_get_vs_make_external_dump,
+		       es705_put_vs_make_external_dump),
 	SOC_SINGLE_EXT("ES705 Voice LPM Enable", SND_SOC_NOPM, 0, 1, 0,
 		       es705_get_voice_lpm_enable_value,
 		       es705_put_voice_lpm_enable_value),
@@ -3256,8 +4585,10 @@ static void es705_event_status(struct es705_priv *es705)
 	}
 
 	if (es705->mode == VOICESENSE) {
+#if !defined(SAMSUNG_ES705_FEATURE)
 		u32 cmd = (ES705_SET_POWER_STATE << 16) |
 				ES705_SET_POWER_STATE_NORMAL;
+#endif
 		le32_to_cpus(&rspn);
 		rspn = rspn & 0xFFFF;
 		/* Check VS detection status. */
@@ -3270,9 +4601,11 @@ static void es705_event_status(struct es705_priv *es705)
 			es705_vs_event(es705);
 			dev_info(es705_priv.dev, "%s(): VS keyword detected\n",
 				__func__);
+#if !defined(SAMSUNG_ES705_FEATURE)
 			/* Switch FW to STANDARD */
 			es705_cmd(es705, cmd);
 			msleep(20);
+#endif
 			es705->pm_state = ES705_POWER_AWAKE;
 #if defined(SAMSUNG_ES705_FEATURE)
 			es705_priv.power_control(ES705_SET_POWER_STATE_VS_OVERLAY, ES705_POWER_STATE);
@@ -3284,6 +4617,7 @@ static void es705_event_status(struct es705_priv *es705)
 irqreturn_t es705_irq_event(int irq, void *irq_data)
 {
 	struct es705_priv *es705 = (struct es705_priv *)irq_data;
+	u32 cmd_stop[] = {0x9017e000, 0x90180000, 0xffffffff};
 
 	mutex_lock(&es705->api_mutex);
 	dev_info(es705->dev, "%s(): %s mode, Interrupt event",
@@ -3291,6 +4625,9 @@ irqreturn_t es705_irq_event(int irq, void *irq_data)
 	/* Get Event status, reset Interrupt */
 	es705_event_status(es705);
 	mutex_unlock(&es705->api_mutex);
+#if defined(SAMSUNG_ES705_FEATURE)
+	es705_write_block(&es705_priv, cmd_stop);
+#endif
 	return IRQ_HANDLED;
 }
 
@@ -3310,7 +4647,7 @@ static int register_snd_soc(struct es705_priv *priv)
 		__func__, rc);
 
 	/* allocate ch_num array for each DAI */
-	for (i = 0; i < ARRAY_SIZE(es705_dai); i++) {
+	for (i = 0; i < ES705_NUM_CODEC_SLIM_DAIS; i++) {
 		switch (es705_dai[i].id) {
 		case ES705_SLIM_1_PB:
 		case ES705_SLIM_2_PB:
@@ -3337,8 +4674,13 @@ int es705_core_probe(struct device *dev)
 {
 	struct esxxx_platform_data *pdata = dev->platform_data;
 	int rc = 0;
+#ifdef ES705_VDDCORE_MAX77826
+	struct regulator *es705_vdd_core = NULL;
+#endif
 	const char *fw_filename = "audience-es705-fw.bin";
+#ifndef CONFIG_ARCH_MSM8226
 	const char *vs_filename = "audience-es705-vs.bin";
+#endif /* CONFIG_ARCH_MSM8226 */
 
 	if (pdata == NULL) {
 		dev_err(dev, "%s(): pdata is NULL", __func__);
@@ -3349,6 +4691,20 @@ int es705_core_probe(struct device *dev)
 	es705_priv.dev = dev;
 	es705_priv.pdata = pdata;
 	es705_priv.fw_requested = 0;
+#ifdef WDB_RDB_OVER_SLIMBUS
+	es705_priv.rdb_wdb_open = NULL;
+	es705_priv.rdb_wdb_close = NULL;
+#else
+	es705_priv.rdb_wdb_open = es705_uart_open;
+	es705_priv.rdb_wdb_close = es705_uart_close;
+#endif
+	if (es705_priv.rdb_wdb_open && es705_priv.rdb_wdb_close) {
+		es705_priv.rdb_read = es705_uart_read;
+		es705_priv.wdb_write = es705_uart_write;
+	} else {
+		es705_priv.rdb_read = es705_priv.dev_read;
+		es705_priv.wdb_write = es705_priv.dev_write;
+	}
 
 	es705_clk_init(&es705_priv);
 #if defined(SAMSUNG_ES705_FEATURE)
@@ -3379,7 +4735,14 @@ int es705_core_probe(struct device *dev)
 #endif
 	es705_priv.uart_state = UART_CLOSE;
 	es705_priv.sleep_delay = ES705_SLEEP_DEFAULT_DELAY;
-
+#if defined(PREVENT_CALL_MUTE_WHEN_SWITCH_NB_AND_WB)
+	es705_priv.reroute_delay = ES705_REROUTE_INV;
+#endif
+#if defined(SAMSUNG_ES705_FEATURE)	
+	es705_priv.current_bwe = 0;
+	es705_priv.current_veq = -1;
+	es705_priv.current_veq_preset = 0;
+#endif
 	mutex_init(&es705_priv.api_mutex);
 	mutex_init(&es705_priv.pm_mutex);
 	mutex_init(&es705_priv.streaming_mutex);
@@ -3395,15 +4758,18 @@ int es705_core_probe(struct device *dev)
 			__func__, rc);
 	}
 
+	INIT_DELAYED_WORK(&es705_priv.sleep_work, es705_delayed_sleep);
+#if defined(PREVENT_CALL_MUTE_WHEN_SWITCH_NB_AND_WB)
+	INIT_DELAYED_WORK(&es705_priv.reroute_work, es705_reroute);	
+#endif
+#if defined(SAMSUNG_ES705_FEATURE)
+	rc = es705_init_input_device(&es705_priv);
+	if (rc < 0)
+		goto init_input_device_error;
+#endif
 	rc = es705_gpio_init(&es705_priv);
 	if (rc)
 		goto gpio_init_error;
-
-	if (pdata->esxxx_clk_cb)
-		pdata->esxxx_clk_cb(1);
-
-	msleep(10);
-	es705_gpio_reset(&es705_priv);
 
 	rc = request_firmware((const struct firmware **)&es705_priv.standard,
 			      fw_filename, es705_priv.dev);
@@ -3413,6 +4779,7 @@ int es705_core_probe(struct device *dev)
 		goto request_firmware_error;
 	}
 
+#ifndef CONFIG_ARCH_MSM8226
 	rc = request_firmware((const struct firmware **)&es705_priv.vs,
 			      vs_filename, es705_priv.dev);
 	if (rc) {
@@ -3420,26 +4787,42 @@ int es705_core_probe(struct device *dev)
 			__func__, vs_filename, rc);
 		goto request_vs_firmware_error;
 	}
+#endif /* CONFIG_ARCH_MSM8226 */
 
-	INIT_DELAYED_WORK(&es705_priv.sleep_work, es705_delayed_sleep);
+#ifdef ES705_VDDCORE_MAX77826
+	es705_vdd_core = regulator_get(NULL, "max77826_ldo1");
+	if (IS_ERR(es705_vdd_core)) {
+		dev_err(dev, "%s(): es705 VDD CORE regulator_get fail\n", __func__);
+		return rc;
+	}
+	regulator_set_voltage(es705_vdd_core, 1100000, 1100000);
+	regulator_enable(es705_vdd_core);
+	regulator_put(es705_vdd_core);
+#endif
+
+	if (pdata->esxxx_clk_cb) {
+		pdata->esxxx_clk_cb(1);
+		dev_info(es705_priv.dev,
+				"%s(): external clock on\n", __func__);
+		}
+
+	usleep_range(5000, 5000);
+	es705_gpio_reset(&es705_priv);
 
 	es705_priv.pm_state = ES705_POWER_FW_LOAD;
 	es705_priv.fw_requested = 1;
 
-#if defined(SAMSUNG_ES705_FEATURE)
-	rc = es705_init_input_device(&es705_priv);
-	if (rc < 0)
-		goto init_input_device_error;
-#endif
 	return rc;
 
+#ifndef CONFIG_ARCH_MSM8226
+request_vs_firmware_error:
+	release_firmware(es705_priv.standard);
+#endif /* CONFIG_ARCH_MSM8226 */
+request_firmware_error:
+gpio_init_error:
 #if defined(SAMSUNG_ES705_FEATURE)
 init_input_device_error:
 #endif
-request_vs_firmware_error:
-	release_firmware(es705_priv.standard);
-request_firmware_error:
-gpio_init_error:
 pdata_error:
 	dev_dbg(es705_priv.dev, "%s(): exit with error\n", __func__);
 	return rc;

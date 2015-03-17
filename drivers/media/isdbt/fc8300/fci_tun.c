@@ -31,7 +31,7 @@
 #include "fc8300_tun.h"
 #include "fci_oal.h"
 
-#define FC8300_TUNER_ADDR	0x56
+#define FC8300_TUNER_ADDR	0x58
 
 struct I2C_DRV {
 	int (*init)(HANDLE handle, DEVICEID devid,
@@ -223,7 +223,14 @@ s32 tuner_select(HANDLE handle, DEVICEID devid,
 							0x08);
 		bbm_byte_write(handle, DIV_BROADCAST, BBM_SFS_FTS_ERR_MAX_3SEG,
 							0x08);
+		bbm_byte_write(handle, DIV_BROADCAST, BBM_PGA_GAIN_MAX, 0x0c);
 		bbm_byte_write(handle, DIV_BROADCAST, BBM_CSF_GAIN_MAX, 0x09);
+		bbm_byte_write(handle, DIV_MASTER, BBM_FD_OUT_MODE, 0x03);
+		bbm_byte_write(handle, DIV_MASTER, BBM_DIV_START_MODE, 0x17);
+		bbm_byte_write(handle, DIV_BROADCAST,
+					BBM_PSAT_ON_REF_1SEG_QPSK, 0x1a);
+		bbm_byte_write(handle, DIV_BROADCAST,
+					BBM_PSAT_ON_REF_1SEG_16QAM, 0x1b);
 
 		switch (broadcast) {
 		case ISDBT_1SEG:

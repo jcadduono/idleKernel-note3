@@ -43,6 +43,7 @@
 		qcom,mdss-pan-dsi-dlane-swap = <0>;
 		qcom,mdss-pan-dsi-t-clk = <0x1c 0x04>;
 		qcom,mdss-pan-dsi-stream = <0>;
+		qcom,mdss-pan-dsi-tx-eot-append = <1>;
 		qcom,mdss-pan-dsi-mdp-tr = <0x0>;
 		qcom,mdss-pan-dsi-dma-tr = <0x04>;
 		qcom,mdss-pan-dsi-frame-rate = <60>;
@@ -95,12 +96,12 @@
 					29 01 00 00 00 00 03 ff 07 01	/* Touch Sensing on */
 					29 01 00 00 00 00 03 fc a5 a5 /* Test Key Off */
 					05 01 00 00 11 00 02 29 00];
-		qcom,on-cmds-dsi-state = "DSI_LP_MODE";
+		qcom,on-cmds-dsi-state = "dsi_lp_mode";
 		qcom,panel-off-cmds = [
 					29 01 00 00 00 00 03 ff 1f 01
 					05 01 00 00 32 00 02 28 00
 					05 01 00 00 78 00 02 10 00];
-		qcom,off-cmds-dsi-state = "DSI_HS_MODE";
+		qcom,off-cmds-dsi-state = "dsi_hs_mode";
 
 		qcom,panel-touchsensing-on-cmds = [29 01 00 00 00 00 03 ff 07 01];
 		qcom,panel-touchsensing-off-cmds = [29 01 00 00 12 00 03 ff 1f 01];

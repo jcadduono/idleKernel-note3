@@ -10,14 +10,63 @@
 #define FUNC_END 0x9999
 typedef unsigned int u32;
 #include <mach/sec_debug.h>
+/*
+ * An instance of this structure is created in a special
+ * ELF section at every display debug callsite.  At runtime,
+ * the special section is treated as an array of these.
+ */
+struct _dlogdebug {
+	/*
+	 * These fields are used to drive the user interface
+	 * for selecting and displaying debug callsites.
+	 */
+	const char *function;
+	const char *filename;
+	const char *format;
+	unsigned int lineno:24;
+	unsigned int flags:8;
+} __attribute__((aligned(8)));
+
 #if defined(CONFIG_SAMSUNG_DEBUG_DISPLAY)
-	#define __DLOG__(...) dlog(0xAAAA,##__VA_ARGS__,0xBABEBABE)
-	#define __DLOGE__(...) dlog(0xBBBB,##__VA_ARGS__,0xBABEBABE)
+
+#define DEFINE_DLOG_METADATA(name, fmt)		\
+		static struct _dlogdebug __used __aligned(8)		\
+		__attribute__((section("__dlog"))) name = { 	\
+			.function = __func__,				\
+			.filename = __FILE__,				\
+			.format = (fmt),				\
+			.lineno = __LINE__, 			\
+		}
+
+#define DLOG_ERROR (1<<0)
+
+#define DEFINE_DLOGE_METADATA(name, fmt)		\
+			static struct _dlogdebug __used __aligned(8)		\
+			__attribute__((section("__dlog"))) name = { 	\
+				.function = __func__,				\
+				.filename = __FILE__,				\
+				.format = (fmt),				\
+				.lineno = __LINE__,		\
+				.flags = DLOG_ERROR, \
+			}
+
+	#define __DLOG__(fmt,...) do {\
+					DEFINE_DLOG_METADATA(descriptor,fmt); \
+					dlog(&descriptor,##__VA_ARGS__,0xBABEBABE);\
+				}while(0);
+
+	#define __DLOGE__(fmt,...) do {\
+					DEFINE_DLOGE_METADATA(descriptor,fmt); \
+					dlog(&descriptor,##__VA_ARGS__,0xBABEBABE); \
+				}while(0);
 #else
-	#define __DLOG__(...)
-	#define __DLOGE__(...) 
+	#define __DLOG__(fmt,...)
+	#define __DLOGE__(fmt,...) 
 #endif
-#define __DLOG_(...) dlog(0xAAAA,##__VA_ARGS__,0xBABEBABE)
+#define __DLOG_(fmt,...)  do {\
+								DEFINE_DLOG_METADATA(descriptor,fmt); \
+								dlog(&descriptor,##__VA_ARGS__,0xBABEBABE); \
+							}while(0);
 
 #define CARVEOUT_MEM_SIZE 0x100000
 #ifndef __KERNEL__
@@ -157,57 +206,59 @@ struct sec_debug_log {
 #undef pr_warning
 
 #if defined(DLOG_USER_VARIANT)
+int dlog_sec_get_debug_level(void);
+int sec_debug_is_enabled(void);
 
 #if defined(CONFIG_SEC_DEBUG_SCHED_LOG)
 #define pr_debug(fmt,...) \
-		do{	 	if(kernel_sec_get_debug_level() == KERNEL_SEC_DEBUG_LEVEL_HIGH )  __DLOG__(__VA_ARGS__);\
+		do{	if(dlog_sec_get_debug_level())  __DLOG__(fmt, ##__VA_ARGS__);\
 			 dynamic_pr_debug(fmt, ##__VA_ARGS__);} while(0)
 #else
 #define pr_debug(fmt,...) \
-		do{	 __DLOG__(__VA_ARGS__);\
+		do{	 __DLOG__(fmt,##__VA_ARGS__);\
 			 dynamic_pr_debug(fmt, ##__VA_ARGS__);} while(0)
 #endif
 
 #define pr_err(fmt,...) \
-		do{  __DLOGE__(__VA_ARGS__);\
+		do{  __DLOGE__(fmt,##__VA_ARGS__);\
 		printk(KERN_ERR pr_fmt(fmt), ##__VA_ARGS__);} while(0)
 
 #define pr_warning(fmt, ...) \
-		do{__DLOG__(__VA_ARGS__);\
+		do{__DLOG__(fmt,##__VA_ARGS__);\
         printk(KERN_WARNING pr_fmt(fmt), ##__VA_ARGS__);} while(0)
 
 #define pr_notice(fmt, ...) \
-		do{__DLOG__(__VA_ARGS__);\
+		do{__DLOG__(fmt,##__VA_ARGS__);\
         printk(KERN_NOTICE pr_fmt(fmt), ##__VA_ARGS__);} while(0)
 
 #define pr_info(fmt, ...) \
-		do{   __DLOG__(__VA_ARGS__);\
+		do{   __DLOG__(fmt,##__VA_ARGS__);\
         printk(KERN_INFO pr_fmt(fmt), ##__VA_ARGS__);} while(0)
 #else
 #define pr_debug(fmt,...) \
-	do{	__DLOG__(__VA_ARGS__);\
+	do{	__DLOG__(fmt,##__VA_ARGS__);\
 			 dynamic_pr_debug(fmt, ##__VA_ARGS__);} while(0)
 
 #define pr_err(fmt,...) \
-		do{__DLOGE__(__VA_ARGS__);\
+		do{__DLOGE__(fmt,##__VA_ARGS__);\
 		printk(KERN_ERR pr_fmt(fmt), ##__VA_ARGS__);} while(0)
 
 #define pr_warning(fmt, ...) \
-		do{__DLOGE__(__VA_ARGS__);\
+		do{__DLOGE__(fmt,##__VA_ARGS__);\
         printk(KERN_WARNING pr_fmt(fmt), ##__VA_ARGS__);} while(0)
 
 #define pr_notice(fmt, ...) \
-		do{__DLOG__(__VA_ARGS__);\
+		do{__DLOG__(fmt,##__VA_ARGS__);\
         printk(KERN_NOTICE pr_fmt(fmt), ##__VA_ARGS__);} while(0)
 
 #define pr_info(fmt, ...) \
-		do{__DLOG__(__VA_ARGS__);\
+		do{__DLOG__(fmt,##__VA_ARGS__);\
        printk(KERN_INFO pr_fmt(fmt), ##__VA_ARGS__);} while(0)
 
 #endif
 #endif
 //#define __DLOG_(...) dlog(0xAAAA,__VA_ARGS__,0xBABEBABE);
-void dlog(u32 eventid, ...);
+void dlog(struct _dlogdebug *desc, ...);
 void klog(void);
 void dump_event_code(void);
 void dump_mdp_stats(void);

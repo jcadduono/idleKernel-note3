@@ -9,9 +9,9 @@
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
  */
-#define DEBUG
 #include <linux/battery/sec_fuelgauge.h>
 #include <linux/battery/sec_charger.h>
+#include <linux/battery/sec_battery.h>
 #include <linux/of_gpio.h>
 
 static struct device_attribute sec_fg_attrs[] = {
@@ -32,6 +32,7 @@ static enum power_supply_property sec_fuelgauge_props[] = {
 	POWER_SUPPLY_PROP_CAPACITY,
 	POWER_SUPPLY_PROP_TEMP,
 	POWER_SUPPLY_PROP_TEMP_AMBIENT,
+	POWER_SUPPLY_PROP_ENERGY_FULL,
 };
 
 /* capacity is  0.1% unit */
@@ -43,9 +44,18 @@ static void sec_fg_get_scaled_capacity(
 		0 : ((val->intval - fuelgauge->pdata->capacity_min) * 1000 /
 		(fuelgauge->capacity_max - fuelgauge->pdata->capacity_min));
 
-	dev_dbg(&fuelgauge->client->dev,
+	dev_info(&fuelgauge->client->dev,
 		"%s: scaled capacity (%d.%d)\n",
 		__func__, val->intval/10, val->intval%10);
+
+#if defined(CONFIG_MACH_KLIMT)|| defined(CONFIG_MACH_CHAGALL)
+	/* Reduce soc jump when battery is full
+	   change capacity_max to initial value */
+	if (fuelgauge->is_charging) {
+		if (fuelgauge->capacity_max > fuelgauge->pdata->capacity_max)
+			fuelgauge->capacity_max--;
+	}
+#endif
 }
 
 /* capacity is integer */
@@ -94,11 +104,20 @@ static int sec_fg_get_property(struct power_supply *psy,
 	case POWER_SUPPLY_PROP_CAPACITY:
 	case POWER_SUPPLY_PROP_TEMP:
 	case POWER_SUPPLY_PROP_TEMP_AMBIENT:
+	case POWER_SUPPLY_PROP_ENERGY_FULL:
 		if (!sec_hal_fg_get_property(fuelgauge->client, psp, val))
 			return -EINVAL;
 		if (psp == POWER_SUPPLY_PROP_CAPACITY) {
 			if (soc_type == SEC_FUELGAUGE_CAPACITY_TYPE_RAW)
 				break;
+
+			/* check whether doing the wake_unlock */
+			if ((val->intval > fuelgauge->pdata->fuel_alert_soc) &&
+				fuelgauge->is_fuel_alerted) {
+				wake_unlock(&fuelgauge->fuel_alert_wake_lock);
+				sec_hal_fg_fuelalert_init(fuelgauge->client,
+					fuelgauge->pdata->fuel_alert_soc);
+			}
 
 			if (fuelgauge->pdata->capacity_calculation_type &
 				(SEC_FUELGAUGE_CAPACITY_TYPE_SCALE |
@@ -115,14 +134,6 @@ static int sec_fg_get_property(struct power_supply *psy,
 
 			/* get only integer part */
 			val->intval /= 10;
-
-			/* check whether doing the wake_unlock */
-			if ((val->intval > fuelgauge->pdata->fuel_alert_soc) &&
-				fuelgauge->is_fuel_alerted) {
-				wake_unlock(&fuelgauge->fuel_alert_wake_lock);
-				sec_hal_fg_fuelalert_init(fuelgauge->client,
-					fuelgauge->pdata->fuel_alert_soc);
-			}
 
 			/* (Only for atomic capacity)
 			 * In initial time, capacity_old is 0.
@@ -216,8 +227,13 @@ static int sec_fg_set_property(struct power_supply *psy,
 {
 	struct sec_fuelgauge_info *fuelgauge =
 		container_of(psy, struct sec_fuelgauge_info, psy_fg);
+	sec_battery_platform_data_t *pdata = fuelgauge->pdata;
 
 	switch (psp) {
+	case POWER_SUPPLY_PROP_CHARGE_TYPE:
+		if (!pdata->jig_irq)
+			sec_hal_fg_set_property(fuelgauge->client, psp, val);
+		break;
 	case POWER_SUPPLY_PROP_STATUS:
 		if (val->intval == POWER_SUPPLY_STATUS_FULL)
 			sec_hal_fg_full_charged(fuelgauge->client);
@@ -235,6 +251,7 @@ static int sec_fg_set_property(struct power_supply *psy,
 			fuelgauge->is_charging = false;
 		else
 			fuelgauge->is_charging = true;
+		/* fall through */
 	case POWER_SUPPLY_PROP_CAPACITY:
 		if (val->intval == SEC_FUELGAUGE_CAPACITY_TYPE_RESET) {
 			fuelgauge->initial_update_of_soc = true;
@@ -366,6 +383,9 @@ static int fuelgauge_parse_dt(struct device *dev,
 			struct sec_fuelgauge_info *fuelgauge)
 {
 	struct device_node *np = dev->of_node;
+#if !defined(CONFIG_FUELGAUGE_MAX17050)
+	struct device_node *bnp = of_find_node_by_name(NULL, "battery");
+#endif
 	sec_battery_platform_data_t *pdata = fuelgauge->pdata;
 	int ret;
 #if 0
@@ -403,11 +423,13 @@ static int fuelgauge_parse_dt(struct device *dev,
 				"fuelgaguge,repeated_fuelalert");
 
 		pdata->jig_irq = of_get_named_gpio(np, "fuelgauge,jig_gpio", 0);
-		if (pdata->jig_irq < 0)
+		if (pdata->jig_irq < 0) {
 			pr_err("%s error reading jig_gpio = %d\n",
 					__func__,pdata->jig_irq);
-		else
+			pdata->jig_irq = 0;
+		} else {
 			pdata->jig_irq_attr = IRQF_TRIGGER_RISING;
+		}
 
 		pr_info("%s: fg_irq: %d, "
 				"calculation_type: 0x%x, fuel_alert_soc: %d,"
@@ -416,6 +438,15 @@ static int fuelgauge_parse_dt(struct device *dev,
 				pdata->fuel_alert_soc, pdata->repeated_fuelalert, pdata->jig_irq);
 
 #else
+		pdata->charger_name = "sec-charger";
+		if (bnp == NULL) {
+			pr_err("%s bnp NULL, Forced set to sec-charger\n", __func__);
+		} else {
+			ret = of_property_read_string(bnp,
+				"battery,charger_name", (char const **)&pdata->charger_name);
+			if (ret)
+				pr_info("%s: Vendor is Empty. Forced set to sec-charger\n", __func__);
+		}
 		ret = of_get_named_gpio(np, "fuelgauge,fuel_int", 0);
 		if (ret > 0) {
 			pdata->fg_irq = ret;
@@ -509,8 +540,6 @@ static int __devinit sec_fuelgauge_probe(struct i2c_client *client,
 	i2c_set_clientdata(client, fuelgauge);
 
 	if (fuelgauge->pdata->fg_gpio_init != NULL) {
-		dev_err(&client->dev,
-				"%s: @@@\n", __func__);
 		if (!fuelgauge->pdata->fg_gpio_init()) {
 			dev_err(&client->dev,
 					"%s: Failed to Initialize GPIO\n", __func__);
@@ -543,7 +572,7 @@ static int __devinit sec_fuelgauge_probe(struct i2c_client *client,
 	if (ret) {
 		dev_err(&client->dev,
 			"%s: Failed to Register psy_fg\n", __func__);
-		goto err_free;
+		goto err_devm_free;
 	}
 
 	fuelgauge->is_fuel_alerted = false;
@@ -556,7 +585,7 @@ static int __devinit sec_fuelgauge_probe(struct i2c_client *client,
 			dev_err(&client->dev,
 				"%s: Failed to Initialize Fuel-alert\n",
 				__func__);
-			goto err_irq;
+			goto err_supply_unreg;
 		}
 	}
 
@@ -636,7 +665,19 @@ static int __devexit sec_fuelgauge_remove(
 static int sec_fuelgauge_suspend(struct device *dev)
 {
 	struct sec_fuelgauge_info *fuelgauge = dev_get_drvdata(dev);
+	struct power_supply *psy_battery;
 
+	psy_battery = get_power_supply_by_name("battery");
+	if (!psy_battery) {
+		pr_err("%s : can't get battery psy\n", __func__);
+	} else {
+		struct sec_battery_info *battery;
+		battery = container_of(psy_battery, struct sec_battery_info, psy_bat);
+
+		battery->fuelgauge_in_sleep = true;
+		dev_info(&fuelgauge->client->dev, "%s fuelgauge in sleep (%d)\n",
+			__func__, battery->fuelgauge_in_sleep);
+	}
 	if (!sec_hal_fg_suspend(fuelgauge->client))
 		dev_err(&fuelgauge->client->dev,
 			"%s: Failed to Suspend Fuelgauge\n", __func__);
@@ -647,6 +688,19 @@ static int sec_fuelgauge_suspend(struct device *dev)
 static int sec_fuelgauge_resume(struct device *dev)
 {
 	struct sec_fuelgauge_info *fuelgauge = dev_get_drvdata(dev);
+	struct power_supply *psy_battery;
+
+	psy_battery = get_power_supply_by_name("battery");
+	if (!psy_battery) {
+		pr_err("%s : can't get battery psy\n", __func__);
+	} else {
+		struct sec_battery_info *battery;
+		battery = container_of(psy_battery, struct sec_battery_info, psy_bat);
+
+		battery->fuelgauge_in_sleep = false;
+		dev_info(&fuelgauge->client->dev, "%s fuelgauge in sleep (%d)\n",
+			__func__, battery->fuelgauge_in_sleep);
+	}
 
 	if (!sec_hal_fg_resume(fuelgauge->client))
 		dev_err(&fuelgauge->client->dev,

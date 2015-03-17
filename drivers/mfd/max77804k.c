@@ -140,25 +140,34 @@ EXPORT_SYMBOL_GPL(max77804k_update_reg);
 static int of_max77804k_dt(struct device *dev, struct max77804k_platform_data *pdata)
 {
 	struct device_node *np = dev->of_node;
-	struct max77804k_haptic_platform_data *haptic_data;
 	int retval = 0;
-	
+
+#ifdef CONFIG_VIBETONZ
+	struct max77804k_haptic_platform_data *haptic_data;
+
 	haptic_data = kzalloc(sizeof(struct max77804k_haptic_platform_data), GFP_KERNEL);
 	if (haptic_data == NULL)
 		return -ENOMEM;
-	if(!np)
+	if(!np) {
+		kfree(haptic_data);
 		return -EINVAL;
-
-	pdata->irq_gpio = of_get_named_gpio_flags(np, "max77804k,irq-gpio", 
+	}
+#endif
+	pdata->irq_gpio = of_get_named_gpio_flags(np, "max77804k,irq-gpio",
 				0, &pdata->irq_gpio_flags);
-	of_property_read_u32(np, "max77804k,irq-base", &pdata->irq_base);
+	pdata->irq_base = irq_alloc_descs(-1, 0, MAX77804K_IRQ_NR, -1);
+	if (pdata->irq_base < 0) {
+		pr_info("%s irq_alloc_descs is failed! irq_base:%d\n", __func__, pdata->irq_base);
+		/* getting a predefined irq_base on dt file	*/
+		of_property_read_u32(np, "max77804k,irq-base", &pdata->irq_base);
+	}
 	pdata->wakeup = of_property_read_bool(np, "max77804k,wakeup");
 	retval = of_get_named_gpio(np, "max77804k,wc-irq-gpio", 0);
 	if (retval < 0)
 		pdata->wc_irq_gpio = 0;
 	else
 		pdata->wc_irq_gpio = retval;
-	
+
 	pr_info("%s: irq-gpio: %u \n", __func__, pdata->irq_gpio);
 	pr_info("%s: irq-base: %u \n", __func__, pdata->irq_base);
 	pr_info("%s: wc-irq-gpio: %u \n", __func__, pdata->wc_irq_gpio);
@@ -172,6 +181,7 @@ static int of_max77804k_dt(struct device *dev, struct max77804k_platform_data *p
 	pr_info("%s: period: %u \n", __func__, haptic_data->period);
 	pr_info("%s: pwm_id: %u \n", __func__, haptic_data->pwm_id);
 	pdata->haptic_data = haptic_data;
+	kfree(haptic_data);
 #endif
 	return 0;
 }
@@ -202,7 +212,8 @@ static int max77804k_i2c_probe(struct i2c_client *i2c,
 		ret = of_max77804k_dt(&i2c->dev, pdata);
 		if (ret < 0){
 			dev_err(&i2c->dev, "Failed to get device of_node \n");
-			return ret;
+			ret = -ENOMEM;
+			goto err;
 		}
 		/*Filling the platform data*/
 		pdata->muic_data = &max77804k_muic;
@@ -260,13 +271,28 @@ static int max77804k_i2c_probe(struct i2c_client *i2c,
 	if (ret < 0)
 		goto err_irq_init;
 
+	/* disable manual reset */
+	max77804k_read_reg(max77804k->i2c,
+		MAX77804K_PMIC_REG_MAINCTRL1, &reg_data);
+	reg_data &= ~(PMIC_MAINCTRL1_MREN_MASK);
+	max77804k_write_reg(max77804k->i2c,
+		MAX77804K_PMIC_REG_MAINCTRL1, reg_data);
+
 	ret = mfd_add_devices(max77804k->dev, -1, max77804k_devs,
 			ARRAY_SIZE(max77804k_devs), NULL, 0);
 	if (ret < 0)
 		goto err_mfd;
 
 	device_init_wakeup(max77804k->dev, pdata->wakeup);
-
+#if defined(CONFIG_ADC_ONESHOT)
+	/* Set oneshot mode */
+	max77804k_update_reg(max77804k->muic, MAX77804K_MUIC_REG_CTRL4,
+			ADC_ONESHOT<<CTRL4_ADCMODE_SHIFT, CTRL4_ADCMODE_MASK);
+#else
+	/* Set continuous mode */
+	max77804k_update_reg(max77804k->muic, MAX77804K_MUIC_REG_CTRL4,
+			ADC_ALWAYS<<CTRL4_ADCMODE_SHIFT, CTRL4_ADCMODE_MASK);
+#endif
 	return ret;
 
 err_mfd:

@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2013, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2010-2014, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -26,10 +26,12 @@
 #include <linux/platform_device.h>
 #include <linux/of_platform.h>
 #include <linux/cpu_pm.h>
+#include <linux/remote_spinlock.h>
 #include <asm/uaccess.h>
 #include <asm/suspend.h>
 #include <asm/cacheflush.h>
 #include <asm/outercache.h>
+#include <mach/remote_spinlock.h>
 #include <mach/scm.h>
 #include <mach/msm_bus.h>
 #include <mach/jtag.h>
@@ -40,6 +42,7 @@
 #include "scm-boot.h"
 #include "spm.h"
 #include "pm-boot.h"
+#include "clock.h"
 #ifdef CONFIG_SEC_DEBUG
 #include <mach/sec_debug.h>
 #endif
@@ -119,6 +122,12 @@ static bool msm_no_ramp_down_pc;
 static struct msm_pm_sleep_status_data *msm_pm_slp_sts;
 DEFINE_PER_CPU(struct clk *, cpu_clks);
 static struct clk *l2_clk;
+
+static int cpu_count;
+static DEFINE_SPINLOCK(cpu_cnt_lock);
+#define SCM_HANDOFF_LOCK_ID "S:7"
+static bool need_scm_handoff_lock;
+static remote_spinlock_t scm_handoff_lock;
 
 static void (*msm_pm_disable_l2_fn)(void);
 static void (*msm_pm_enable_l2_fn)(void);
@@ -456,8 +465,8 @@ static inline void msm_pc_inc_debug_count(uint32_t cpu,
 	if (!msm_pc_debug_counters)
 		return;
 
-	cnt = readl_relaxed(msm_pc_debug_counters + cpu * 4 + offset * 4);
-	writel_relaxed(++cnt, msm_pc_debug_counters + cpu * 4 + offset * 4);
+	cnt = readl_relaxed(msm_pc_debug_counters + cpu * 4 * MSM_PC_NUM_COUNTERS + offset * 4);
+	writel_relaxed(++cnt, msm_pc_debug_counters + cpu * 4 * MSM_PC_NUM_COUNTERS + offset * 4);
 	mb();
 }
 
@@ -481,8 +490,30 @@ static bool msm_pm_pc_hotplug(void)
 static int msm_pm_collapse(unsigned long unused)
 {
 	uint32_t cpu = smp_processor_id();
+	enum msm_pm_l2_scm_flag flag = MSM_SCM_L2_ON;
 
-	if (msm_pm_get_l2_flush_flag() == MSM_SCM_L2_OFF) {
+	spin_lock(&cpu_cnt_lock);
+	cpu_count++;
+	if (cpu_count == num_online_cpus())
+		flag = msm_pm_get_l2_flush_flag();
+
+	pr_debug("cpu:%d cores_in_pc:%d L2 flag: %d\n",
+			cpu, cpu_count, flag);
+
+	/*
+	 * The scm_handoff_lock will be release by the secure monitor.
+	 * It is used to serialize power-collapses from this point on,
+	 * so that both Linux and the secure context have a consistent
+	 * view regarding the number of running cpus (cpu_count).
+	 *
+	 * It must be acquired before releasing cpu_cnt_lock.
+	 */
+	if (need_scm_handoff_lock)
+		remote_spin_lock_rlock_id(&scm_handoff_lock,
+					  REMOTE_SPINLOCK_TID_START + cpu);
+	spin_unlock(&cpu_cnt_lock);
+
+	if (flag == MSM_SCM_L2_OFF) {
 		flush_cache_all();
 		if (msm_pm_flush_l2_fn)
 			msm_pm_flush_l2_fn();
@@ -494,8 +525,7 @@ static int msm_pm_collapse(unsigned long unused)
 
 	msm_pc_inc_debug_count(cpu, MSM_PC_ENTRY_COUNTER);
 
-	scm_call_atomic1(SCM_SVC_BOOT, SCM_CMD_TERMINATE_PC,
-				msm_pm_get_l2_flush_flag());
+	scm_call_atomic1(SCM_SVC_BOOT, SCM_CMD_TERMINATE_PC, flag);
 
 	msm_pc_inc_debug_count(cpu, MSM_PC_FALLTHRU_COUNTER);
 
@@ -504,6 +534,10 @@ static int msm_pm_collapse(unsigned long unused)
 
 	return 0;
 }
+
+#ifdef CONFIG_SEC_PM_DEBUG
+extern int sec_print_masters_stats(void);
+#endif
 
 static bool __ref msm_pm_spm_power_collapse(
 	unsigned int cpu, bool from_idle, bool notify_rpm)
@@ -541,10 +575,17 @@ static bool __ref msm_pm_spm_power_collapse(
 	collapsed = save_cpu_regs ?
 		!cpu_suspend(0, msm_pm_collapse) : msm_pm_pc_hotplug();
 
+
 #ifdef CONFIG_SEC_DEBUG
 	secdbg_sched_msg("-pc(%d)", collapsed);
 #endif
 
+	if (save_cpu_regs) {
+		spin_lock(&cpu_cnt_lock);
+		cpu_count--;
+		BUG_ON(cpu_count > num_online_cpus());
+		spin_unlock(&cpu_cnt_lock);
+	}
 	msm_jtag_restore_state();
 
 	if (collapsed) {
@@ -652,6 +693,14 @@ static enum msm_pm_time_stats_id msm_pm_power_collapse(bool from_idle)
 
 	if (MSM_PM_DEBUG_POWER_COLLAPSE & msm_pm_debug_mask)
 		pr_info("CPU%u: %s: pre power down\n", cpu, __func__);
+
+	/* This spews a lot of messages when a core is hotplugged. This
+	 * information is most useful from last core going down during
+	 * power collapse
+	 */
+	if ((!from_idle && cpu_online(cpu))
+			|| (MSM_PM_DEBUG_IDLE_CLK & msm_pm_debug_mask))
+		clock_debug_print_enabled();
 
 	avsdscr = avs_get_avsdscr();
 	avscsr = avs_get_avscsr();
@@ -785,7 +834,7 @@ int msm_cpu_pm_enter_sleep(enum msm_pm_sleep_mode mode, bool from_idle)
 
 int msm_pm_wait_cpu_shutdown(unsigned int cpu)
 {
-	int timeout = 10;
+	int timeout = 50;
 
 	if (!msm_pm_slp_sts)
 		return 0;
@@ -1180,6 +1229,7 @@ static int msm_cpu_pm_probe(struct platform_device *pdev)
 	struct resource *res = NULL;
 	int i;
 	struct msm_pm_init_data_type pdata_local;
+	struct device_node *lpm_node;
 	int ret = 0;
 
 	memset(&pdata_local, 0, sizeof(struct msm_pm_init_data_type));
@@ -1204,6 +1254,23 @@ static int msm_cpu_pm_probe(struct platform_device *pdev)
 	} else {
 		msm_pc_debug_counters = 0;
 		msm_pc_debug_counters_phys = 0;
+	}
+
+	lpm_node = of_parse_phandle(pdev->dev.of_node, "qcom,lpm-levels", 0);
+	if (!lpm_node) {
+		pr_warn("Could not get qcom,lpm-levels handle\n");
+		return -EINVAL;
+	}
+	need_scm_handoff_lock = of_property_read_bool(lpm_node,
+						      "qcom,allow-synced-levels");
+	if (need_scm_handoff_lock) {
+		ret = remote_spin_lock_init(&scm_handoff_lock,
+					    SCM_HANDOFF_LOCK_ID);
+		if (ret) {
+			pr_err("%s: Failed initializing scm_handoff_lock (%d)\n",
+				__func__, ret);
+			return ret;
+		}
 	}
 
 	if (pdev->dev.of_node) {

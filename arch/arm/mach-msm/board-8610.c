@@ -63,6 +63,10 @@
 #include <mach/msm8x10-thermistor.h>
 #endif
 
+#ifdef CONFIG_PROC_AVC
+#include <linux/proc_avc.h>
+#endif
+
 static struct memtype_reserve msm8610_reserve_table[] __initdata = {
 	[MEMTYPE_SMI] = {
 	},
@@ -160,6 +164,10 @@ void __init msm8610_init(void)
 	sec_debug_init();
 #endif
 
+#ifdef CONFIG_PROC_AVC
+	sec_avc_log_init();
+#endif
+
 	if (socinfo_init() < 0)
 		pr_err("%s: socinfo_init() failed\n", __func__);
 
@@ -175,7 +183,7 @@ static const char *msm8610_dt_match[] __initconst = {
 	NULL
 };
 
-DT_MACHINE_START(MSM8610_DT, "Qualcomm MSM 8610 (Flattened Device Tree)")
+DT_MACHINE_START(MSM8610_DT, "Qualcomm MSM 8x10 / MSM 8x12 (Flattened Device Tree)")
 	.map_io = msm_map_msm8610_io,
 	.init_irq = msm_dt_init_irq,
 	.init_machine = msm8610_init,

@@ -665,7 +665,7 @@ OPEN_ERR:
 static int streaming_release(struct inode *inode, struct file *filp)
 {
 	struct es705_priv *es705;
-	int err;
+	int err = 0;
 	char *page;
 
 	es705 = (struct es705_priv *)filp->private_data;

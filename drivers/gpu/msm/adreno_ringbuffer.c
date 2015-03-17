@@ -1,4 +1,4 @@
-/* Copyright (c) 2002,2007-2013, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2002,2007-2014, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -665,7 +665,8 @@ adreno_ringbuffer_addcmds(struct adreno_ringbuffer *rb,
 	total_sizedwords += (flags & KGSL_CMD_FLAGS_INTERNAL_ISSUE) ? 2 : 0;
 
 	/* Add two dwords for the CP_INTERRUPT */
-	total_sizedwords += drawctxt ? 2 : 0;
+	total_sizedwords +=
+		(drawctxt || (flags & KGSL_CMD_FLAGS_INTERNAL_ISSUE)) ?  2 : 0;
 
 	if (adreno_is_a3xx(adreno_dev))
 		total_sizedwords += 7;
@@ -1141,6 +1142,67 @@ adreno_ringbuffer_issueibcmds(struct kgsl_device_private *dev_priv,
 	return ret;
 }
 
+unsigned int adreno_ringbuffer_get_constraint(struct kgsl_device *device,
+				struct kgsl_context *context)
+{
+	unsigned int pwrlevel = device->pwrctrl.active_pwrlevel;
+
+	switch (context->pwr_constraint.type) {
+	case KGSL_CONSTRAINT_PWRLEVEL: {
+		switch (context->pwr_constraint.sub_type) {
+		case KGSL_CONSTRAINT_PWR_MAX:
+			pwrlevel = device->pwrctrl.max_pwrlevel;
+			break;
+		case KGSL_CONSTRAINT_PWR_MIN:
+			pwrlevel = device->pwrctrl.min_pwrlevel;
+			break;
+		default:
+			break;
+		}
+	}
+	break;
+
+	}
+
+	return pwrlevel;
+}
+
+void adreno_ringbuffer_set_constraint(struct kgsl_device *device,
+			struct kgsl_cmdbatch *cmdbatch)
+{
+	unsigned int constraint;
+	struct kgsl_context *context = cmdbatch->context;
+	/*
+	 * Check if the context has a constraint and constraint flags are
+	 * set.
+	 */
+	if (context->pwr_constraint.type &&
+		((context->flags & KGSL_CONTEXT_PWR_CONSTRAINT) ||
+			(cmdbatch->flags & KGSL_CONTEXT_PWR_CONSTRAINT))) {
+
+		constraint = adreno_ringbuffer_get_constraint(device, context);
+
+		/*
+		 * If a constraint is already set, set a new
+		 * constraint only if it is faster
+		 */
+		if ((device->pwrctrl.constraint.type ==
+			KGSL_CONSTRAINT_NONE) || (constraint <
+			device->pwrctrl.constraint.hint.pwrlevel.level)) {
+
+			kgsl_pwrctrl_pwrlevel_change(device, constraint);
+			device->pwrctrl.constraint.type =
+					context->pwr_constraint.type;
+			device->pwrctrl.constraint.hint.
+					pwrlevel.level = constraint;
+		}
+
+		device->pwrctrl.constraint.expires = jiffies +
+			device->pwrctrl.interval_timeout;
+	}
+
+}
+
 /* adreno_rindbuffer_submitcmd - submit userspace IBs to the GPU */
 int adreno_ringbuffer_submitcmd(struct adreno_device *adreno_dev,
 		struct kgsl_cmdbatch *cmdbatch)
@@ -1165,6 +1227,29 @@ int adreno_ringbuffer_submitcmd(struct adreno_device *adreno_dev,
 
 	/* process any profiling results that are available into the log_buf */
 	adreno_profile_process_results(device);
+
+	/*
+	 * If SKIP CMD flag is set for current context
+	 * a) set SKIPCMD as fault_recovery for current commandbatch
+	 * b) store context's commandbatch fault_policy in current
+	 *    commandbatch fault_policy and clear context's commandbatch
+	 *    fault_policy
+	 * c) force preamble for commandbatch
+	 */
+	if (test_bit(ADRENO_CONTEXT_SKIP_CMD, &drawctxt->priv) &&
+		(!test_bit(CMDBATCH_FLAG_SKIP, &cmdbatch->priv))) {
+
+		set_bit(KGSL_FT_SKIPCMD, &cmdbatch->fault_recovery);
+		cmdbatch->fault_policy = drawctxt->fault_policy;
+		set_bit(CMDBATCH_FLAG_FORCE_PREAMBLE, &cmdbatch->priv);
+
+		/* if context is detached print fault recovery */
+		adreno_fault_skipcmd_detached(device, drawctxt, cmdbatch);
+
+		/* clear the drawctxt flags */
+		clear_bit(ADRENO_CONTEXT_SKIP_CMD, &drawctxt->priv);
+		drawctxt->fault_policy = 0;
+	}
 
 	/*When preamble is enabled, the preamble buffer with state restoration
 	commands are stored in the first node of the IB chain. We can skip that
@@ -1250,6 +1335,9 @@ int adreno_ringbuffer_submitcmd(struct adreno_device *adreno_dev,
 	if (test_and_clear_bit(ADRENO_DEVICE_PWRON, &adreno_dev->priv) &&
 		test_bit(ADRENO_DEVICE_PWRON_FIXUP, &adreno_dev->priv))
 		flags |= KGSL_CMD_FLAGS_PWRON_FIXUP;
+
+	/* Set the constraints before adding to ringbuffer */
+	adreno_ringbuffer_set_constraint(device, cmdbatch);
 
 	ret = adreno_ringbuffer_addcmds(&adreno_dev->ringbuffer,
 					drawctxt,

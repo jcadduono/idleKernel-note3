@@ -143,6 +143,7 @@
 /* Poll interval in uS */
 #define POLL_INTERVAL_US                                50
 
+
 #define VIDC_VENUS0_WRAPPER_VBIF_REQ_PRIORITY \
 	(VIDC_WRAPPER_BASE_OFFS + 0x20)
 #define VIDC_VENUS0_WRAPPER_VBIF_PRIORITY_LEVEL \

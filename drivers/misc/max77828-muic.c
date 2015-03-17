@@ -43,6 +43,11 @@
 
 #define DEV_NAME	"max77828-muic"
 
+/* For testing of Adaptive Charging */
+#ifndef TEST
+#define TEST	1
+#endif
+
 /* for providing API */
 static struct max77828_muic_info *gInfo;
 
@@ -328,6 +333,10 @@ static ssize_t max77828_muic_show_device(struct device *dev,
 		return sprintf(buf, "OTG\n");
 	case CABLE_TYPE_TA_MUIC:
 		return sprintf(buf, "TA\n");
+#if defined(CONFIG_MACH_KLTE_JPN)
+	case CABLE_TYPE_HV_TA_MUIC:
+		return sprintf(buf, "TA\n");
+#endif
 	case CABLE_TYPE_DESKDOCK_MUIC:
 		return sprintf(buf, "Desk Dock\n");
 	case CABLE_TYPE_SMARTDOCK_MUIC:
@@ -539,12 +548,38 @@ static void max77828_muic_start_check_hv(struct max77828_muic_info *info)
 		dev_err(info->dev, "%s: no muic i2c client\n", __func__);
 		return;                                                      	
 	}
+#if defined(CONFIG_MACH_KLTE_JPN)
+	/* Clear INT3 */
+	max77828_read_reg(info->muic, MAX77828_MUIC_REG_INT3, &val);
+#endif
 
 	ret = max77828_read_reg(info->muic, MAX77828_MUIC_REG_HVCTRL1, &val);
-	dev_info(info->dev, "%s: HVCTRL1 (0x%02x)\n", __func__, val);
+	dev_info(info->dev, "%s: Read HVCTRL1 (0x%02x)\n", __func__, val);
 	if (ret) {
 		dev_err(info->dev, "%s: fail to read muic reg\n", __func__);
 	}
+#if defined(CONFIG_MACH_KLTE_JPN)
+	/* set HVCONTROL1=0x11 */
+	val |= (HVCTRL1_DPVD_D06 | HVCTRL1_DPDNVDEN_MASK);
+	dev_info(info->dev, "%s: Write HVCTRL1 (0x%02x)\n", __func__, val);
+
+	ret = max77828_write_reg(info->muic, MAX77828_MUIC_REG_HVCTRL1, val);
+	if (ret < 0)
+		dev_err(info->dev, "%s: fail to update reg\n", __func__);
+//Test to read back the written value
+#if TEST
+	ret = max77828_read_reg(info->muic, MAX77828_MUIC_REG_HVCTRL1, &val);
+	dev_info(info->dev, "%s: result HVCTRL1 (0x%02x)\n", __func__, val);
+	if (ret) {
+		dev_err(info->dev, "%s: fail to read muic reg\n", __func__);
+	}
+#endif
+	/* Delete it because we use polling method to check INT3 */
+	/* set INTMASK3 = 0x02 */
+	ret = max77828_write_reg(info->muic, MAX77828_MUIC_REG_INT3, 0x3);
+	if (ret < 0)
+		dev_err(info->dev, "%s: fail to update reg\n", __func__);
+#else
 
 	val |= (0x10 << HVCTRL1_DPVD_SHIFT);
 
@@ -554,6 +589,7 @@ static void max77828_muic_start_check_hv(struct max77828_muic_info *info)
 	dev_info(info->dev, "%s: result HVCTRL1 (0x%02x)\n", __func__, val);
 	if (ret < 0)
 		dev_err(info->dev, "%s: fail to update reg\n", __func__);
+#endif
 
 	info->timer.expires = jiffies + 15 * HZ / 10;
 	add_timer(&info->timer);
@@ -582,7 +618,7 @@ static void max77828_check_hv(unsigned long arg)
 		dev_err(gInfo->dev, "%s:cannot read STATUS3%d\n", __func__, ret);
 		return;
 	}
-	
+	dev_info(gInfo->dev, "%s: Get MAX77828_MUIC_REG_STATUS3 (0x%02x)\n", __func__, value);
 	/* Check VDNMon Value is checked or not*/
 	if (value & 0x10)
 		return;
@@ -594,13 +630,21 @@ static void max77828_check_hv(unsigned long arg)
 	 */
 	max77828_write_reg(gInfo->max77828->muic, MAX77828_MUIC_REG_STATUS2, 0x06);
 	max77828_write_reg(gInfo->max77828->muic, MAX77828_MUIC_REG_STATUS1, 0x00);
+	/* Disable INT3 */
+	ret = max77828_write_reg(gInfo->muic, MAX77828_MUIC_REG_INT3, 0x0);
+	if (ret < 0)
+		dev_err(gInfo->dev, "%s: fail to update reg\n", __func__);
 
 	/* Set TX Data */
-	value = gInfo->tx_data;
+//	value = gInfo->tx_data;
+	/* TX Data = 0x45 */
+	value = 0x45;
 	max77828_write_reg(gInfo->max77828->muic, MAX77828_MUIC_REG_HVTXBYTE, value);
 	
 	/* Set HVCTRL2 = 0x1B*/
-	max77828_write_reg(gInfo->max77828->muic, MAX77828_MUIC_REG_HVCTRL2, 0x1B);
+//	max77828_write_reg(gInfo->max77828->muic, MAX77828_MUIC_REG_HVCTRL2, 0x1B);
+	/* disable DNResN + enable HVDigEn + Mping + MTxEn + MPngEnb */
+	max77828_write_reg(gInfo->max77828->muic, MAX77828_MUIC_REG_HVCTRL2, 0x5B);
 }
 
 static int max77828_muic_check_vdnmon_status(struct max77828_muic_info *info)
@@ -618,6 +662,7 @@ static int max77828_muic_check_vdnmon_status(struct max77828_muic_info *info)
 	if (ret) {
 		dev_err(info->dev, "%s: fail to read muic reg\n", __func__);
 	}
+	dev_info(info->dev, "Value read from REG func:%s val:%x\n", __func__, val);
 	val &= STATUS3_VDNMON_MASK;
 	val = val >> STATUS3_VDNMON_SHIFT;
 	dev_info(info->dev, "func:%s val:%x\n", __func__, val);
@@ -2442,9 +2487,15 @@ static int max77828_muic_handle_attach(struct max77828_muic_info *info,
 			dev_info(info->dev, "%s:TA\n", __func__);
 			ret = max77828_muic_check_vdnmon_status(info);
 			if (ret == 0)
+			{
 				info->cable_type = CABLE_TYPE_HV_TA_MUIC;
+				dev_info(info->dev, "%s: HV_TA(charging)\n", __func__);
+			}
 			else
+			{
 				info->cable_type = CABLE_TYPE_TA_MUIC;
+				dev_info(info->dev, "%s: TA(charging)\n", __func__);
+			}
 #ifdef CONFIG_USBHUB_USB3803
 			/* setting usb hub in default mode (standby) */
 			usb3803_set_mode(USB_3803_MODE_STANDBY);

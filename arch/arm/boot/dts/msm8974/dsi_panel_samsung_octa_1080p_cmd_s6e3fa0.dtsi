@@ -17,7 +17,7 @@
 		label = "samsung amoled 1080p command mode dsi S6E3FA0 panel";
 		status = "disable";
 		qcom,mdss-dsi-panel-controller = <&mdss_dsi0>;
-
+        qcom,cont-splash-enabled = <1>;
 		qcom,enable-gpio = <&pm8941_gpios 14 0>;
 		qcom,rst-gpio = <&pm8941_gpios 19 0>;
 		qcom,te-gpio = <&msmgpio 12 0>;
@@ -105,16 +105,16 @@
 				29 01 00 00 00 00 03 FC 5A 5A /* Level3 key Enable */
 				29 01 00 00 00 00 03 ED 0C 04 /* ERR_FG */
 				23 01 00 00 00 00 02 FF 01	   /* Hsync On */
-				29 01 00 00 00 00 03 FC A5 A5 /* Level3 key Disable */
+				29 01 00 00 0A 00 03 FC A5 A5 /* Level3 key Disable */
 			];
-		qcom,on-cmds-dsi-state = "DSI_HS_MODE";
+		qcom,on-cmds-dsi-state = "dsi_hs_mode";
 		qcom,panel-off-cmds = [
 				05 01 00 00 0A 00 02 28 00
 				/* !! Needs 10ms(=0x0A) wait !!*/
 				05 01 00 00 78 00 02 10 00
 				/* !! Needs 120ms(=0x78) wait !!*/
 		];
-		qcom,off-cmds-dsi-state = "DSI_HS_MODE";
+		qcom,off-cmds-dsi-state = "dsi_hs_mode";
 
 		/*
 			the last byte in read commands  represent READ LENGH,

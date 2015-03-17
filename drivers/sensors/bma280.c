@@ -102,7 +102,6 @@ struct bma280_p {
 	int irq1;
 	int irq_state;
 	int acc_int1;
-	int acc_int2;
 	int sda_gpio;
 	int scl_gpio;
 	int time_count;
@@ -426,8 +425,9 @@ static enum hrtimer_restart bma280_timer_func(struct hrtimer *timer)
 {
 	struct bma280_p *data = container_of(timer,
 					struct bma280_p, accel_timer);
+	if (!work_pending(&data->work))
+		queue_work(data->accel_wq, &data->work);
 
-	queue_work(data->accel_wq, &data->work);
 	hrtimer_forward_now(&data->accel_timer, data->poll_delay);
 
 	return HRTIMER_RESTART;
@@ -557,7 +557,9 @@ static ssize_t bma280_delay_store(struct device *dev,
 	pr_info("[SENSOR]: %s - poll_delay = %lld\n", __func__, delay);
 
 	if (atomic_read(&data->enable) == ON) {
+		bma280_set_mode(data, BMA280_MODE_SUSPEND);
 		bma280_set_enable(data, OFF);
+		bma280_set_mode(data, BMA280_MODE_NORMAL);
 		bma280_set_enable(data, ON);
 	}
 
@@ -964,34 +966,8 @@ static int bma280_setup_pin(struct bma280_p *data)
 		goto exit_acc_int1;
 	}
 
-	ret = gpio_request(data->acc_int2, "ACC_INT2");
-	if (ret < 0) {
-		pr_err("[SENSOR]: %s - gpio %d request failed (%d)\n",
-			__func__, data->acc_int2, ret);
-	} else {
-		ret = gpio_direction_input(data->acc_int2);
-		if (ret < 0)
-			pr_err("[SENSOR]: %s - failed to set gpio %d as input"
-				" (%d)\n", __func__, data->acc_int2, ret);
-		gpio_free(data->acc_int2);
-	}
-
-	wake_lock_init(&data->reactive_wake_lock, WAKE_LOCK_SUSPEND,
-		       "reactive_wake_lock");
-
-	data->irq1 = gpio_to_irq(data->acc_int1);
-	ret = request_threaded_irq(data->irq1, NULL, bma280_irq_thread,
-		IRQF_TRIGGER_RISING | IRQF_ONESHOT, "bma280_accel", data);
-	if (ret < 0) {
-		pr_err("[SENSOR]: %s - can't allocate irq.\n", __func__);
-		goto exit_reactive_irq;
-	}
-
-	disable_irq(data->irq1);
 	goto exit;
 
-exit_reactive_irq:
-	wake_lock_destroy(&data->reactive_wake_lock);
 exit_acc_int1:
 	gpio_free(data->acc_int1);
 exit:
@@ -1055,11 +1031,6 @@ static int bma280_parse_dt(struct bma280_p *data, struct device *dev)
 		return -ENODEV;
 	}
 
-	data->acc_int2 = of_get_named_gpio_flags(dNode,
-		"bma280-i2c,acc_int2-gpio", 0, &flags);
-	if (data->acc_int2 < 0)
-		pr_err("[SENSOR]: %s - acc_int2 error\n", __func__);
-
 	data->sda_gpio = of_get_named_gpio_flags(dNode,
 		"bma280-i2c,sda", 0, &flags);
 	if (data->sda_gpio < 0)
@@ -1104,6 +1075,7 @@ static int sensor_regulator_onoff(struct device *dev, bool onoff)
 
 	devm_regulator_put(sensor_vcc);
 	devm_regulator_put(sensor_lvs1);
+	mdelay(5);
 
 	return 0;
 }
@@ -1149,9 +1121,10 @@ static int bma280_probe(struct i2c_client *client,
 	i2c_set_clientdata(client, data);
 	data->client = client;
 	mutex_init(&data->mode_mutex);
+	wake_lock_init(&data->reactive_wake_lock, WAKE_LOCK_SUSPEND,
+		       "reactive_wake_lock");
 
 	/* read chip id */
-	bma280_set_mode(data, BMA280_MODE_NORMAL);
 	for (i = 0; i < CHIP_ID_RETRIES; i++) {
 		ret = i2c_smbus_read_word_data(client, BMA280_CHIP_ID_REG);
 		if ((ret & 0x00ff) != BMA280_CHIP_ID) {
@@ -1195,6 +1168,17 @@ static int bma280_probe(struct i2c_client *client,
 	INIT_WORK(&data->work, bma280_work_func);
 	INIT_DELAYED_WORK(&data->irq_work, bma280_irq_work_func);
 
+	data->irq1 = gpio_to_irq(data->acc_int1);
+
+	ret = request_threaded_irq(data->irq1, NULL, bma280_irq_thread,
+		IRQF_TRIGGER_RISING | IRQF_ONESHOT, "bma280_accel", data);
+	if (ret < 0) {
+		pr_err("[SENSOR]: %s - can't allocate irq.\n", __func__);
+		goto exit_request_threaded_irq;
+	}
+
+	disable_irq(data->irq1);
+
 	atomic_set(&data->enable, OFF);
 	data->time_count = 0;
 	data->irq_state = 0;
@@ -1209,6 +1193,7 @@ static int bma280_probe(struct i2c_client *client,
 
 	return 0;
 
+exit_request_threaded_irq:
 exit_create_workqueue:
 	sensors_unregister(data->factory_device, sensor_attrs);
 	sensors_remove_symlink(&data->input->dev.kobj, data->input->name);
@@ -1217,7 +1202,6 @@ exit_create_workqueue:
 exit_input_init:
 exit_read_chipid:
 	mutex_destroy(&data->mode_mutex);
-	free_irq(data->irq1, data);
 	wake_lock_destroy(&data->reactive_wake_lock);
 	gpio_free(data->acc_int1);
 exit_setup_pin:

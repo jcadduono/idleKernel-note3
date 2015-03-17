@@ -12,8 +12,14 @@
 
 #include <linux/mfd/max77804k.h>
 #include <linux/mfd/max77804k-private.h>
+#include <linux/of_gpio.h>
+
 #ifdef CONFIG_USB_HOST_NOTIFY
 #include <linux/host_notify.h>
+#endif
+
+#if defined(CONFIG_MACH_KLTE_CTC)
+#include <linux/qpnp/power-on.h>
 #endif
 
 #define ENABLE 1
@@ -31,6 +37,8 @@
 
 #define SIOP_INPUT_LIMIT_CURRENT 1200
 #define SIOP_CHARGING_LIMIT_CURRENT 1000
+#define SIOP_WIRELESS_INPUT_LIMIT_CURRENT 620
+#define SIOP_WIRELESS_CHARGING_LIMIT_CURRENT 680
 #define SLOW_CHARGING_CURRENT_STANDARD 400
 
 struct max77804k_charger_data {
@@ -52,6 +60,7 @@ struct max77804k_charger_data {
 	/* wakelock */
 	struct wake_lock recovery_wake_lock;
 	struct wake_lock wpc_wake_lock;
+	struct wake_lock chgin_wake_lock;
 
 	unsigned int	is_charging;
 	unsigned int	charging_type;
@@ -121,6 +130,7 @@ static enum power_supply_property sec_charger_props[] = {
 static void max77804k_charger_initialize(struct max77804k_charger_data *charger);
 static int max77804k_get_vbus_state(struct max77804k_charger_data *charger);
 static int max77804k_get_charger_state(struct max77804k_charger_data *charger);
+static int max77804k_get_byp_dtls(struct max77804k_charger_data *charger);
 
 /*
 static void max77804k_dump_reg(struct max77804k_charger_data *charger)
@@ -200,17 +210,15 @@ static void max77804k_set_charger_state(struct max77804k_charger_data *charger,
 {
 	u8 reg_data;
 
-	max77804k_read_reg(charger->max77804k->i2c,
-			MAX77804K_CHG_REG_CHG_CNFG_00, &reg_data);
+	pr_debug("%s: enable (%d)\n", __func__, enable);
 
 	if (enable)
-		reg_data |= MAX77804K_MODE_CHGR;
+		reg_data = MAX77804K_MODE_CHGR;
 	else
-		reg_data &= ~MAX77804K_MODE_CHGR;
+		reg_data = 0x0;
 
-	pr_debug("%s: CHG_CNFG_00(0x%02x)\n", __func__, reg_data);
-	max77804k_write_reg(charger->max77804k->i2c,
-			MAX77804K_CHG_REG_CHG_CNFG_00, reg_data);
+	max77804k_update_reg(charger->max77804k->i2c,
+			MAX77804K_CHG_REG_CHG_CNFG_00, reg_data, MAX77804K_MODE_CHGR);
 }
 
 static void max77804k_set_buck(struct max77804k_charger_data *charger,
@@ -218,17 +226,15 @@ static void max77804k_set_buck(struct max77804k_charger_data *charger,
 {
 	u8 reg_data;
 
-	max77804k_read_reg(charger->max77804k->i2c,
-		MAX77804K_CHG_REG_CHG_CNFG_00, &reg_data);
+	pr_debug("%s: enable (%d)\n", __func__, enable);
 
 	if (enable)
-		reg_data |= MAX77804K_MODE_BUCK;
+		reg_data = MAX77804K_MODE_BUCK;
 	else
-		reg_data &= ~MAX77804K_MODE_BUCK;
+		reg_data = 0x0;
 
-	pr_debug("%s: CHG_CNFG_00(0x%02x)\n", __func__, reg_data);
-	max77804k_write_reg(charger->max77804k->i2c,
-		MAX77804K_CHG_REG_CHG_CNFG_00, reg_data);
+	max77804k_update_reg(charger->max77804k->i2c,
+		MAX77804K_CHG_REG_CHG_CNFG_00, reg_data, MAX77804K_MODE_BUCK);
 }
 
 #ifdef WPC_CHECK_CVPRM_FEATURE
@@ -280,7 +286,7 @@ static void max77804k_check_slow_charging(struct max77804k_charger_data *charger
 		charger->aicl_on = false;
 }
 
-extern unsigned int system_rev;
+
 static void max77804k_change_charge_path(struct max77804k_charger_data *charger,
 		int path)
 {
@@ -293,10 +299,7 @@ static void max77804k_change_charge_path(struct max77804k_charger_data *charger,
 		cnfg12 = (1 << CHG_CNFG_12_CHGINSEL_SHIFT);
 		ctrl3 = (0 << CTRL3_JIGSET_SHIFT);
 	}
-//#if defined(CONFIG_MACH_HLTEVZW) || defined(CONFIG_MACH_HLTESPR) || defined(CONFIG_MACH_HLTEUSC)
-	if (system_rev == 0)
-		ctrl3 = (1 << CTRL3_JIGSET_SHIFT);
-//#endif
+
 	if (charger->pmic_ver == 0x04)
 		max77804k_update_reg(charger->max77804k->muic, MAX77804K_MUIC_REG_CTRL3,
 				ctrl3,	CTRL3_JIGSET_MASK);
@@ -308,16 +311,15 @@ static void max77804k_set_input_current(struct max77804k_charger_data *charger,
 		int cur)
 {
 	int set_current_reg, now_current_reg;
-	int vbus_state, curr_step, delay;
+	int byp_dtls, curr_step, delay;
 	u8 set_reg, reg_data;
 	int chg_state;
 
 	mutex_lock(&charger->ops_lock);
-	max77804k_read_reg(charger->max77804k->i2c,
-		MAX77804K_CHG_REG_CHG_INT_MASK, &reg_data);
-	reg_data |= (0x1 << 6);
-	max77804k_write_reg(charger->max77804k->i2c,
-		MAX77804K_CHG_REG_CHG_INT_MASK, reg_data);
+
+	max77804k_update_reg(charger->max77804k->i2c,
+		MAX77804K_CHG_REG_CHG_INT_MASK, MAX77804K_CHGIN_IM, MAX77804K_CHGIN_IM);
+
 
 	if (charger->cable_type == POWER_SUPPLY_TYPE_WIRELESS) {
 		set_reg = MAX77804K_CHG_REG_CHG_CNFG_10;
@@ -334,7 +336,20 @@ static void max77804k_set_input_current(struct max77804k_charger_data *charger,
 		/* disable only buck because power onoff test issue */
 		max77804k_write_reg(charger->max77804k->i2c,
 			set_reg, 0x19);
+
+#if defined(CONFIG_MACH_KLTE_CTC)
+		pr_info("%s: qpnp_pon_set_wd_timer 2s\n", __func__);
+		qpnp_pon_set_wd_timer(1, 1, 0x8);
+		msleep(10);
+#endif
+
 		max77804k_set_buck(charger, DISABLE);
+
+#if defined(CONFIG_MACH_KLTE_CTC)
+		msleep(10);
+		pr_info("%s: qpnp_pon_set_wd_timer 18s\n", __func__);
+		qpnp_pon_set_wd_timer(17, 1, 0xE);
+#endif
 		goto exit;
 	} else {
 		max77804k_change_charge_path(charger, charger->cable_type);
@@ -348,10 +363,12 @@ static void max77804k_set_input_current(struct max77804k_charger_data *charger,
 	max77804k_read_reg(charger->max77804k->i2c,
 		set_reg, &reg_data);
 	if (reg_data == set_current_reg) {
+		msleep(50); /* for byp dtls update */
+
 		/* check uvlo  */
 		while((set_current_reg > (MINIMUM_INPUT_CURRENT / charger->input_curr_limit_step)) && (set_current_reg < 255)) {
-			vbus_state = max77804k_get_vbus_state(charger);
-			if (((vbus_state == 0x00) || (vbus_state == 0x01)) &&
+			byp_dtls = max77804k_get_byp_dtls(charger);
+			if ((byp_dtls == 0x08) &&
 				(charger->cable_type != POWER_SUPPLY_TYPE_WIRELESS)) {
 				/* UVLO */
 				set_current_reg -= 5;
@@ -385,6 +402,8 @@ static void max77804k_set_input_current(struct max77804k_charger_data *charger,
 	} else {
 		curr_step = SOFT_CHG_CURR_STEP / charger->input_curr_limit_step;
 		delay = SOFT_CHG_STEP_DUR;
+
+		msleep(30); /* for byp dtls update */
 	}
 	now_current_reg += (curr_step);
 
@@ -396,8 +415,8 @@ static void max77804k_set_input_current(struct max77804k_charger_data *charger,
 			set_reg, now_current_reg);
 		msleep(delay);
 
-		vbus_state = max77804k_get_vbus_state(charger);
-		if (((vbus_state == 0x00) || (vbus_state == 0x01)) &&
+		byp_dtls = max77804k_get_byp_dtls(charger);
+		if ((byp_dtls == 0x08) &&
 				(charger->cable_type != POWER_SUPPLY_TYPE_WIRELESS)) {
 			/* UVLO */
 			if (now_current_reg > (curr_step * 3))
@@ -432,11 +451,9 @@ exit:
 		set_reg, &reg_data);
 	max77804k_check_slow_charging(charger, reg_data);
 
-	max77804k_read_reg(charger->max77804k->i2c,
-		MAX77804K_CHG_REG_CHG_INT_MASK, &reg_data);
-	reg_data &= ~(0x1 << 6);
-	max77804k_write_reg(charger->max77804k->i2c,
-		MAX77804K_CHG_REG_CHG_INT_MASK, reg_data);
+	max77804k_update_reg(charger->max77804k->i2c,
+			MAX77804K_CHG_REG_CHG_INT_MASK, 0, MAX77804K_CHGIN_IM);
+
 	mutex_unlock(&charger->ops_lock);
 }
 
@@ -575,7 +592,7 @@ static void max77804k_recovery_work(struct work_struct *work)
 				(chg_data->soft_reg_recovery_cnt + 1));
 		if (chg_data->siop_level < 100 &&
 			chg_data->cable_type == POWER_SUPPLY_TYPE_MAINS) {
-			pr_info("%s : LCD on status and revocer current\n", __func__);
+			pr_info("%s : LCD on status and recover current\n", __func__);
 			max77804k_set_input_current(chg_data,
 					SIOP_INPUT_LIMIT_CURRENT);
 		} else {
@@ -677,6 +694,21 @@ static int max77804k_get_vbus_state(struct max77804k_charger_data *charger)
 	return reg_data;
 }
 
+static int max77804k_get_byp_dtls(struct max77804k_charger_data *charger)
+{
+	u8 reg_data;
+
+	max77804k_read_reg(charger->max77804k->i2c,
+				MAX77804K_CHG_REG_CHG_DTLS_02,
+				&reg_data);
+	reg_data = ((reg_data & MAX77804K_BYP_DTLS) >>
+				MAX77804K_BYP_DTLS_SHIFT);
+
+	pr_info("%s: BYP_DTLS : 0x%2x\n", __func__, reg_data);
+
+	return reg_data;
+}
+
 static int max77804k_get_charger_state(struct max77804k_charger_data *charger)
 {
 	int state;
@@ -720,14 +752,17 @@ static int max77804k_get_health_state(struct max77804k_charger_data *charger)
 	int state;
 	int vbus_state;
 	int retry_cnt;
-	u8 chg_dtls_00, chg_dtls, reg_data;
+	u8 chg_int_mask, chg_dtls_00, chg_dtls, reg_data;
 	u8 chg_cnfg_00, chg_cnfg_01 ,chg_cnfg_02, chg_cnfg_04, chg_cnfg_09, chg_cnfg_12;
 
 	max77804k_read_reg(charger->max77804k->i2c,
 		MAX77804K_CHG_REG_CHG_DTLS_01, &reg_data);
+	max77804k_read_reg(charger->max77804k->i2c,
+		MAX77804K_CHG_REG_CHG_INT_MASK, &chg_int_mask);
+
 	reg_data = ((reg_data & MAX77804K_BAT_DTLS) >> MAX77804K_BAT_DTLS_SHIFT);
 
-	pr_info("%s: reg_data(0x%x)\n", __func__, reg_data);
+	pr_info("%s: bat_dtls(0x%x) int_mask(0x%x)\n", __func__, reg_data, chg_int_mask);
 	switch (reg_data) {
 	case 0x00:
 		pr_info("%s: No battery and the charger is suspended\n",
@@ -826,6 +861,12 @@ static int max77804k_get_health_state(struct max77804k_charger_data *charger)
 			max77804k_set_input_current(charger,
 					charger->charging_current_max);
 		}
+
+		if (chg_int_mask & MAX77804K_WCIN_IM) {
+			pr_info("%s: unmask wcin int\n", __func__);
+			max77804k_update_reg(charger->max77804k->i2c,
+				MAX77804K_CHG_REG_CHG_INT_MASK, 0, MAX77804K_WCIN_IM);
+		}
 	}
 
 	return state;
@@ -906,6 +947,7 @@ static int sec_chg_set_property(struct power_supply *psy,
 	int set_charging_current, set_charging_current_max;
 	const int usb_charging_current = charger->pdata->charging_current[
 		POWER_SUPPLY_TYPE_USB].fast_charging_current;
+	u8 chg_cnfg_00;
 
 	switch (psp) {
 	case POWER_SUPPLY_PROP_STATUS:
@@ -919,12 +961,18 @@ static int sec_chg_set_property(struct power_supply *psy,
 		if (val->intval == POWER_SUPPLY_TYPE_POWER_SHARING) {
 			psy_do_property("ps", get,
 				POWER_SUPPLY_PROP_STATUS, value);
+			chg_cnfg_00 = CHG_CNFG_00_OTG_MASK
+				| CHG_CNFG_00_BOOST_MASK
+				| CHG_CNFG_00_DIS_MUIC_CTRL_MASK;
+
 			if (value.intval) {
 				max77804k_update_reg(charger->max77804k->i2c, MAX77804K_CHG_REG_CHG_CNFG_00,
-					1 << CHG_CNFG_00_OTG_SHIFT, CHG_CNFG_00_OTG_MASK);
+					chg_cnfg_00, chg_cnfg_00);
+				pr_info("%s: ps enable\n", __func__);
 			} else {
 				max77804k_update_reg(charger->max77804k->i2c, MAX77804K_CHG_REG_CHG_CNFG_00,
-					0, CHG_CNFG_00_OTG_MASK);
+					0, chg_cnfg_00);
+				pr_info("%s: ps disable\n", __func__);
 			}
 			break;
 		}
@@ -964,24 +1012,35 @@ static int sec_chg_set_property(struct power_supply *psy,
 				max77804k_check_cvprm(charger, 0x1D);
 #endif
 
-			if (charger->siop_level < 100 &&
-				set_charging_current_max > SIOP_INPUT_LIMIT_CURRENT) {
-				set_charging_current_max = SIOP_INPUT_LIMIT_CURRENT;
-				if (set_charging_current > SIOP_CHARGING_LIMIT_CURRENT)
-					set_charging_current = SIOP_CHARGING_LIMIT_CURRENT;
+			if (charger->siop_level < 100) {
+				if (val->intval == POWER_SUPPLY_TYPE_WIRELESS) {
+					if (set_charging_current_max > SIOP_WIRELESS_INPUT_LIMIT_CURRENT) {
+						set_charging_current_max = SIOP_WIRELESS_INPUT_LIMIT_CURRENT;
+						if (set_charging_current > SIOP_WIRELESS_CHARGING_LIMIT_CURRENT)
+							set_charging_current = SIOP_WIRELESS_CHARGING_LIMIT_CURRENT;
+					}
+				} else {
+					if (set_charging_current_max > SIOP_INPUT_LIMIT_CURRENT) {
+						set_charging_current_max = SIOP_INPUT_LIMIT_CURRENT;
+						if (set_charging_current > SIOP_CHARGING_LIMIT_CURRENT)
+							set_charging_current = SIOP_CHARGING_LIMIT_CURRENT;
+					}
+				}
 			}
 		}
 		max77804k_set_charger_state(charger, charger->is_charging);
 		/* if battery full, only disable charging  */
 		if ((charger->status == POWER_SUPPLY_STATUS_CHARGING) ||
 				(charger->status == POWER_SUPPLY_STATUS_DISCHARGING) ||
-				(value.intval == POWER_SUPPLY_HEALTH_UNSPEC_FAILURE)) {
+				(value.intval == POWER_SUPPLY_HEALTH_UNSPEC_FAILURE) ||
+				(value.intval == POWER_SUPPLY_HEALTH_OVERHEATLIMIT)) {
 			/* current setting */
 			max77804k_set_charge_current(charger,
 				set_charging_current);
 			/* if battery is removed, disable input current and reenable input current
 			  *  to enable buck always */
-			if (value.intval == POWER_SUPPLY_HEALTH_UNSPEC_FAILURE)
+			if (value.intval == POWER_SUPPLY_HEALTH_UNSPEC_FAILURE ||
+				value.intval == POWER_SUPPLY_HEALTH_OVERHEATLIMIT)
 				max77804k_set_input_current(charger, 0);
 			else
 				max77804k_set_input_current(charger,
@@ -1030,6 +1089,19 @@ static int sec_chg_set_property(struct power_supply *psy,
 				if (charger->siop_level < 100 &&
 						current_now > SIOP_CHARGING_LIMIT_CURRENT)
 					current_now = SIOP_CHARGING_LIMIT_CURRENT;
+				max77804k_set_input_current(charger,
+					set_charging_current_max);
+			} else if (charger->cable_type == POWER_SUPPLY_TYPE_WIRELESS) {
+				if (charger->siop_level < 100 ) {
+					set_charging_current_max = SIOP_WIRELESS_INPUT_LIMIT_CURRENT;
+				} else {
+					set_charging_current_max =
+						charger->charging_current_max;
+				}
+
+				if (charger->siop_level < 100 &&
+						current_now > SIOP_WIRELESS_CHARGING_LIMIT_CURRENT)
+					current_now = SIOP_WIRELESS_CHARGING_LIMIT_CURRENT;
 				max77804k_set_input_current(charger,
 					set_charging_current_max);
 			}
@@ -1249,11 +1321,8 @@ static void wpc_detect_work(struct work_struct *work)
 	u8 reg_data;
 	pr_debug("%s\n", __func__);
 
-	max77804k_read_reg(chg_data->max77804k->i2c,
-		MAX77804K_CHG_REG_CHG_INT_MASK, &reg_data);
-	reg_data &= ~(1 << 5);
-	max77804k_write_reg(chg_data->max77804k->i2c,
-		MAX77804K_CHG_REG_CHG_INT_MASK, reg_data);
+	max77804k_update_reg(chg_data->max77804k->i2c,
+			MAX77804K_CHG_REG_CHG_INT_MASK, 0, MAX77804K_WCIN_IM);
 
 	/* check and unlock */
 	check_charger_unlock_state(chg_data);
@@ -1268,16 +1337,10 @@ static void wpc_detect_work(struct work_struct *work)
 	} while((retry_cnt++ < 2) && (wc_w_state == 0));
 
 	if ((chg_data->wc_w_state == 0) && (wc_w_state == 1)) {
-#if 0
-		value.intval = POWER_SUPPLY_TYPE_WIRELESS;
-		psy_do_property("battery", set,
-				POWER_SUPPLY_PROP_ONLINE, value);
-#else
 		value.intval = 1;
 		psy_do_property("wireless", set,
 				POWER_SUPPLY_PROP_ONLINE, value);
 
-#endif
 		pr_info("%s: wpc activated, set V_INT as PN\n",
 				__func__);
 	} else if ((chg_data->wc_w_state == 1) && (wc_w_state == 0)) {
@@ -1304,15 +1367,9 @@ static void wpc_detect_work(struct work_struct *work)
 					msecs_to_jiffies(500));
 			return;
 		} else {
-#if 0
-			value.intval = POWER_SUPPLY_TYPE_WIRELESS_REMOVE;
-			psy_do_property("battery", set,
-					POWER_SUPPLY_PROP_ONLINE, value);
-#else
 			value.intval = 0;
 			psy_do_property("wireless", set,
 					POWER_SUPPLY_PROP_ONLINE, value);
-#endif
 			pr_info("%s: wpc deactivated, set V_INT as PD\n",
 					__func__);
 		}
@@ -1329,13 +1386,11 @@ static irqreturn_t wpc_charger_irq(int irq, void *data)
 {
 	struct max77804k_charger_data *chg_data = data;
 	unsigned long delay;
-	u8 reg_data;
 
-	max77804k_read_reg(chg_data->max77804k->i2c,
-		MAX77804K_CHG_REG_CHG_INT_MASK, &reg_data);
-	reg_data |= (1 << 5);
-	max77804k_write_reg(chg_data->max77804k->i2c,
-		MAX77804K_CHG_REG_CHG_INT_MASK, reg_data);
+	max77804k_update_reg(chg_data->max77804k->i2c,
+		MAX77804K_CHG_REG_CHG_INT_MASK, MAX77804K_WCIN_IM, MAX77804K_WCIN_IM);
+
+	cancel_delayed_work_sync(&chg_data->wpc_work);
 
 	wake_lock(&chg_data->wpc_wake_lock);
 #ifdef CONFIG_SAMSUNG_BATTERY_FACTORY
@@ -1344,7 +1399,7 @@ static irqreturn_t wpc_charger_irq(int irq, void *data)
 	if (chg_data->wc_w_state)
 		delay = msecs_to_jiffies(500);
 	else
-		delay = msecs_to_jiffies(0);
+		delay = msecs_to_jiffies(20);
 #endif
 	queue_delayed_work(chg_data->wqueue, &chg_data->wpc_work,
 			delay);
@@ -1424,7 +1479,7 @@ static irqreturn_t max77804k_bypass_irq(int irq, void *data)
 					MAX77804K_CHG_REG_CHG_CNFG_00,
 					chg_cnfg_00);
 	}
-	if ((byp_dtls & 0x8) && (vbus_state < 0x03)) {
+	if (byp_dtls & 0x8) {
 		reduce_input_current(chg_data, REDUCE_CURRENT_STEP);
 	}
 
@@ -1435,17 +1490,16 @@ static void max77804k_chgin_isr_work(struct work_struct *work)
 {
 	struct max77804k_charger_data *charger = container_of(work,
 				struct max77804k_charger_data, chgin_work);
-	u8 chgin_dtls, chg_dtls, chg_cnfg_00, reg_data;
+	u8 chgin_dtls, chg_dtls, chg_cnfg_00;
 	u8 prev_chgin_dtls = 0xff;
 	int battery_health;
 	union power_supply_propval value;
 	int stable_count = 0;
 
-	max77804k_read_reg(charger->max77804k->i2c,
-		MAX77804K_CHG_REG_CHG_INT_MASK, &reg_data);
-	reg_data |= (1 << 6);
-	max77804k_write_reg(charger->max77804k->i2c,
-		MAX77804K_CHG_REG_CHG_INT_MASK, reg_data);
+	wake_lock(&charger->chgin_wake_lock);
+	max77804k_update_reg(charger->max77804k->i2c,
+		MAX77804K_CHG_REG_CHG_INT_MASK, MAX77804K_CHGIN_IM, MAX77804K_CHGIN_IM);
+
 
 	while (1) {
 		psy_do_property("battery", get,
@@ -1490,7 +1544,9 @@ static void max77804k_chgin_isr_work(struct work_struct *work)
 					value.intval = POWER_SUPPLY_HEALTH_UNDERVOLTAGE;
 					psy_do_property("battery", set,
 							POWER_SUPPLY_PROP_HEALTH, value);
-				} else if ((battery_health == \
+				}
+			} else {
+				if ((battery_health == \
 							POWER_SUPPLY_HEALTH_OVERVOLTAGE) &&
 						(chgin_dtls != 0x02)) {
 					pr_info("%s: vbus_state : 0x%d, chg_state : 0x%d\n", __func__, chgin_dtls, chg_dtls);
@@ -1522,11 +1578,10 @@ static void max77804k_chgin_isr_work(struct work_struct *work)
 		prev_chgin_dtls = chgin_dtls;
 		msleep(100);
 	}
-	max77804k_read_reg(charger->max77804k->i2c,
-		MAX77804K_CHG_REG_CHG_INT_MASK, &reg_data);
-	reg_data &= ~(1 << 6);
-	max77804k_write_reg(charger->max77804k->i2c,
-		MAX77804K_CHG_REG_CHG_INT_MASK, reg_data);
+
+	max77804k_update_reg(charger->max77804k->i2c,
+			MAX77804K_CHG_REG_CHG_INT_MASK, 0, MAX77804K_CHGIN_IM);
+	wake_unlock(&charger->chgin_wake_lock);
 }
 
 static irqreturn_t max77804k_chgin_irq(int irq, void *data)
@@ -1537,7 +1592,21 @@ static irqreturn_t max77804k_chgin_irq(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
-/* register chgin isr after sec_battery_probe */
+static irqreturn_t max77804k_battery_irq(int irq, void *data)
+{
+	struct max77804k_charger_data *charger = data;
+	union power_supply_propval value;
+
+	value.intval = max77804k_get_battery_present(charger);
+
+	pr_info("%s: battery present(%d)\n", __func__, value.intval);
+	psy_do_property("battery", set,
+			POWER_SUPPLY_PROP_PRESENT, value);
+
+	return IRQ_HANDLED;
+}
+
+/* register chgin/battery isr after sec_battery_probe */
 static void max77804k_chgin_init_work(struct work_struct *work)
 {
 	struct max77804k_charger_data *charger = container_of(work,
@@ -1551,6 +1620,16 @@ static void max77804k_chgin_init_work(struct work_struct *work)
 	if (ret < 0) {
 		pr_err("%s: fail to request chgin IRQ: %d: %d\n",
 				__func__, charger->irq_chgin, ret);
+	}
+
+	if (charger->irq_battery > 0) {
+		ret = request_threaded_irq(charger->irq_battery, NULL,
+				max77804k_battery_irq, IRQF_TRIGGER_FALLING,
+				"battery-irq", charger);
+
+		if (ret < 0)
+			pr_err("%s: fail to request battery IRQ: %d: %d\n",
+				__func__, charger->irq_battery, ret);
 	}
 }
 
@@ -1611,6 +1690,22 @@ static int sec_charger_parse_dt(struct max77804k_charger_data *charger)
 					 "battery,full_check_current_2nd", i,
 					 &pdata->charging_current[i].full_check_current_2nd);
 		}
+		np = of_find_node_by_name(NULL, "battery");
+		if (np == NULL) {
+			pr_err("%s : np NULL\n", __func__);
+			pdata->bat_irq_gpio = -1;
+		} else {
+			ret = of_get_named_gpio(np, "battery,ta_int", 0);
+			if (ret < 0) {
+				pr_info("%s use bat irq %d\n", __func__, ret);
+
+				/* temporally assign for check*/
+				/* Removed check for Rubens as interrupt was coming in power measurrment tests*/
+#if !defined(CONFIG_SEC_RUBENS_PROJECT)
+				pdata->bat_irq_gpio = ret;
+#endif
+			}
+		}
 	}
 
 	return ret;
@@ -1632,8 +1727,10 @@ static __devinit int max77804k_charger_probe(struct platform_device *pdev)
 		return -ENOMEM;
 
 	pdata->charger_data = kzalloc(sizeof(sec_battery_platform_data_t), GFP_KERNEL);
-	if (!pdata->charger_data)
-		return -ENOMEM;
+	if (!pdata->charger_data) {
+		ret = -ENOMEM;
+		goto err_free;
+	}
 
 	charger->max77804k = iodev;
 	charger->pdata = pdata->charger_data;
@@ -1689,6 +1786,8 @@ static __devinit int max77804k_charger_probe(struct platform_device *pdev)
 		pr_err("%s: Fail to Create Workqueue\n", __func__);
 		goto err_free;
 	}
+	wake_lock_init(&charger->chgin_wake_lock, WAKE_LOCK_SUSPEND,
+			            "charger-chgin");
 	INIT_WORK(&charger->chgin_work, max77804k_chgin_isr_work);
 	INIT_DELAYED_WORK(&charger->chgin_init_work, max77804k_chgin_init_work);
 	wake_lock_init(&charger->recovery_wake_lock, WAKE_LOCK_SUSPEND,
@@ -1753,7 +1852,10 @@ static __devinit int max77804k_charger_probe(struct platform_device *pdev)
 #endif
 
 	charger->irq_chgin = pdata->irq_base + MAX77804K_CHG_IRQ_CHGIN_I;
-	/* enable chgin irq after sec_battery_probe */
+	if (charger->pdata->bat_irq_gpio < 0)
+		charger->irq_battery = pdata->irq_base + MAX77804K_CHG_IRQ_BATP_I;
+
+	/* enable chgin/battery irq after sec_battery_probe */
 	queue_delayed_work(charger->wqueue, &charger->chgin_init_work,
 			msecs_to_jiffies(3000));
 

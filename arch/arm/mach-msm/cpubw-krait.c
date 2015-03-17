@@ -195,19 +195,18 @@ static int start_monitoring(void)
 	int mb_limit;
 	int ret;
 
+	bw_sample_wq = alloc_workqueue("cpubw-krait", WQ_HIGHPRI, 0);
+	if (!bw_sample_wq) {
+		pr_err("Unable to alloc workqueue\n");
+		return -ENOMEM;
+	}
+
 	ret = request_threaded_irq(MON_INT, NULL, mon_intr_handler,
 			  IRQF_ONESHOT | IRQF_SHARED | IRQF_TRIGGER_RISING,
 			  "cpubw_krait", mon_intr_handler);
 	if (ret) {
 		pr_err("Unable to register interrupt handler\n");
 		return ret;
-	}
-
-	bw_sample_wq = alloc_workqueue("cpubw-krait", WQ_HIGHPRI, 0);
-	if (!bw_sample_wq) {
-		pr_err("Unable to alloc workqueue\n");
-		ret = -ENOMEM;
-		goto alloc_wq_fail;
 	}
 
 	bus_client = msm_bus_scale_register_client(&bw_data);
@@ -244,7 +243,6 @@ static int start_monitoring(void)
 
 bus_reg_fail:
 	destroy_workqueue(bw_sample_wq);
-alloc_wq_fail:
 	disable_irq(MON_INT);
 	free_irq(MON_INT, mon_intr_handler);
 	return ret;

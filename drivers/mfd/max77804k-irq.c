@@ -69,11 +69,7 @@ static const struct max77804k_irq_data max77804k_irqs[] = {
 	DECLARE_IRQ(MAX77804K_TOPSYS_IRQLOWSYS_INT,	TOPSYS_INT, 1 << 3),
 
 	DECLARE_IRQ(MAX77804K_CHG_IRQ_BYP_I,	CHG_INT, 1 << 0),
-#if defined(CONFIG_CHARGER_MAX77804K)
 	DECLARE_IRQ(MAX77804K_CHG_IRQ_BATP_I,	CHG_INT, 1 << 2),
-#else
-	DECLARE_IRQ(MAX77804K_CHG_IRQ_THM_I,	CHG_INT, 1 << 2),
-#endif
 	DECLARE_IRQ(MAX77804K_CHG_IRQ_BAT_I,	CHG_INT, 1 << 3),
 	DECLARE_IRQ(MAX77804K_CHG_IRQ_CHG_I,	CHG_INT, 1 << 4),
 #if defined(CONFIG_CHARGER_MAX77804K)
@@ -203,12 +199,8 @@ clear_retry:
 		 * chgin is unmasked chgin isr
 		 */
 		if (irq_reg[CHG_INT] & max77804k_irqs[MAX77804K_CHG_IRQ_CHGIN_I].mask) {
-			u8 reg_data;
-			max77804k_read_reg(max77804k->i2c,
-				MAX77804K_CHG_REG_CHG_INT_MASK, &reg_data);
-			reg_data |= (1 << 6);
-			max77804k_write_reg(max77804k->i2c,
-				MAX77804K_CHG_REG_CHG_INT_MASK, reg_data);
+			max77804k_update_reg(max77804k->i2c,
+				MAX77804K_CHG_REG_CHG_INT_MASK, MAX77804K_CHGIN_IM, MAX77804K_CHGIN_IM);
 		}
 	}
 

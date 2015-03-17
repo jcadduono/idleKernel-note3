@@ -19,6 +19,8 @@
 #ifndef _SYNAPTICS_RMI4_H_
 #define _SYNAPTICS_RMI4_H_
 
+#define DISABLE_IRQ_WHEN_ENTER_DEEPSLEEP
+
 #define SYNAPTICS_RMI4_DRIVER_VERSION "DS5 1.0"
 #include <linux/device.h>
 #include <linux/i2c/synaptics_rmi.h>
@@ -28,66 +30,110 @@
 #include <linux/earlysuspend.h>
 #endif
 
-#define SYNAPTICS_DEVICE_NAME	"SEC_XX_XX"
-
+#if defined(CONFIG_INPUT_BOOSTER)
+//to enabled common touch booster. This must be included.
+#include <linux/input/input_booster.h>
+#endif
 /* To support suface touch, firmware should support data
- * which is required related app ex) MT_ANGLE, MT_PALM ...
+ * which is required related app ex) MT_PALM ...
  * Synpatics IC report those data through F51's edge swipe
  * fucntionality.
  */
 
+/* feature default mode */
+#define DEFAULT_ENABLE	1
+#define DEFAULT_DISABLE	0
+
 /* feature define */
 #define TSP_BOOSTER	/* DVFS feature : TOUCH BOOSTER */
-#define	USE_OPEN_CLOSE
+#define USE_OPEN_CLOSE	/* Use when CONFIG_HAS_EARLYSUSPEND is disabled */
 #define REPORT_2D_W
 #define REDUCE_I2C_DATA_LENGTH
+#define USE_SENSOR_SLEEP
+
+#define	TSP_IRQ_TYPE_LEVEL	IRQF_TRIGGER_LOW | IRQF_ONESHOT
+#define	TSP_IRQ_TYPE_EDGE	IRQF_TRIGGER_FALLING
 
 #if defined(CONFIG_SEC_MONDRIAN_PROJECT)
 #define TOUCHKEY_ENABLE
 #define USE_RECENT_TOUCHKEY
 #define PROXIMITY
 #define EDGE_SWIPE
-#define REPORT_ANGLE
 #define TKEY_BOOSTER
+#define SYNAPTICS_DEVICE_NAME	"T320"
+#define USE_PALM_REJECTION_KERNEL
+
+#elif defined(CONFIG_SEC_CHAGALL_PROJECT)
+#define PROXIMITY
+#define EDGE_SWIPE
+#define GLOVE_MODE
+#define SYNAPTICS_DEVICE_NAME	"T807"
+#define USE_PALM_REJECTION_KERNEL
+#define ENABLE_F12_OBJTYPE
+
+#elif defined(CONFIG_SEC_KLIMT_PROJECT)
+#define PROXIMITY
+#define EDGE_SWIPE
+#define GLOVE_MODE
+#define SYNAPTICS_DEVICE_NAME	"T707"
+#define USE_PALM_REJECTION_KERNEL
+#define ENABLE_F12_OBJTYPE
 
 #elif defined(CONFIG_SEC_K_PROJECT)
-#undef TSP_INIT_COMPLETE
 #define PROXIMITY
 #define EDGE_SWIPE
 #define SIDE_TOUCH
 #define USE_HOVER_REZERO
 #define GLOVE_MODE
-#undef TSP_TURNOFF_AFTER_PROBE
 #define USE_SHUTDOWN_CB
 #define CHECK_BASE_FIRMWARE
-#define REPORT_ANGLE
-#undef REPORT_ORIENTATION
 #define USE_ACTIVE_REPORT_RATE
 #define USE_F51_OFFSET_CALCULATE
+#define SYNAPTICS_DEVICE_NAME	"G900F"
+#define USE_STYLUS
+#define USE_DETECTION_FLAG2
+#define USE_EDGE_EXCLUSION
 
 #elif defined(CONFIG_SEC_KACTIVE_PROJECT)
-#undef TSP_INIT_COMPLETE
 #define PROXIMITY
 #define EDGE_SWIPE
 #define SIDE_TOUCH
 #define USE_HOVER_REZERO
 #define GLOVE_MODE
-#undef TSP_TURNOFF_AFTER_PROBE
 #define USE_SHUTDOWN_CB
-#undef CHECK_BASE_FIRMWARE
-#define REPORT_ANGLE
-#undef REPORT_ORIENTATION
+#define CHECK_BASE_FIRMWARE
 #define USE_ACTIVE_REPORT_RATE
+#define USE_F51_OFFSET_CALCULATE
+#define SYNAPTICS_DEVICE_NAME	"G870"
+#define USE_STYLUS
+#define USE_DETECTION_FLAG2
+#define USE_EDGE_EXCLUSION
+
+#elif defined(CONFIG_SEC_KSPORTS_PROJECT)
+#define PROXIMITY
+#define EDGE_SWIPE
+#define SIDE_TOUCH
+#define USE_HOVER_REZERO
+#define GLOVE_MODE
+#define USE_SHUTDOWN_CB
+#define CHECK_BASE_FIRMWARE
+#define USE_ACTIVE_REPORT_RATE
+#define USE_F51_OFFSET_CALCULATE
+#define SYNAPTICS_DEVICE_NAME	"G860"
+#define USE_STYLUS
+#define USE_DETECTION_FLAG2
+#define USE_EDGE_EXCLUSION
 
 #elif defined(CONFIG_SEC_H_PROJECT)
-#undef TSP_INIT_COMPLETE
 #define PROXIMITY
 #define EDGE_SWIPE
 #define USE_HOVER_REZERO
 #define GLOVE_MODE
-#undef TSP_TURNOFF_AFTER_PROBE
 #define READ_LCD_ID
-#define REPORT_ANGLE
+#define SYNAPTICS_DEVICE_NAME	"N9005"
+#define USE_PALM_REJECTION_KERNEL
+#define USE_EDGE_EXCLUSION
+#define USE_EDGE_SWIPE_WIDTH_MAJOR
 
 #elif defined(CONFIG_SEC_F_PROJECT)
 #define PROXIMITY
@@ -97,25 +143,64 @@
 #define TOUCHKEY_ENABLE
 #define EDGE_SWIPE_SCALE
 #define TOUCHKEY_LED_GPIO
-#define REPORT_ANGLE
+#define USE_PALM_REJECTION_KERNEL
+#define USE_EDGE_EXCLUSION
+#define USE_EDGE_SWIPE_WIDTH_MAJOR
+
+#elif defined(CONFIG_SEC_GNOTE_PROJECT)
+#define SYNAPTICS_DEVICE_NAME	"S5006"
+#define USE_PALM_REJECTION_KERNEL
+#define USE_EDGE_EXCLUSION
+#define USE_EDGE_SWIPE_WIDTH_MAJOR
+#undef TSP_BOOSTER     ///// temp code for new model setup
+
+#elif defined(CONFIG_SEC_HESTIA_PROJECT)
+#define PROXIMITY
+#define EDGE_SWIPE
+#define GLOVE_MODE
+#define USE_EDGE_SWIPE_WIDTH_MAJOR
+#define EDGE_SWIPE_SCALE
+#define USE_PALM_REJECTION_KERNEL
+#undef CONFIG_HAS_EARLYSUSPEND
+
+#elif defined(CONFIG_SEC_RUBENS_PROJECT)
+#if defined(CONFIG_SEC_RUBENSLTE_COMMON)
+#define SYNAPTICS_DEVICE_NAME	"T365"
+#else
+#define SYNAPTICS_DEVICE_NAME	"T360"
+#endif
+#undef CONFIG_HAS_EARLYSUSPEND
+#undef TSP_BOOSTER
+/* changes to fix PLM P140707-06422(PALM TOUCH) issue in RUBEN */
+#define PROXIMITY
+#define EDGE_SWIPE
 
 #else /* default undefine all */
-#undef TSP_INIT_COMPLETE
-#undef TOUCHKEY_ENABLE
-#undef PROXIMITY
-#undef EDGE_SWIPE
-#undef SIDE_TOUCH
-#undef USE_HOVER_REZERO
-#undef GLOVE_MODE
-#undef TSP_TURNOFF_AFTER_PROBE
-#undef USE_SHUTDOWN_CB
-#undef READ_LCD_ID
-#undef HAND_GRIP_MODE
-#undef CHECK_BASE_FIRMWARE
-#undef EDGE_SWIPE_SCALE
-#undef TOUCHKEY_LED_GPIO
-#undef REPORT_ANGLE
-#undef TKEY_BOOSTER
+#undef PROXIMITY			/* Use F51 - edge_swipe, hover, side_touch, stylus, hand_grip */
+#undef EDGE_SWIPE			/* Screen Caputure, and Palm pause */
+#undef EDGE_SWIPE_SCALE			/* Recalculate edge_swipe data */
+#undef USE_PALM_REJECTION_KERNEL	/* Fix Firmware bug.(Finger_status, PALM flag) */
+#undef SIDE_TOUCH			/* Side Touch */
+#undef USE_HOVER_REZERO			/* Use hover rezero */
+#undef USE_EDGE_EXCLUSION		/* Disable edge hover when grip the phone */
+#undef GLOVE_MODE			/* Glove Mode */
+#undef HAND_GRIP_MODE			/* Hand Grip mode */
+#undef USE_EDGE_SWIPE_WIDTH_MAJOR	/* Upgrade model use it. KK new model use SUMSIZE */
+#undef USE_STYLUS			/* Use Stylus */
+#undef USE_DETECTION_FLAG2		/* Use Detection Flag2 Register: Edge_swipe, Side_touch */
+
+#undef TSP_TURNOFF_AFTER_PROBE		/* Turn off touch IC after probe success, will be turned by InputRedaer */
+#undef USE_SHUTDOWN_CB			/* Use shutdown callback function */
+#undef READ_LCD_ID			/* Need to separate f/w according to LCD ID */
+#undef CHECK_BASE_FIRMWARE		/* Check base fw version. base fw version is PR number */
+
+#undef TOUCHKEY_ENABLE			/* TSP/Tkey in one chip */
+#undef TKEY_BOOSTER			/* Tkey booster for performance */
+#undef TOUCHKEY_LED_GPIO		/* Tkey led use gpio pin rather than pmic regulator */
+#endif
+
+#ifndef SYNAPTICS_DEVICE_NAME
+#define SYNAPTICS_DEVICE_NAME	"SEC_XX_XX"
 #endif
 
 #if defined(CONFIG_LEDS_CLASS) && defined(TOUCHKEY_ENABLE)
@@ -125,14 +210,15 @@
 
 #if defined(TSP_BOOSTER) || defined(TKEY_BOOSTER)
 #define DVFS_STAGE_NINTH	9
+#define DVFS_STAGE_PENTA	5
 #define DVFS_STAGE_TRIPLE	3
 #define DVFS_STAGE_DUAL		2
 #define DVFS_STAGE_SINGLE	1
 #define DVFS_STAGE_NONE		0
 #include <linux/cpufreq.h>
 
-#define TOUCH_BOOSTER_OFF_TIME	500
-#define TOUCH_BOOSTER_CHG_TIME	130
+#define TOUCH_BOOSTER_OFF_TIME		500
+#define TOUCH_BOOSTER_CHG_TIME		130
 #define TOUCH_BOOSTER_HIGH_OFF_TIME	1000
 #define TOUCH_BOOSTER_HIGH_CHG_TIME	500
 #endif
@@ -156,7 +242,10 @@
 #define SYNAPTICS_PRODUCT_ID_S5700	4
 #define SYNAPTICS_PRODUCT_ID_S5707	5
 #define SYNAPTICS_PRODUCT_ID_S5708	6
+#define SYNAPTICS_PRODUCT_ID_S5006	7
+#define SYNAPTICS_PRODUCT_ID_S5710	8
 
+#define SYNAPTICS_IC_REVISION_NONE	0x00
 #define SYNAPTICS_IC_REVISION_A0	0xA0
 #define SYNAPTICS_IC_REVISION_A1	0xA1
 #define SYNAPTICS_IC_REVISION_A2	0xA2
@@ -174,16 +263,21 @@
 #define SYNAPTICS_IC_NEW_BOOTLOADER	"46"
 
 #define FW_IMAGE_NAME_NONE		NULL
-#define FW_IMAGE_NAME_S5000		"tsp_synaptics/synaptics_s5000.fw"
 #define FW_IMAGE_NAME_S5050_H		"tsp_synaptics/synaptics_s5050_h.fw"
-#define FW_IMAGE_NAME_S5050_K		"tsp_synaptics/synaptics_s5050_k.fw"
-#define FW_IMAGE_NAME_S5100_K_WQHD	"tsp_synaptics/synaptics_s5100_k_wqhd.fw"
-#define FW_IMAGE_NAME_S5100_K_FHD	"tsp_synaptics/synaptics_s5100_k_fhd.fw"
 #define FW_IMAGE_NAME_S5100_K_A2_FHD	"tsp_synaptics/synaptics_s5100_k_a2_fhd.fw"
+#define FW_IMAGE_NAME_S5100_K_A3	"tsp_synaptics/synaptics_s5100_k_a3.fw"
+#define FW_IMAGE_NAME_S5100_K_A3_KOR	"tsp_synaptics/synaptics_s5100_kkor_a3.fw"
+#define FW_IMAGE_NAME_S5100_K_ACTIVE	"tsp_synaptics/synaptics_s5100_k_active.fw"
+#define FW_IMAGE_NAME_S5100_HESTIA	"tsp_synaptics/synaptics_s5100_hestia.fw"
 #define FW_IMAGE_NAME_S5707		"tsp_synaptics/synaptics_s5707.fw"
+#define FW_IMAGE_NAME_S5707_KLIMT	"tsp_synaptics/synaptics_s5707_klimt.fw"
+#define FW_IMAGE_NAME_S5707_RUBENS	"tsp_synaptics/synaptics_s5707_rubens.fw"
 #define FW_IMAGE_NAME_S5708		"tsp_synaptics/synaptics_s5708.fw"
 #define FW_IMAGE_NAME_S5050		"tsp_synaptics/synaptics_s5050.fw"
 #define FW_IMAGE_NAME_S5050_F		"tsp_synaptics/synaptics_s5050_f.fw"
+#define FW_IMAGE_NAME_S5006		"tsp_synaptics/synaptics_s5006.fw"
+#define FW_IMAGE_NAME_S5710		"tsp_synaptics/synaptics_chagall_5710.fw"
+
 
 #define SYNAPTICS_FACTORY_TEST_PASS	2
 #define SYNAPTICS_FACTORY_TEST_FAIL	1
@@ -232,7 +326,7 @@
 
 #define MAX_NUMBER_OF_BUTTONS	4
 #define MAX_INTR_REGISTERS	4
-#define MAX_NUMBER_OF_FINGERS	10
+#define MAX_NUMBER_OF_FINGERS	12
 #define F12_FINGERS_TO_SUPPORT	10
 
 #define MASK_16BIT 0xFFFF
@@ -268,14 +362,12 @@
 #define EDGE_SWIPE_DEGREES_MIN (-89)
 #define EDGE_SWIPE_WIDTH_SCALING_FACTOR (9)
 
+#define EDGE_SWIPE_SUMSIZE_OFFSET	5
+
 #define F51_PROXIMITY_ENABLES_OFFSET (0)
 #define F51_SIDE_BUTTON_THRESHOLD_OFFSET	(47)
 #define F51_SIDE_BUTTON_PARTIAL_ENABLE_OFFSET	(44)
-#ifdef USE_F51_OFFSET_CALCULATE
-#define F51_GPIP_EDGE_EXCLUSION_RX_OFFSET (47)
-#else
 #define F51_GPIP_EDGE_EXCLUSION_RX_OFFSET	(32)
-#endif
 
 
 #define FINGER_HOVER_DIS (0 << 0)
@@ -319,19 +411,38 @@
 #define HAS_CAMERA_GRIP_DETECTION (1 << 4)
 /* Reserved 5~7 */
 
+/* Use Detection Flag for F51 feature */
+#define HOVER_UN_DETECTED		(0 << 0)
+#define HOVER_DETECTED			(1 << 0)
+#define AIR_SWIPE_DETECTED		(1 << 1)
+#define LARGE_OBJECT_DETECTED	(1 << 2)
+#define HOVER_PINCH_DETECTED	(1 << 3)
+#define LOWG_DETECTED			(1 << 4)
+#define PROFILE_HANDEDNESS_DETECTED	((1 << 5) | (1 << 6))
+#define FACE_DETECTED			(1 << 7)
+#define CAMERA_GRIP_DETECTED	(1 << 0)
+#define EDGE_SWIPE_DETECTED		(1 << 0)
+#define SIDE_BUTTON_DETECTED	(1 << 1)
+
+
+/* F51 General Control enable */
+
+/* F51 General Control2 enable */
+#define FACE_DETECTED_ENABLE	(1 << 0)
+#define SIDE_BUTTONS_ENABLE		(1 << 1)
+#define SIDE_BUTTONS_PRODUCTION_TEST	(1 << 2)
+#define SIDE_TOUCH_ONLY_ACTIVE	(1 << 3)
+
 #ifdef EDGE_SWIPE
 
-#if defined(CONFIG_SEC_K_PROJECT) || defined(CONFIG_SEC_KACTIVE_PROJECT)
-#define EDGE_SWIPE_DATA_OFFSET	11
-#elif defined(CONFIG_SEC_MONDRIAN_PROJECT)
+#if defined(CONFIG_SEC_MONDRIAN_PROJECT) || defined(CONFIG_SEC_CHAGALL_PROJECT)\
+	|| defined(CONFIG_SEC_KLIMT_PROJECT) || defined(CONFIG_SEC_RUBENS_PROJECT)
 #define EDGE_SWIPE_DATA_OFFSET	3
 #else
 #define EDGE_SWIPE_DATA_OFFSET	9
 #endif
 
 #define EDGE_SWIPE_WIDTH_MAX	255
-#define EDGE_SWIPE_ANGLE_MIN	(-90)
-#define EDGE_SWIPE_ANGLE_MAX	90
 #define EDGE_SWIPE_PALM_MAX		1
 #endif
 
@@ -341,8 +452,7 @@
 #define F51_DATA_3_SIZE (1)	/* AIR_SWIPE  | LARGE_OBJ */
 #define F51_DATA_4_SIZE (2)	/* SIDE_BUTTON */
 #define F51_DATA_5_SIZE (1)	/* CAMERA GRIP DETECTION */
-#define F51_DATA_6_SIZE (1)	/* DETECTION FLAG2 */
-#define F51_DATA_RESERVED_SIZE	(1) /* RESERVED DATA SIZE */
+#define F51_DATA_6_SIZE (2)	/* DETECTION FLAG2 */
 /*
  * DATA_5, DATA_6, RESERVED
  * 5: 1 byte RESERVED + CAM GRIP DETECT
@@ -382,6 +492,430 @@
 
 #define TSP_NEEDTO_REBOOT	(-ECONNREFUSED)
 #define MAX_TSP_REBOOT		3
+
+/*
+ * Each 3-bit finger status field represents the following:
+ * 000 = finger not present
+ * 001 = finger present and data accurate
+ * 010 = stylus pen (passive pen)
+ * 011 = palm touch
+ * 100 = not used
+ * 101 = hover
+ * 110 = glove touch
+ */
+#define FINGER_NOT_PRESENT	0x0
+#define FINGER_PRESSED		0x1
+#define STYLUS_PRESSED		0x2
+#define PALM_PRESSED		0x3
+#define HOVER_PRESSED		0x5
+#define GLOVE_PRESSED		0x6
+
+#ifdef ENABLE_F12_OBJTYPE 
+/* Define for object type report enable Mask(F12_2D_CTRL23) */
+#define OBJ_TYPE_FINGER			(1 << 0)
+#define OBJ_TYPE_PASSIVE_STYLUS	(1 << 1)
+#define OBJ_TYPE_PALM			(1 << 2)
+#define OBJ_TYPE_UNCLASSIFIED	(1 << 3)
+#define OBJ_TYPE_HOVER			(1 << 4)
+#define OBJ_TYPE_GLOVE			(1 << 5)
+#define OBJ_TYPE_NARROW_SWIPE	(1 << 6)
+#define OBJ_TYPE_HANDEDGE		(1 << 7)
+#define OBJ_TYPE_DEFAUT			(0x85)
+/*OBJ_TYPE_FINGER, OBJ_TYPE_UNCLASSIFIED, OBJ_TYPE_HANDEDGE*/
+#endif
+/*
+ * synaptics_rmi4_set_custom_ctrl_register()
+ * mode TRUE : read, mode FALSE : write
+ */
+#define REGISTER_READ	1
+#define REGISTER_WRITE	0
+
+/*
+ * synaptics absolute register address
+ * if changed register address, fix below address value
+ */
+#ifdef USE_ACTIVE_REPORT_RATE
+#define REGISTER_ADDR_CHANGE_REPORT_RATE	0x012A
+#define REGISTER_ADDR_FORCE_CALIBRATION		0x0138
+
+#define REPORT_RATE_90HZ	0x04
+#define REPORT_RATE_60HZ	0x16
+#define REPORT_RATE_30HZ	0x50
+#define REPORT_RATE_FORCE_UPDATE	0x04
+#endif
+#ifdef SIDE_TOUCH
+#define F51_CUSTOM_CTRL78_OFFSET	47
+#endif
+#ifdef USE_STYLUS
+#define F51_CUSTOM_CTRL87_OFFSET	61
+#endif
+
+
+extern int system_rev;
+
+struct synaptics_rmi4_f01_device_status {
+	union {
+		struct {
+			unsigned char status_code:4;
+			unsigned char reserved:2;
+			unsigned char flash_prog:1;
+			unsigned char unconfigured:1;
+		} __packed;
+		unsigned char data[1];
+	};
+};
+
+struct synaptics_rmi4_f12_query_5 {
+	union {
+		struct {
+			unsigned char size_of_query6;
+			struct {
+				unsigned char ctrl0_is_present:1;
+				unsigned char ctrl1_is_present:1;
+				unsigned char ctrl2_is_present:1;
+				unsigned char ctrl3_is_present:1;
+				unsigned char ctrl4_is_present:1;
+				unsigned char ctrl5_is_present:1;
+				unsigned char ctrl6_is_present:1;
+				unsigned char ctrl7_is_present:1;
+			} __packed;
+			struct {
+				unsigned char ctrl8_is_present:1;
+				unsigned char ctrl9_is_present:1;
+				unsigned char ctrl10_is_present:1;
+				unsigned char ctrl11_is_present:1;
+				unsigned char ctrl12_is_present:1;
+				unsigned char ctrl13_is_present:1;
+				unsigned char ctrl14_is_present:1;
+				unsigned char ctrl15_is_present:1;
+			} __packed;
+			struct {
+				unsigned char ctrl16_is_present:1;
+				unsigned char ctrl17_is_present:1;
+				unsigned char ctrl18_is_present:1;
+				unsigned char ctrl19_is_present:1;
+				unsigned char ctrl20_is_present:1;
+				unsigned char ctrl21_is_present:1;
+				unsigned char ctrl22_is_present:1;
+				unsigned char ctrl23_is_present:1;
+			} __packed;
+			struct {
+				unsigned char ctrl24_is_present:1;
+				unsigned char ctrl25_is_present:1;
+				unsigned char ctrl26_is_present:1;
+				unsigned char ctrl27_is_present:1;
+				unsigned char ctrl28_is_present:1;
+				unsigned char ctrl29_is_present:1;
+				unsigned char ctrl30_is_present:1;
+				unsigned char ctrl31_is_present:1;
+			} __packed;
+		};
+		unsigned char data[5];
+	};
+};
+
+struct synaptics_rmi4_f12_query_8 {
+	union {
+		struct {
+			unsigned char size_of_query9;
+			struct {
+				unsigned char data0_is_present:1;
+				unsigned char data1_is_present:1;
+				unsigned char data2_is_present:1;
+				unsigned char data3_is_present:1;
+				unsigned char data4_is_present:1;
+				unsigned char data5_is_present:1;
+				unsigned char data6_is_present:1;
+				unsigned char data7_is_present:1;
+			} __packed;
+			struct {
+				unsigned char data8_is_present:1;
+				unsigned char data9_is_present:1;
+				unsigned char data10_is_present:1;
+				unsigned char data11_is_present:1;
+				unsigned char data12_is_present:1;
+				unsigned char data13_is_present:1;
+				unsigned char data14_is_present:1;
+				unsigned char data15_is_present:1;
+			} __packed;
+		};
+		unsigned char data[3];
+	};
+};
+
+struct synaptics_rmi4_f12_query_10 {
+	union {
+		struct {
+			unsigned char f12_query10_b0__4:5;
+			unsigned char glove_mode_feature:1;
+			unsigned char f12_query10_b6__7:2;
+		} __packed;
+		unsigned char data[1];
+	};
+};
+
+struct synaptics_rmi4_f12_ctrl_8 {
+	union {
+		struct {
+			unsigned char max_x_coord_lsb;
+			unsigned char max_x_coord_msb;
+			unsigned char max_y_coord_lsb;
+			unsigned char max_y_coord_msb;
+			unsigned char rx_pitch_lsb;
+			unsigned char rx_pitch_msb;
+			unsigned char tx_pitch_lsb;
+			unsigned char tx_pitch_msb;
+			unsigned char low_rx_clip;
+			unsigned char high_rx_clip;
+			unsigned char low_tx_clip;
+			unsigned char high_tx_clip;
+			unsigned char num_of_rx;
+			unsigned char num_of_tx;
+		};
+		unsigned char data[14];
+	};
+};
+
+struct synaptics_rmi4_f12_ctrl_9 {
+	union {
+		struct {
+			unsigned char touch_threshold;
+			unsigned char lift_hysteresis;
+			unsigned char small_z_scale_factor_lsb;
+			unsigned char small_z_scale_factor_msb;
+			unsigned char large_z_scale_factor_lsb;
+			unsigned char large_z_scale_factor_msb;
+			unsigned char small_large_boundary;
+			unsigned char wx_scale;
+			unsigned char wx_offset;
+			unsigned char wy_scale;
+			unsigned char wy_offset;
+			unsigned char x_size_lsb;
+			unsigned char x_size_msb;
+			unsigned char y_size_lsb;
+			unsigned char y_size_msb;
+			unsigned char gloved_finger;
+		};
+		unsigned char data[16];
+	};
+};
+
+struct synaptics_rmi4_f12_ctrl_11 {
+	union {
+		struct {
+			unsigned char small_corner;
+			unsigned char large_corner;
+			unsigned char jitter_filter_strength;
+			unsigned char x_minimum_z;
+			unsigned char y_minimum_z;
+			unsigned char x_maximum_z;
+			unsigned char y_maximum_z;
+			unsigned char x_amplitude;
+			unsigned char y_amplitude;
+			unsigned char gloved_finger_jitter_filter_strength;
+		};
+		unsigned char data[10];
+	};
+};
+
+struct synaptics_rmi4_f12_ctrl_23 {
+	union {
+		struct {
+			unsigned char obj_type_enable;
+			unsigned char max_reported_objects;
+		};
+		unsigned char data[2];
+	};
+};
+
+struct synaptics_rmi4_f12_finger_data {
+	unsigned char object_type_and_status;
+	unsigned char x_lsb;
+	unsigned char x_msb;
+	unsigned char y_lsb;
+	unsigned char y_msb;
+#ifdef REPORT_2D_Z
+	unsigned char z;
+#endif
+#ifdef REPORT_2D_W
+	unsigned char wx;
+	unsigned char wy;
+#endif
+};
+
+struct synaptics_rmi4_f1a_query {
+	union {
+		struct {
+			unsigned char max_button_count:3;
+			unsigned char reserved:5;
+			unsigned char has_general_control:1;
+			unsigned char has_interrupt_enable:1;
+			unsigned char has_multibutton_select:1;
+			unsigned char has_tx_rx_map:1;
+			unsigned char has_perbutton_threshold:1;
+			unsigned char has_release_threshold:1;
+			unsigned char has_strongestbtn_hysteresis:1;
+			unsigned char has_filter_strength:1;
+		} __packed;
+		unsigned char data[2];
+	};
+};
+
+struct synaptics_rmi4_f1a_control_0 {
+	union {
+		struct {
+			unsigned char multibutton_report:2;
+			unsigned char filter_mode:2;
+			unsigned char reserved:4;
+		} __packed;
+		unsigned char data[1];
+	};
+};
+
+struct synaptics_rmi4_f1a_control {
+	struct synaptics_rmi4_f1a_control_0 general_control;
+	unsigned char button_int_enable;
+	unsigned char multi_button;
+	unsigned char *txrx_map;
+	unsigned char *button_threshold;
+	unsigned char button_release_threshold;
+	unsigned char strongest_button_hysteresis;
+	unsigned char filter_strength;
+};
+
+struct synaptics_rmi4_f1a_handle {
+	int button_bitmask_size;
+	unsigned char max_count;
+	unsigned char valid_button_count;
+	unsigned char *button_data_buffer;
+	unsigned char *button_map;
+	struct synaptics_rmi4_f1a_query button_query;
+	struct synaptics_rmi4_f1a_control button_control;
+};
+
+struct synaptics_rmi4_f34_ctrl_3 {
+	union {
+		struct {
+			unsigned char fw_release_month;
+			unsigned char fw_release_date;
+			unsigned char fw_release_revision;
+			unsigned char fw_release_version;
+		};
+		unsigned char data[4];
+	};
+};
+
+
+struct synaptics_rmi4_f34_handle {
+	unsigned char status;
+	unsigned char cmd;
+	unsigned short bootloaderid;
+	unsigned short blocksize;
+	unsigned short imageblockcount;
+	unsigned short configblockcount;
+	unsigned short blocknum;
+	unsigned short query_base_addr;
+	unsigned short control_base_addr;
+	unsigned short data_base_addr;
+	bool inflashprogmode;
+	unsigned char intr_mask;
+	struct mutex attn_mutex;
+	struct synaptics_rmi4_f34_fn_ptr *fn_ptr;
+};
+
+#ifdef PROXIMITY
+struct synaptics_rmi4_f51_query {
+	union {
+		struct {
+			unsigned char query_register_count;
+			unsigned char data_register_count;
+			unsigned char control_register_count;
+			unsigned char command_register_count;
+			unsigned char features;
+			unsigned char side_touch_feature;
+		};
+		unsigned char data[6];
+	};
+};
+
+struct synaptics_rmi4_f51_data {
+	union {
+		struct {
+			unsigned char finger_hover_det:1;
+			unsigned char air_swipe_det:1;
+			unsigned char large_obj_det:1;
+			unsigned char f1a_data0_b3:1;
+			unsigned char hover_pinch_det:1;
+			unsigned char profile_handedness_status:2;
+			unsigned char f1a_data0_b5__7:1;
+			unsigned char hover_finger_x_4__11;
+			unsigned char hover_finger_y_4__11;
+			unsigned char hover_finger_xy_0__3;
+			unsigned char hover_finger_z;
+			unsigned char f1a_data2_b0__6:7;
+			unsigned char hover_pinch_dir:1;
+			unsigned char air_swipe_dir_0:1;
+			unsigned char air_swipe_dir_1:1;
+			unsigned char f1a_data3_b2__4:3;
+			unsigned char object_present:1;
+			unsigned char large_obj_act:2;
+		} __packed;
+		unsigned char proximity_data[7];
+	};
+#ifdef EDGE_SWIPE
+	union {
+		struct {
+			unsigned char edge_swipe_x_lsb;
+			unsigned char edge_swipe_x_msb;
+			unsigned char edge_swipe_y_lsb;
+			unsigned char edge_swipe_y_msb;
+			unsigned char edge_swipe_z;
+			unsigned char edge_swipe_wx;
+			unsigned char edge_swipe_wy;
+			unsigned char edge_swipe_mm;
+			signed char edge_swipe_dg;
+		} __packed;
+		unsigned char edge_swipe_data[9];
+	};
+#endif
+#ifdef SIDE_TOUCH
+	union {
+		struct {
+			unsigned char side_button_leading;
+			unsigned char side_button_trailing;
+			unsigned char side_button_cam_det;
+		} __packed;
+		unsigned char side_button_data[3];
+	};
+#endif
+};
+
+#ifdef EDGE_SWIPE
+struct synaptics_rmi4_surface {
+	int sumsize;
+	int palm;
+	int angle;
+	int wx;
+	int wy;
+};
+#endif
+
+struct synaptics_rmi4_f51_handle {
+	unsigned char edge_swipe_data_offset;
+	unsigned char side_button_data_offset;
+	unsigned char proximity_enables;
+	unsigned char general_control;
+	unsigned short proximity_enables_addr;
+	unsigned short general_control_addr;
+	unsigned short general_control2_addr;
+	unsigned short edge_swipe_data_addr;
+	unsigned short side_button_data_addr;
+	unsigned short detection_flag2_addr;
+	unsigned short sidekey_threshold_addr;
+	unsigned short stylus_enable_addr;
+	struct synaptics_rmi4_surface surface_data;
+};
+#endif
 
 /*
  * struct synaptics_rmi4_fn_desc - function descriptor fields in PDT
@@ -507,16 +1041,23 @@ struct synaptics_rmi_f1a_button_map {
  * @ sub_pmic : sensor power supply : 3.3V, enabled by subp_mic MAX77826
  * @ irq_gpio : interrupt GPIO PIN defined device tree files(dtsi)
  * @ project : project name string for Firmware name
+ * @ sub-project : project name string for Firmware name by sub project
  */
 
 struct synaptics_rmi4_device_tree_data {
 	int coords[2];
 	int extra_config[4];
 	int external_ldo;
+#if defined(CONFIG_SEC_RUBENS_PROJECT)
+	int external_ldo2;
+#endif
 	int tkey_led_en;
+	int scl_gpio;
+	int sda_gpio;
 	int irq_gpio;
 	int reset_gpio;
-
+	int id_gpio;
+	bool tablet;
 	char swap_axes;
 	char x_flip;
 	char y_flip;
@@ -524,6 +1065,7 @@ struct synaptics_rmi4_device_tree_data {
 	struct synaptics_rmi_f1a_button_map *f1a_button_map;
 
 	const char *project;
+	const char *sub_project;
 
 	int num_of_supply;
 	const char **name_of_supply;
@@ -566,6 +1108,9 @@ struct synaptics_rmi4_data {
 	struct synaptics_rmi4_device_tree_data *dt_data;
 	struct synaptics_rmi4_device_info rmi4_mod_info;
 	struct regulator_bulk_data *supplies;
+#ifdef PROXIMITY
+	struct synaptics_rmi4_f51_handle *f51_handle;
+#endif
 
 	struct mutex rmi4_device_mutex;
 	struct mutex rmi4_reset_mutex;
@@ -595,7 +1140,10 @@ struct synaptics_rmi4_data {
 	unsigned char intr_mask[MAX_INTR_REGISTERS];
 	unsigned char *button_txrx_mapping;
 	unsigned char bootloader_id[4];
-
+#ifdef ENABLE_F12_OBJTYPE
+	unsigned char obj_type_enable;	/* F12_2D_CTRL23 */
+	unsigned short f12_ctrl23_addr;		/* F12_2D_CTRL23 : object report enable */
+#endif
 	unsigned short num_of_intr_regs;
 	unsigned short f01_query_base_addr;
 	unsigned short f01_cmd_base_addr;
@@ -634,6 +1182,11 @@ struct synaptics_rmi4_data {
 	bool fast_glove_state;
 	bool touchkey_glove_mode_status;
 	bool created_sec_class;
+	bool use_deepsleep;
+
+#ifdef USE_STYLUS
+	bool use_stylus;
+#endif
 
 	int ic_version;			/* define S5000, S5050, S5700, S5707, S5708 */
 	int ic_revision_of_ic;
@@ -642,6 +1195,7 @@ struct synaptics_rmi4_data {
 	int fw_version_of_bin;		/* firmware version of binary */
 	int fw_release_date_of_ic;	/* Config release data from IC */
 	int lcd_id;
+	int debug_log;			/* Test log : 1[F51/edge_swipe] 2[F12/abs_report] */
 	unsigned int fw_pr_number;
 
 	bool doing_reflash;
@@ -681,6 +1235,9 @@ struct synaptics_rmi4_data {
 	int tkey_dvfs_freq;
 #endif
 
+#ifdef COMMON_INPUT_BOOSTER
+	struct input_booster *tsp_booster;
+#endif
 #ifdef USE_HOVER_REZERO
 	struct delayed_work rezero_work;
 #endif
@@ -695,6 +1252,8 @@ struct synaptics_rmi4_data {
 #ifdef SIDE_TOUCH
 	bool sidekey_enables;
 	unsigned char sidekey_data;
+	bool sidekey_test;
+	bool sidekey_only_enable;
 #endif
 
 #ifdef SYNAPTICS_RMI_INFORM_CHARGER
@@ -721,6 +1280,16 @@ enum exp_fn {
 	RMI_LAST,
 };
 
+struct synaptics_rmi4_exp_fn {
+	enum exp_fn fn_type;
+	bool initialized;
+	int (*func_init)(struct synaptics_rmi4_data *rmi4_data);
+	void (*func_remove)(struct synaptics_rmi4_data *rmi4_data);
+	void (*func_attn)(struct synaptics_rmi4_data *rmi4_data,
+			unsigned char intr_mask);
+	struct list_head link;
+};
+
 struct synaptics_rmi4_exp_fn_ptr {
 	int (*read)(struct synaptics_rmi4_data *rmi4_data, unsigned short addr,
 			unsigned char *data, unsigned short length);
@@ -745,20 +1314,24 @@ int synaptics_rmi4_f54_set_control(struct synaptics_rmi4_data *rmi4_data);
 
 int synaptics_fw_updater(unsigned char *fw_data);
 int synaptics_rmi4_fw_update_on_probe(struct synaptics_rmi4_data *rmi4_data);
-int synaptics_rmi4_proximity_enables(unsigned char enables);
-int synaptics_proximity_no_sleep_set(bool enables);
+int synaptics_rmi4_proximity_enables(struct synaptics_rmi4_data *rmi4_data, unsigned char enables);
+int synaptics_proximity_no_sleep_set(struct synaptics_rmi4_data *rmi4_data, bool enables);
 int synaptics_rmi4_f12_set_feature(struct synaptics_rmi4_data *rmi4_data);
 int synaptics_rmi4_set_tsp_test_result_in_config(int pass_fail);
 int synaptics_rmi4_tsp_read_test_result(struct synaptics_rmi4_data *rmi4_data);
-int synaptics_rmi4_f51_grip_edge_exclusion_rx(bool enables);
-int synaptics_rmi4_general_ctrl2_enables(bool mode);
-
+#ifdef USE_EDGE_EXCLUSION
+int synaptics_rmi4_f51_grip_edge_exclusion_rx(struct synaptics_rmi4_data *rmi4_data, bool enables);
+#endif
 int synaptics_rmi4_f12_ctrl11_set (struct synaptics_rmi4_data *rmi4_data,
 		unsigned char data);
 
 int synaptics_rmi4_set_custom_ctrl_register(struct synaptics_rmi4_data *rmi4_data,
 					bool mode, unsigned short address,
 					int length, unsigned char *value);
+
+void synaptics_rmi4_free_sidekeys(struct synaptics_rmi4_data *rmi4_data);
+int synaptics_rmi4_free_fingers(struct synaptics_rmi4_data *rmi4_data);
+int synaptics_rmi4_irq_enable(struct synaptics_rmi4_data *rmi4_data, bool enable);
 
 #ifdef TOUCHKEY_ENABLE
 int synaptics_tkey_led_vdd_on(struct synaptics_rmi4_data *rmi4_data, bool onoff);

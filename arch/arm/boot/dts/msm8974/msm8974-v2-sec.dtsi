@@ -1,4 +1,4 @@
-/* Copyright (c) 2013, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -41,12 +41,17 @@
 		compatible = "qcom,android-usb";
 		reg = <0xfe8050c8 0xc8>;
 		qcom,android-usb-swfi-latency = <1>;
+		qcom,android-usb-uicc-nluns = /bits/ 8 <1>;
 	};
 
 	qcom,msm-imem@fe805000 {
 		compatible = "qcom,msm-imem";
 		reg = <0xfe805000 0x1000>; /* Address and size of IMEM */
 	};
+};
+
+&usb3 {
+	qcom,usbin-vadc = <&pm8941_vadc>;
 };
 
 /* GPU overrides */
@@ -63,11 +68,11 @@
 		/* SVS */
 		<26 512 0 2400000>, <89 604 0 3000000>,
 		/* Nominal / SVS */
-		<26 512 0 4912000>, <89 604 0 3000000>,
+		<26 512 0 4656000>, <89 604 0 3000000>,
 		/* SVS / Nominal */
 		<26 512 0 2400000>, <89 604 0 5120000>,
 		/* Nominal */
-		<26 512 0 4912000>, <89 604 0 5120000>,
+		<26 512 0 4656000>, <89 604 0 5120000>,
 		/* Turbo / Nominal */
 		<26 512 0 7464000>, <89 604 0 5120000>,
 		/* Nominal / Turbo */
@@ -85,7 +90,6 @@
 			      0x00012900 0x00012b00>;
 	qcom,mdss-pingpong-off = <0x00012D00 0x00012E00 0x00012F00>;
 	qcom,mdss-has-decimation;
-	qcom,mdss-ad-off = <0x0013100 0x00013300>;
 	vdd-cx-supply = <&pm8841_s2_corner>;
 };
 

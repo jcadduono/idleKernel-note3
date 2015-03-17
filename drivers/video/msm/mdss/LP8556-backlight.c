@@ -10,6 +10,7 @@
  */
 #include <linux/kernel.h>
 #include <asm/unaligned.h>
+#include <mach/board.h>
 /*#include <mach/cpufreq.h>*/
 #include <linux/input/mt.h>
 #include <linux/of_gpio.h>
@@ -92,7 +93,9 @@ static int backlight_i2c_write(struct i2c_client *client,
 	}
 	return err;
 }
-
+#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_TFT_VIDEO_WQXGA_PT_PANEL)
+int get_lcd_attached(void);
+#endif
 static void backlight_request_gpio(struct lp8556_backlight_platform_data *pdata)
 {
 	int ret;
@@ -105,12 +108,17 @@ static void backlight_request_gpio(struct lp8556_backlight_platform_data *pdata)
 		}
 		gpio_tlmm_config(GPIO_CFG(pdata->gpio_backlight_en, 0, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_2MA), 1);
 	}
-#if defined(CONFIG_SEC_MILLET_PROJECT) || defined(CONFIG_SEC_MATISSE_PROJECT)
-	gpio_tlmm_config(GPIO_CFG(pdata->gpio_scl, 0, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_2MA), 1);
-	gpio_tlmm_config(GPIO_CFG(pdata->gpio_sda, 0, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_2MA), 1);
-#endif
 	/* gpio_tlmm_config(GPIO_CFG(pdata->gpio_scl, 0, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_2MA), 1); */
 	/* gpio_tlmm_config(GPIO_CFG(pdata->gpio_sda, 0, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_2MA), 1); */
+
+#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_TFT_VIDEO_WQXGA_PT_PANEL)
+	if (get_lcd_attached() == 0) {
+		if (gpio_is_valid(pdata->gpio_backlight_en)) {
+			pr_info("%s : Set Low Backlight Enable GPIO \n", __func__);
+			gpio_set_value(pdata->gpio_backlight_en, 0);
+		}
+	}
+#endif
 
 }
 
@@ -131,27 +139,66 @@ static int lp8556_backlight_parse_dt(struct device *dev,
 	return 0;
 }
 
+extern int system_rev;
 /*
 	0xA5, 0x24 //4 channel
 	0xA5, 0x14 //5 channel
 */
-#if defined(CONFIG_FB_MSM_MDSS_TC_DSI2LVDS_WXGA_PANEL)
+#if defined(CONFIG_SEC_T10_PROJECT)
+static u8 channel_setting[][2] = {
+	{0x00, 0x45},
+	{0x01, 0x73},
+	{0x02, 0xB7},
+};
+#elif defined(CONFIG_FB_MSM_MDSS_TC_DSI2LVDS_WXGA_PANEL)
 static u8 channel_setting[][2] ={
+	{0x01, 0x80},
+#if defined(CONFIG_MACH_MATISSELTE_ATT)
+	{0xA7, 0xCB},
+#endif
+	{0xA5, 0x24},
+	{0xA0, 0x44},
+	{0xA1, 0x6C},
+};
+#elif defined(CONFIG_FB_MSM_MDSS_SDC_WXGA_PANEL)
+#if defined(CONFIG_SEC_MILLETWIFI_COMMON)
+static u8 channel_setting_rev4[][2] ={
 	{0x01, 0x80},
 	{0xA7, 0xFA},
 	{0xA3, 0x5E},
-	{0xA5, 0x24},
+	{0xA5, 0x34},
 };
-#elif defined(CONFIG_FB_MSM_MDSS_SDC_WXGA_PANEL)
-#if defined(CONFIG_MACH_MILLETWIFI_OPEN)
 static u8 channel_setting[][2] ={
 	{0x02, 0x04},
 	{0x01, 0x07},
 };
+#elif defined(CONFIG_SEC_T8_PROJECT)
+static u8 channel_setting[][2] ={
+	{0x01, 0x80},
+	{0xA0, 0xFF},
+	{0xA1, 0xDF},
+	{0xA3, 0x5E},
+	{0xA5, 0x34},
+};
+#elif defined(CONFIG_SEC_RUBENS_PROJECT)
+#if defined(CONFIG_SEC_RUBENSLTE_COMMON)
+static u8 channel_setting[][2] ={
+	{0x01, 0x85},
+	{0xA7, 0xC7},
+	{0xA3, 0x5E},
+	{0xA5, 0x34},
+};
+#endif /* CONFIG_SEC_RUBENSLTE_COMMON */
+static u8 channel_setting_rev1[][2] ={
+	{0x01, 0x80},
+	{0xA7, 0xC7},
+	{0xA3, 0x5E},
+	{0xA5, 0x34},
+};
 #else
 static u8 channel_setting[][2] ={
 	{0x01, 0x80},
-	{0xA7, 0xFA},
+	{0xA7, 0xC7},
 	{0xA3, 0x5E},
 	{0xA5, 0x34},
 };
@@ -179,10 +226,58 @@ void pwm_backlight_enable(void)
 
 		msleep(10);
 	}
+#if defined(CONFIG_MACH_T10_3G_OPEN)
+	gpio_set_value(info->pdata->gpio_scl,1);
+	gpio_set_value(info->pdata->gpio_sda,1);
 	for (i = 0; i < ARRAY_SIZE(channel_setting) ;i++)
 		backlight_i2c_write(info->client, channel_setting[i][0], channel_setting[i][1], 1);
+#elif defined(CONFIG_SEC_MILLETWIFI_COMMON)
+	if(system_rev >= 8) {
+		for (i = 0; i < ARRAY_SIZE(channel_setting_rev4) ;i++)
+			backlight_i2c_write(info->client, channel_setting_rev4[i][0], channel_setting_rev4[i][1], 1);
+	} else {
+		for (i = 0; i < ARRAY_SIZE(channel_setting) ;i++)
+			backlight_i2c_write(info->client, channel_setting[i][0], channel_setting[i][1], 1);
+	}
+#elif defined(CONFIG_SEC_RUBENS_PROJECT)
+#if defined(CONFIG_SEC_RUBENSLTE_COMMON)
+	if(system_rev) {
+		for (i = 0; i < ARRAY_SIZE(channel_setting_rev1) ;i++)
+			backlight_i2c_write(info->client, channel_setting_rev1[i][0], channel_setting_rev1[i][1], 1);
+	} else {
+		for (i = 0; i < ARRAY_SIZE(channel_setting) ;i++)
+			backlight_i2c_write(info->client, channel_setting[i][0], channel_setting[i][1], 1);
+	}
+#else
+	for (i = 0; i < ARRAY_SIZE(channel_setting_rev1) ;i++)
+		backlight_i2c_write(info->client, channel_setting_rev1[i][0], channel_setting_rev1[i][1], 1);
+#endif /* !CONFIG_SEC_RUBENSLTE_COMMON */
+#else
+	for (i = 0; i < ARRAY_SIZE(channel_setting) ;i++)
+		backlight_i2c_write(info->client, channel_setting[i][0], channel_setting[i][1], 1);
+#endif
 
 }
+
+#if defined(CONFIG_SEC_RUBENS_PROJECT)
+static u8 channel_backlight_control[][2] ={
+	{0x00, 0x00},
+};
+void pwm_backlight_control_i2c(int scaled_level)
+{
+	int i;
+	struct lp8556_backlight_info *info = pinfo;
+	channel_backlight_control[0][1] =  scaled_level;
+
+	if (!info) {
+		pr_info("%s error pinfo", __func__);
+		return ;
+	}
+
+	for (i = 0; i < ARRAY_SIZE(channel_backlight_control) ;i++)
+		backlight_i2c_write(info->client, channel_backlight_control[i][0], channel_backlight_control[i][1], 1);
+}
+#endif
 
 void pwm_backlight_disable(void)
 {

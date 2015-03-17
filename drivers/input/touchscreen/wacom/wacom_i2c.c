@@ -120,7 +120,12 @@ static int wacom_stop(struct wacom_i2c *wac_i2c)
 static int wacom_reset_hw(struct wacom_i2c *wac_i2c)
 {
 	wacom_stop(wac_i2c);
+
+#ifdef WACOM_RESETPIN_DELAY
+	msleep(300);
+#else
 	msleep(30);
+#endif
 	wacom_start(wac_i2c);
 	msleep(200);
 
@@ -354,6 +359,26 @@ static void wacom_i2c_touch_pressed_work(struct work_struct *work)
 }
 #endif
 
+#ifdef WACOM_RESETPIN_DELAY
+static void wacom_reset(struct work_struct *work)
+{
+	struct wacom_i2c *wac_i2c =
+			container_of(work, struct wacom_i2c, work_wacom_reset.work);
+
+	dev_err(&wac_i2c->client->dev,
+				"%s: reset\n",
+				__func__);
+
+	wacom_enable_irq(wac_i2c, false);
+
+	/* Reset IC */
+		wacom_reset_hw(wac_i2c);
+
+	wacom_enable_irq(wac_i2c, true);
+}
+#endif
+
+
 #ifdef USE_WACOM_LCD_WORKAROUND
 extern int ldi_fps(unsigned int input_fps);
 void wacom_i2c_write_vsync(struct wacom_i2c *wac_i2c)
@@ -362,7 +387,11 @@ void wacom_i2c_write_vsync(struct wacom_i2c *wac_i2c)
 
 	if (wac_i2c->wait_done) {
 		dev_info(&wac_i2c->client->dev, "%s write %d\n", __func__, wac_i2c->vsync);
-		retval = ldi_fps(wac_i2c->vsync);
+		#if defined(CONFIG_MACH_FRESCOLTESKT) || defined(CONFIG_MACH_FRESCOLTEKTT) || defined(CONFIG_MACH_FRESCOLTELGT)
+			retval = 0; // kyNam_131228_ ldi_fps(wac_i2c->vsync);
+		#else
+			retval = ldi_fps(wac_i2c->vsync);
+		#endif
 		if (!retval)
 			dev_info(&wac_i2c->client->dev, "%s failed\n", __func__);
 		wac_i2c->wait_done = false;
@@ -1280,7 +1309,7 @@ static int wacom_parse_dt(struct device *dev,
 	pdata->gpio_pen_insert = of_get_named_gpio(np, "wacom,sense-gpio", 0);
 
 #if defined(CONFIG_MACH_HLTECHNTWU)
-	pdata->basic_model = "SM-N900U";
+	pdata->basic_model = "N900U";
 #else
 	rc = of_property_read_string(np, "wacom,basic_model", &pdata->basic_model);
 	if (rc < 0) {
@@ -1328,6 +1357,11 @@ static int wacom_i2c_remove(struct i2c_client *client)
 	cancel_delayed_work_sync(&wac_i2c->read_vsync_work);
 	cancel_delayed_work_sync(&wac_i2c->boot_done_work);
 #endif
+
+#ifdef WACOM_RESETPIN_DELAY
+	cancel_delayed_work_sync(&wac_i2c->work_wacom_reset);
+#endif
+
 	cancel_delayed_work_sync(&wac_i2c->pen_insert_dwork);
 #ifdef WACOM_BOOSTER
 	cancel_delayed_work_sync(&wac_i2c->work_dvfs_off);
@@ -1491,7 +1525,7 @@ static int wacom_i2c_probe(struct i2c_client *client,
 
 		wac_i2c->wac_pdata->compulsory_flash_mode(wac_i2c, false);
 		wac_i2c->wac_pdata->wacom_start(wac_i2c);
-		msleep(100);
+		msleep(200);
 	} else {
 		wac_i2c->wac_pdata->compulsory_flash_mode(wac_i2c, true);
 		/*Reset */
@@ -1499,7 +1533,7 @@ static int wacom_i2c_probe(struct i2c_client *client,
 		msleep(200);
 		ret = wacom_check_mpu_version(wac_i2c);
 		if (ret == -ETIMEDOUT)
-#ifdef CONFIG_SEC_H_PROJECT
+#if defined(CONFIG_SEC_H_PROJECT) || defined(CONFIG_SEC_FRESCO_PROJECT)
 			goto err_wacom_i2c_send_timeout;
 #else
 			pr_err("[E-PEN] wacom_i2c_send failed.\n");
@@ -1565,6 +1599,11 @@ static int wacom_i2c_probe(struct i2c_client *client,
 #ifdef WACOM_PEN_DETECT
 	INIT_DELAYED_WORK(&wac_i2c->pen_insert_dwork, pen_insert_work);
 #endif
+
+#ifdef WACOM_RESETPIN_DELAY
+	INIT_DELAYED_WORK(&wac_i2c->work_wacom_reset, wacom_reset);
+#endif
+
 	/*Before registering input device, data in each input_dev must be set */
 	ret = input_register_device(input);
 	if (ret) {
@@ -1663,6 +1702,10 @@ static int wacom_i2c_probe(struct i2c_client *client,
 					msecs_to_jiffies(20 * 1000));
 #endif
 
+#ifdef WACOM_RESETPIN_DELAY
+	schedule_delayed_work(&wac_i2c->work_wacom_reset, msecs_to_jiffies(5000));
+#endif
+
 	return 0;
 
 err_request_irq_pen_inster:
@@ -1684,6 +1727,9 @@ err_input_allocate_device:
 	cancel_delayed_work_sync(&wac_i2c->boot_done_work);
 #endif
 	cancel_delayed_work_sync(&wac_i2c->pen_insert_dwork);
+#ifdef WACOM_RESETPIN_DELAY
+	cancel_delayed_work_sync(&wac_i2c->work_wacom_reset);
+#endif
 #ifdef WACOM_BOOSTER
 	cancel_delayed_work_sync(&wac_i2c->work_dvfs_off);
 	cancel_delayed_work_sync(&wac_i2c->work_dvfs_chg);
@@ -1692,7 +1738,7 @@ err_input_allocate_device:
 	wac_i2c->wac_pdata->wacom_stop(wac_i2c);
 	mutex_destroy(&wac_i2c->lock);
 err_wacom_i2c_bootloader_ver:
-#ifdef CONFIG_SEC_H_PROJECT
+#if defined(CONFIG_SEC_H_PROJECT) || defined(CONFIG_SEC_FRESCO_PROJECT)
  err_wacom_i2c_send_timeout:
 #endif
 	input_free_device(input);

@@ -93,10 +93,25 @@ Parent node optional properties:
 					set, the charger ovp status is monitored in software.
 - qcom,ext-ovp-present			Indicates if an external OVP exists which reduces the
 					overall input resistance of the charge path.
+- qcom,ibat-calibration-enabled		Indicates if ibat calibration is enabled. This is
+					required for devices which have a ibat trim error
+					causing ibatmax to go out of spec.
 - qcom,power-stage-reduced		Indicates if power stage workaround is enabled. This work
 					around reduces the power stage segments while charging
 					under high load during low battery voltages. It's for
 					improving IADC accuracy while board has a bad layout.
+- qcom,use-external-rsense		A boolean that controls whether BMS will use
+					an external sensor resistor instead of the default
+					RDS of the batfet.
+- qcom,vbatdet-maxerr-mv		This property in mV is a hystersis value for the charge
+					resume voltage property qcom,vbatdet-delta-mv. If this
+					property is not defined it defaults to 50 mV.
+- qcom,parallel-ovp-mode		When this option is enabled, it allows charging through both
+					DC and USB OVP FETs. Please note that this should only
+					be enabled in board designs with PM8941 which have DC_IN
+					and USB_IN connected via a short.
+ - qcom,ext-ovp-isns-enable-gpio	External OVP enable GPIO.
+ - qcom,ext-ovp-isns-r-ohm			External ISNS OVP resistance in ohm.
 
 Sub node required structure:
 - A qcom,chg node must be a child of an SPMI node that has specified
@@ -195,6 +210,10 @@ Sub node optional properties:
 			qcom,batfet:
 			 - regulator-name:	A string used as a descriptive name
 						for the batfet regulator.
+
+			qcom,chgr:
+			- regulator-name:	A string used as a descriptive name
+						for the flash workarounds regulator.
 Example:
 	pm8941-chg {
 		spmi-dev-container;

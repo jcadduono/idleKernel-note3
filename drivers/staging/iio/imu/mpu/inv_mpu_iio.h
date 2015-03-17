@@ -18,6 +18,7 @@
 #include <linux/kfifo.h>
 #include <linux/miscdevice.h>
 #include <linux/spinlock.h>
+#include <linux/wakelock.h>
 #include <linux/mpu.h>
 
 #include "iio.h"
@@ -388,6 +389,7 @@ struct inv_reg_map_s {
 	u8 fifo_en;
 	u8 gyro_config;
 	u8 accel_config;
+	u8 accel_config2;
 	u8 fifo_count_h;
 	u8 fifo_r_w;
 	u8 raw_accel;
@@ -531,10 +533,12 @@ struct inv_chip_config_s {
 	u32 smd_enable:1;
 	u32 adjust_time:1;
 	u32 smd_triggered:1;
+	u32 is_overflow:1;
 	u16 lpa_freq;
 	u16 prog_start_addr;
 	u16 fifo_rate;
 	u16 bytes_per_datum;
+	u16 checkOnOff;
 };
 
 /**
@@ -652,6 +656,22 @@ struct inv_ped {
 	bool int_on;
 	bool on;
 };
+
+#if defined(CONFIG_SENSORS)
+struct motion_int_data {
+	u8 pwr_mgmt[2];
+	u8 config;
+	u8 accel_config;
+	u8 accel_config2;
+	u8 gyro_config;
+	u8 lp_accel_odr;
+	u8 accel_int_ctrl;
+	u8 motion_threshold;
+	u8 smplrt_div;
+	u8 int_enable;
+	bool is_set;
+};
+#endif
 
 struct inv_mpu_slave;
 /**
@@ -785,6 +805,12 @@ struct inv_mpu_state {
 	struct device *gyro_sensor_device;
 	struct device *accel_sensor_device;
 	struct device *magnetic_sensor_device;
+	u8 reactive_state;
+	u8 reactive_enable;
+	bool factory_mode;
+	struct wake_lock reactive_wake_lock;
+	struct motion_int_data mot_data;
+	unsigned long mot_st_time; //start-up time of motion interrupt
 #endif
 };
 
@@ -835,6 +861,8 @@ struct inv_mpu_slave {
 	int (*set_lpf)(struct inv_mpu_state *, int rate);
 	int (*set_fs)(struct inv_mpu_state *, int fs);
 	u64 prev_ts;
+	int adc_upper;
+	int adc_lower;
 };
 
 /* scan element definition */

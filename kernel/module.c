@@ -58,6 +58,11 @@
 #include <linux/jump_label.h>
 #include <linux/pfn.h>
 #include <linux/bsearch.h>
+
+#ifndef CONFIG_TIMA
+#undef CONFIG_TIMA_LKMAUTH
+#undef CONFIG_TIMA_LKMAUTH_CODE_PROT
+#endif
 #ifdef	CONFIG_TIMA_LKMAUTH_CODE_PROT
 #include <asm/tlbflush.h>
 #endif/*CONFIG_TIMA_LKMAUTH_CODE_PROT*/
@@ -2478,6 +2483,7 @@ static int lkmauth(Elf_Ehdr *hdr, int len)
 		kreq->cmd_id, (int)kreq, (int)krsp, kreq->module_addr_start, kreq->module_len);
 
 	qseecom_set_bandwidth(qhandle, true);
+	flush_cache_all();
 	qsee_ret = qseecom_send_command(qhandle, kreq, req_len, krsp, rsp_len);
 	qseecom_set_bandwidth(qhandle, false);
 

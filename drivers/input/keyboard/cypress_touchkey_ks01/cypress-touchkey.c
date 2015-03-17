@@ -507,7 +507,7 @@ static ssize_t cypress_touchkey_brightness_level_show(struct device *dev,
 	struct cypress_touchkey_info *info = dev_get_drvdata(dev);
 	int count;
 
-	count = snprintf(buf, sizeof(buf), "%d\n", vol_mv_level);
+	count = snprintf(buf, 20, "%d\n", vol_mv_level);
 
 	dev_info(&info->client->dev,
 			"%s: Touch LED voltage = %d\n",
@@ -1516,7 +1516,7 @@ static struct attribute_group touchkey_attr_group = {
 	.attrs = touchkey_attributes,
 };
 
-#if !defined(CONFIG_SEC_H_PROJECT) && !defined(CONFIG_SEC_JS_PROJECT)	/*HLTE temp update block(0426)*/
+#if !defined(CONFIG_SEC_H_PROJECT) && !defined(CONFIG_SEC_JS_PROJECT) && !defined(CONFIG_SEC_FRESCO_PROJECT) /*HLTE temp update block(0426)*/
 static void cypress_config_gpio_i2c(struct cypress_touchkey_platform_data *pdata, int onoff)
 {
 	if (onoff) {
@@ -1638,7 +1638,7 @@ static int __devinit cypress_touchkey_probe(struct i2c_client *client,
 	int ic_fw_ver;
 	int error;
 	u8 data[6] = { 0, };
-#if !defined(CONFIG_SEC_H_PROJECT) && !defined(CONFIG_SEC_JS_PROJECT)	/*HLTE temp update block(0426)*/
+#if !defined(CONFIG_SEC_H_PROJECT) && !defined(CONFIG_SEC_JS_PROJECT) && !defined(CONFIG_SEC_FRESCO_PROJECT)	/*HLTE temp update block(0426)*/
 	int retry = NUM_OF_RETRY_UPDATE;
 #endif
 	if (!i2c_check_functionality(adapter, I2C_FUNC_I2C))
@@ -1797,7 +1797,7 @@ static int __devinit cypress_touchkey_probe(struct i2c_client *client,
 	dev_info(&info->client->dev, "%s: IC ID Version: 0x%02x\n",
 			__func__, info->fw_id);
 
-#if defined(CONFIG_SEC_H_PROJECT) || defined(CONFIG_SEC_JS_PROJECT)	/*HLTE temp update block(0426)*/
+#if defined(CONFIG_SEC_H_PROJECT) || defined(CONFIG_SEC_JS_PROJECT) && !defined(CONFIG_SEC_FRESCO_PROJECT)	/*HLTE temp update block(0426)*/
 	dev_info(&client->dev, "[TouchKey] FW update does not need!\n");
 #else
 	if ((info->fw_id & CYPRESS_65_IC_MASK) && (ic_fw_ver >= BASE_FW_VERSION) && (ic_fw_ver < BIN_FW_VERSION)) {

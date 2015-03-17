@@ -843,14 +843,22 @@ out:
  */
 static inline void tima_l2group_ptep_set_wrprotect(struct mm_struct *mm,
 			unsigned long address, pte_t *ptep, 
-			tima_l2group_entry_t *tima_l2group_buffer,
+			tima_l2group_entry_t *tima_l2group_buffer1,
+			tima_l2group_entry_t *tima_l2group_buffer2,
 			unsigned long *tima_l2group_buffer_index)
 {
         pte_t old_pte = *ptep;
-        timal2group_set_pte_at(ptep, pte_wrprotect(old_pte),
-        			(((unsigned long) tima_l2group_buffer) + 
-				 (sizeof(tima_l2group_entry_t)*(*tima_l2group_buffer_index))),
-				address, tima_l2group_buffer_index);
+	if (*tima_l2group_buffer_index < RKP_MAX_PGT2_ENTRIES) {
+		timal2group_set_pte_at(ptep, pte_wrprotect(old_pte),
+					(((unsigned long) tima_l2group_buffer1) + 
+					 (sizeof(tima_l2group_entry_t)*(*tima_l2group_buffer_index))),
+					address, tima_l2group_buffer_index);
+	} else {
+		timal2group_set_pte_at(ptep, pte_wrprotect(old_pte),
+					(((unsigned long) tima_l2group_buffer2) + 
+					 (sizeof(tima_l2group_entry_t)*(*tima_l2group_buffer_index - RKP_MAX_PGT2_ENTRIES))),
+					address, tima_l2group_buffer_index);
+	}
         //set_pte_at(mm, address, ptep, pte_wrprotect(old_pte)); /* Removed as grouping works */
 }
 
@@ -867,7 +875,8 @@ static inline unsigned long
 tima_l2group_copy_one_pte(struct mm_struct *dst_mm, struct mm_struct *src_mm,
 		pte_t *dst_pte, pte_t *src_pte, struct vm_area_struct *vma,
 		unsigned long addr, int *rss, 
-		tima_l2group_entry_t *tima_l2group_buffer,
+		tima_l2group_entry_t *tima_l2group_buffer1,
+		tima_l2group_entry_t *tima_l2group_buffer2,
 		unsigned long *tima_l2group_buffer_index,
 		unsigned long tima_l2group_flag)
 #else
@@ -930,8 +939,7 @@ copy_one_pte(struct mm_struct *dst_mm, struct mm_struct *src_mm,
 #ifdef CONFIG_TIMA_RKP_L2_GROUP
 		if (tima_l2group_flag) {
 			tima_l2group_ptep_set_wrprotect(src_mm, addr, src_pte,
-				tima_l2group_buffer, tima_l2group_buffer_index);
-			//(*tima_l2group_buffer_index)++;
+				tima_l2group_buffer1, tima_l2group_buffer2, tima_l2group_buffer_index);
 		}
 		else
 			ptep_set_wrprotect(src_mm, addr, src_pte);
@@ -976,8 +984,9 @@ int copy_pte_range(struct mm_struct *dst_mm, struct mm_struct *src_mm,
 	swp_entry_t entry = (swp_entry_t){0};
 #ifdef CONFIG_TIMA_RKP_L2_GROUP
         unsigned long tima_l2group_flag = 0;
-        tima_l2group_entry_t *tima_l2group_buffer = NULL;
-        unsigned long tima_l2group_numb_entries;
+        tima_l2group_entry_t *tima_l2group_buffer1 = NULL;
+        tima_l2group_entry_t *tima_l2group_buffer2 = NULL;
+        unsigned long tima_l2group_numb_entries = ((end-addr) >> PAGE_SHIFT);
         unsigned long tima_l2group_buffer_index = 0;
 #endif
 
@@ -994,41 +1003,18 @@ again:
 	orig_dst_pte = dst_pte;
 	arch_enter_lazy_mmu_mode();
 #ifdef CONFIG_TIMA_RKP_L2_GROUP
-	/* Initialize all L2_GROUP variables */
+	/* Re-Initialize all L2_GROUP variables */
 	tima_l2group_flag= 0;
-	tima_l2group_buffer = NULL;
+	tima_l2group_buffer1 = NULL;
+	tima_l2group_buffer2 = NULL;
 	tima_l2group_numb_entries = ((end-addr) >> PAGE_SHIFT);
 	tima_l2group_buffer_index = 0;
         /*
          * Lazy mmu mode for tima:
-         * 1-Define a memory area to hold the PTEs to be changed
-         * 2-Commit the changes right away to TIMA
-	 * 0x200 = 512 bytes which is 2 L2 pages. If grouped 
-	 * entries are <= 2, there is not much point in
-	 * grouping it, in which case follow the normal path. 
          */
-        if (tima_l2group_numb_entries > 2 && tima_l2group_numb_entries <= 0x200
-		&& tima_is_pg_protected((unsigned long)src_pte) == 1) {
-        	/*
-        	 * Kmalloc does not work in this function (causes crashes) so
-        	 * we use get_free_pages instead which mostly wastes some space
-        	 */
-		/*tima_l2group_buffer = kmalloc(sizeof(*tima_l2group_buffer) * 
-						tima_l2group_numb_entries, 
-						GFP_KERNEL | GFP_ATOMIC);*/
-		tima_l2group_buffer = (tima_l2group_entry_t *)
-					__get_free_pages(GFP_ATOMIC, 1);
-		if (tima_l2group_buffer == NULL) {
-			printk(KERN_ERR"TIMA -> L2GRP FAILED %lx %lx %lx\n",
-				addr, end, tima_l2group_numb_entries);
-		} else {
-			tima_l2group_flag = 1;
-			/* make sure index is reset here, or all
-			 * hell breaks loose!
-			 */
-			tima_l2group_buffer_index = 0;
-		}
-        }
+	init_tima_rkp_group_buffers(tima_l2group_numb_entries, src_pte,
+				&tima_l2group_flag, &tima_l2group_buffer_index,
+				&tima_l2group_buffer1, &tima_l2group_buffer2);
 #endif /* CONFIG_TIMA_RKP_L2_GROUP */
 
 	do {
@@ -1054,7 +1040,8 @@ again:
 		 */
 		entry.val = tima_l2group_copy_one_pte(dst_mm, src_mm, dst_pte, src_pte,
 							vma, addr, rss, 
-							tima_l2group_buffer,
+							tima_l2group_buffer1,
+							tima_l2group_buffer2,
 							&tima_l2group_buffer_index,
 							tima_l2group_flag);
 #else		
@@ -1068,19 +1055,17 @@ again:
 
 #ifdef CONFIG_TIMA_RKP_L2_GROUP
 	if (tima_l2group_flag) {
-		unsigned long buffer_va = (unsigned long) tima_l2group_buffer;
 		/*First: Flush the cache of the buffer to be read by the TZ side
 		 */
-		flush_dcache_page(virt_to_page(buffer_va));
-		flush_dcache_page(virt_to_page(buffer_va + PAGE_SIZE));
+		if(tima_l2group_buffer1)
+			flush_dcache_page(virt_to_page(tima_l2group_buffer1));
+		if(tima_l2group_buffer2)
+			flush_dcache_page(virt_to_page(tima_l2group_buffer2));
 
 		/*Second: Pass the buffer pointer and length to TIMA to commit the changes
 		 */
-		if (tima_l2group_buffer_index) {
-			timal2group_set_pte_commit(tima_l2group_buffer,
-						tima_l2group_buffer_index, (void*)src_pte);
-		}
-		free_pages((unsigned long) tima_l2group_buffer, 1);
+		write_tima_rkp_group_buffers(tima_l2group_buffer_index,
+			&tima_l2group_buffer1, &tima_l2group_buffer2);
 	}
 #endif /* CONFIG_TIMA_RKP_L2_GROUP */
 	arch_leave_lazy_mmu_mode();

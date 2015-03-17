@@ -40,6 +40,11 @@
 #define I2C_ADDR_MUIC	(0x4A >> 1)
 #define I2C_ADDR_HAPTIC	(0x90 >> 1)
 
+#ifdef CONFIG_MUIC_RESET_PIN_ENABLE
+int muic_reset_pin = 0;
+EXPORT_SYMBOL_GPL(muic_reset_pin);
+#endif
+
 static struct mfd_cell max77888_devs[] = {
 	{ .name = "max77888-charger", },
 	{ .name = "max77888-led", },
@@ -128,9 +133,18 @@ static int of_max77888_dt(struct device *dev, struct max77888_platform_data *pda
 {
 	struct device_node *np = dev->of_node;
 	int retval = 0;
-
-	if(!np)
+#ifdef CONFIG_VIBETONZ
+	struct max77888_haptic_platform_data  *haptic_data;
+	haptic_data = kzalloc(sizeof(struct max77888_haptic_platform_data), GFP_KERNEL);
+	if (haptic_data == NULL)
+		return -ENOMEM;
+#endif
+	if(!np) {
+#ifdef CONFIG_VIBETONZ
+	kfree(haptic_data);
+#endif
 		return -EINVAL;
+	}
 
 	pdata->irq_gpio = of_get_named_gpio(np, "max77888,irq-gpio", 0);
 	if (pdata->irq_gpio < 0) {
@@ -139,13 +153,40 @@ static int of_max77888_dt(struct device *dev, struct max77888_platform_data *pda
 		pdata->irq_gpio = 0;
 	}
 
+#ifdef CONFIG_MUIC_RESET_PIN_ENABLE
+	pdata->irq_reset_gpio = of_get_named_gpio(np, "max77888,irq-reset-gpio", 0);
+	if (pdata->irq_reset_gpio < 0) {
+		pr_err("%s: failed get max77888 irq-reset-gpio : %d\n",
+			__func__, pdata->irq_gpio);
+		pdata->irq_reset_gpio = -1;
+		muic_reset_pin = 0;
+	}
+	else
+		muic_reset_pin = 1;
+	
+#endif
+
 	retval = of_property_read_u32(np, "max77888,irq-base", &pdata->irq_base);
 	pdata->wakeup = of_property_read_bool(np, "max77888,wakeup");
 
 	pr_info("%s: irq-gpio: %u \n", __func__, pdata->irq_gpio);
+#ifdef CONFIG_MUIC_RESET_PIN_ENABLE
+	pr_info("%s: irq-reset-gpio: %u \n", __func__, pdata->irq_reset_gpio);
+#endif
 	pr_info("%s: irq-gpio_flags: %u \n", __func__, pdata->irq_gpio_flags);
 	pr_info("%s: irq-base: %u \n", __func__, pdata->irq_base);
 
+#ifdef CONFIG_VIBETONZ
+	of_property_read_u32(np, "haptic,max_timeout", &haptic_data->max_timeout);
+	of_property_read_u32(np, "haptic,duty", &haptic_data->duty);
+	of_property_read_u32(np, "haptic,period", &haptic_data->period);
+	of_property_read_u32(np, "haptic,pwm_id", &haptic_data->pwm_id);
+	pr_info("%s: timeout: %u \n", __func__, haptic_data->max_timeout);
+	pr_info("%s: duty: %u \n", __func__, haptic_data->duty);
+	pr_info("%s: period: %u \n", __func__, haptic_data->period);
+	pr_info("%s: pwm_id: %u \n", __func__, haptic_data->pwm_id);
+	pdata->haptic_data = haptic_data;
+#endif
 	return 0;
 }
 
@@ -186,9 +227,6 @@ static int max77888_i2c_probe(struct i2c_client *i2c,
 		pdata->num_regulators = MAX77888_REG_MAX;
 		pdata->regulators = max77888_regulators,
 #endif
-#ifdef CONFIG_VIBETONZ
-		pdata->haptic_data = &max77888_haptic_pdata;
-#endif
 #ifdef CONFIG_LEDS_MAX77888
 		pdata->led_data = &max77888_led_pdata;
 #endif
@@ -205,14 +243,19 @@ static int max77888_i2c_probe(struct i2c_client *i2c,
 	if (pdata) {
 		max77888->irq_base = pdata->irq_base;
 		max77888->irq_gpio = pdata->irq_gpio;
+#ifdef CONFIG_MUIC_RESET_PIN_ENABLE
+		if (muic_reset_pin)
+		{
+			max77888->irq_reset_gpio = pdata->irq_reset_gpio;
+			gpio_tlmm_config(GPIO_CFG(max77888->irq_reset_gpio,  0, GPIO_CFG_INPUT,
+				GPIO_CFG_NO_PULL, GPIO_CFG_2MA), GPIO_CFG_DISABLE);
+		}
+#endif
 		max77888->wakeup = pdata->wakeup;
 
 		gpio_tlmm_config(GPIO_CFG(max77888->irq_gpio,  0, GPIO_CFG_INPUT,
 			GPIO_CFG_NO_PULL, GPIO_CFG_2MA), GPIO_CFG_DISABLE);
 
-		pr_info("%s:%d: irq_base=%d, irq_gpio=%d\n",
-			__func__, __LINE__ ,
-			max77888->irq_base, max77888->irq_gpio);
 	} else {
 		goto err;
 	}
@@ -414,7 +457,10 @@ static int max77888_freeze(struct device *dev)
 				&max77888->reg_haptic_dump[i]);
 
 	disable_irq(max77888->irq);
-
+#ifdef CONFIG_MUIC_RESET_PIN_ENABLE
+	if (muic_reset_pin)
+		disable_irq(max77888->irq_reset);
+#endif
 	return 0;
 }
 
@@ -425,7 +471,10 @@ static int max77888_restore(struct device *dev)
 	int i;
 
 	enable_irq(max77888->irq);
-
+#ifdef CONFIG_MUIC_RESET_PIN_ENABLE
+	if (muic_reset_pin)
+		enable_irq(max77888->irq_reset);
+#endif
 	for (i = 0; i < ARRAY_SIZE(max77888_dumpaddr_pmic); i++)
 		max77888_write_reg(i2c, max77888_dumpaddr_pmic[i],
 				max77888->reg_pmic_dump[i]);

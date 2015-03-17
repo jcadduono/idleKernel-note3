@@ -124,6 +124,12 @@ int es705_gpio_init(struct es705_priv *es705)
 			goto event_irq_wake_error;
 		}
 	}
+
+#if defined(CONFIG_MACH_K3GDUOS_CTC)
+	gpio_tlmm_config(GPIO_CFG(es705->pdata->uart_tx_gpio, 2, GPIO_CFG_OUTPUT,GPIO_CFG_NO_PULL, GPIO_CFG_8MA), 1);
+	gpio_tlmm_config(GPIO_CFG(es705->pdata->uart_rx_gpio, 2, GPIO_CFG_INPUT,GPIO_CFG_NO_PULL, GPIO_CFG_8MA), 1);
+#endif /* CONFIG_MACH_K3GDUOS_CTC */
+
 #ifdef CONFIG_SND_SOC_ES704_TEMP
 	gpio_initialized = 1;
 #endif
@@ -163,15 +169,30 @@ void es705_gpio_wakeup(struct es705_priv *es705)
 		gpio_direction_input(es705->pdata->wakeup_gpio);
 		gpio_tlmm_config(GPIO_CFG(0, 2, GPIO_CFG_OUTPUT,
 					GPIO_CFG_NO_PULL, GPIO_CFG_16MA), 1);
-
-		if (es705->change_uart_config) {
-			gpio_tlmm_config(GPIO_CFG(0, 0, GPIO_CFG_INPUT,
-						GPIO_CFG_NO_PULL, GPIO_CFG_16MA), 1);
-			gpio_tlmm_config(GPIO_CFG(1, 0, GPIO_CFG_INPUT,
-						GPIO_CFG_NO_PULL, GPIO_CFG_16MA), 1);			
-		}
 	} else
 		gpio_set_value(es705->pdata->wakeup_gpio, 0);
+}
+
+void es705_uart_pin_preset(struct es705_priv *es705)
+{
+	if((es705->pdata->uart_tx_gpio != -1)
+		&& (es705->pdata->uart_rx_gpio != -1)) {
+		gpio_tlmm_config(GPIO_CFG(es705->pdata->uart_tx_gpio, 2, GPIO_CFG_OUTPUT,
+					GPIO_CFG_NO_PULL, GPIO_CFG_16MA), 1);
+		gpio_tlmm_config(GPIO_CFG(es705->pdata->uart_rx_gpio, 2, GPIO_CFG_OUTPUT,
+					GPIO_CFG_NO_PULL, GPIO_CFG_16MA), 1);
+	}
+}
+
+void es705_uart_pin_postset(struct es705_priv *es705)
+{
+	if((es705->pdata->uart_tx_gpio != -1)
+		&& (es705->pdata->uart_rx_gpio != -1)) {
+		gpio_tlmm_config(GPIO_CFG(es705->pdata->uart_tx_gpio, 0, GPIO_CFG_INPUT,
+					GPIO_CFG_NO_PULL, GPIO_CFG_16MA), 1);
+		gpio_tlmm_config(GPIO_CFG(es705->pdata->uart_rx_gpio, 0, GPIO_CFG_INPUT,
+					GPIO_CFG_NO_PULL, GPIO_CFG_16MA), 1);
+	}
 }
 
 int es705_init_input_device(struct es705_priv *es705)
@@ -187,6 +208,7 @@ int es705_init_input_device(struct es705_priv *es705)
 	set_bit(EV_SYN, es705->input->evbit);
 	set_bit(EV_KEY, es705->input->evbit);
 	set_bit(KEY_VOICE_WAKEUP, es705->input->keybit);
+	set_bit(KEY_VOICE_WAKEUP_LPSD, es705->input->keybit);
 
 	rc = input_register_device(es705->input);
 	if (rc < 0)
@@ -205,10 +227,23 @@ void es705_unregister_input_device(struct es705_priv *es705)
 void es705_vs_event(struct es705_priv *es705)
 {
 #if defined(SAMSUNG_ES705_FEATURE)
-	input_report_key(es705_priv.input, KEY_VOICE_WAKEUP, 1);
+	unsigned int vs_event_type = 0;
+
+	if (es705->voice_wakeup_enable == 1) /* Voice wakeup */
+		vs_event_type = KEY_VOICE_WAKEUP;
+	else if (es705->voice_wakeup_enable == 2) /* Voice wakeup LPSD */
+		vs_event_type = KEY_VOICE_WAKEUP_LPSD;
+	else {
+		dev_info(es705->dev, "%s(): Invalid value(%d)\n", __func__, es705->voice_wakeup_enable);
+		return;
+	}
+
+	dev_info(es705->dev, "%s(): Raise key event(%d)\n", __func__, vs_event_type);
+
+	input_report_key(es705_priv.input, vs_event_type, 1);
 	input_sync(es705_priv.input);
 	msleep(10);
-	input_report_key(es705_priv.input, KEY_VOICE_WAKEUP, 0);
+	input_report_key(es705_priv.input, vs_event_type, 0);
 	input_sync(es705_priv.input);
 #else
 	struct slim_device *sbdev = es705->gen0_client;
@@ -286,6 +321,7 @@ struct esxxx_platform_data *es705_populate_dt_pdata(struct device *dev)
 	}
 	dev_dbg(dev, "%s(): reset gpio %d\n", __func__, pdata->reset_gpio);
 
+#if !defined(CONFIG_ARCH_MSM8226)
 	pdata->gpioa_gpio = of_get_named_gpio(dev->of_node,
 					      "es705-gpioa-gpio", 0);
 	if (pdata->gpioa_gpio < 0) {
@@ -293,7 +329,9 @@ struct esxxx_platform_data *es705_populate_dt_pdata(struct device *dev)
 		goto alloc_err;
 	}
 	dev_dbg(dev, "%s(): gpioa gpio %d\n", __func__, pdata->gpioa_gpio);
+#endif
 
+#if !defined(CONFIG_SEC_S_PROJECT) && !defined(CONFIG_ARCH_MSM8226)
 	pdata->gpiob_gpio = of_get_named_gpio(dev->of_node,
 					      "es705-gpiob-gpio", 0);
 	if (pdata->gpiob_gpio < 0) {
@@ -301,6 +339,23 @@ struct esxxx_platform_data *es705_populate_dt_pdata(struct device *dev)
 		goto alloc_err;
 	}
 	dev_dbg(dev, "%s(): gpiob gpio %d\n", __func__, pdata->gpiob_gpio);
+#endif
+
+	pdata->uart_tx_gpio = of_get_named_gpio(dev->of_node,
+					     "es705-uart-tx", 0);
+	if (pdata->uart_tx_gpio < 0) {
+		dev_info(dev, "%s(): get uart_tx_gpio failed\n", __func__);
+		pdata->uart_tx_gpio = -1;
+	}
+	dev_dbg(dev, "%s(): uart tx gpio %d\n", __func__, pdata->uart_tx_gpio);
+
+	pdata->uart_rx_gpio = of_get_named_gpio(dev->of_node,
+					     "es705-uart-rx", 0);
+	if (pdata->uart_rx_gpio < 0) {
+		dev_info(dev, "%s(): get uart_rx_gpio failed\n", __func__);
+		pdata->uart_rx_gpio = -1;
+	}
+	dev_dbg(dev, "%s(): uart rx gpio %d\n", __func__, pdata->uart_rx_gpio);
 
 	pdata->wakeup_gpio = of_get_named_gpio(dev->of_node,
 					     "es705-wakeup-gpio", 0);
@@ -317,7 +372,9 @@ struct esxxx_platform_data *es705_populate_dt_pdata(struct device *dev)
 		pdata->uart_gpio = -1;
 	}
 	dev_dbg(dev, "%s(): uart gpio %d\n", __func__, pdata->uart_gpio);
+	#if !defined(CONFIG_SEC_S_PROJECT)  && !defined(CONFIG_ARCH_MSM8226)
 	pdata->irq_base = gpio_to_irq(pdata->gpiob_gpio);
+	#endif
 
 	return pdata;
 alloc_err:

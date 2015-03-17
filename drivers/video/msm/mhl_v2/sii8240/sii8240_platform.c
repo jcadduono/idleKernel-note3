@@ -122,7 +122,7 @@ static struct msm_gpiomux_config msm_hdmi_ddc_configs[] = {
 		},
 	},
 };
-
+static bool mhl_power_on;
 #ifdef CONFIG_ARCH_MSM8974
 int platform_ap_hdmi_hdcp_auth(struct sii8240_data *sii8240)
 {
@@ -135,7 +135,7 @@ int platform_ap_hdmi_hdcp_auth(struct sii8240_data *sii8240)
 		}
 		sii8240->mhl_ddc_bypass(true);
 		hdcp_ctrl_global->hdcp_state = HDCP_STATE_AUTHENTICATING;
-		ret = hdmi_hdcp_authentication_part1(hdcp_ctrl_global);
+		ret = hdmi_hdcp_authentication_part1_start(hdcp_ctrl_global);
 		sii8240->mhl_ddc_bypass(false);
 		if (ret) {
 			pr_err("%s: HDMI HDCP Auth Part I failed\n", __func__);
@@ -172,9 +172,9 @@ static bool sii8240_vbus_present(void)
 #ifdef CONFIG_CHARGER_SMB358
 		msleep(300);
 #endif
-	        ret = gpio_get_value_cansleep(pdata->gpio_ta_int) ? 
-                                                                false : true;
-        }
+		ret = gpio_get_value_cansleep(pdata->gpio_ta_int) ?
+								false : true;
+	}
 #endif
 	pr_info("VBUS : %s in %s\n", ret ? "IN" : "OUT", __func__);
 	return ret;
@@ -186,6 +186,13 @@ extern int poweroff_charging;
 
 static int sii8240_muic_get_charging_type(void)
 {
+#ifdef CONFIG_EXTCON
+	struct sii8240_platform_data *pdata = g_pdata;
+	if(pdata->is_smartdock == true)
+		return -1;
+	else
+		return 1;
+#else /* CONFIG_EXTCON */
 #if defined(CONFIG_MFD_MAX77803)
 	int muic_cable_type = max77803_muic_get_charging_type();
 #elif defined(CONFIG_MFD_MAX77888)
@@ -211,6 +218,7 @@ static int sii8240_muic_get_charging_type(void)
 
 	return 1;
 #endif
+#endif /* CONFIG_EXTCON */
 }
 
 static void sii8240_charger_mhl_cb(bool otg_enable, int charger)
@@ -276,6 +284,27 @@ static void sii8240_charger_mhl_cb(bool otg_enable, int charger)
 		pr_err("[ERROR] %s: fail to set power_suppy ONLINE property(%d)\n",
 			__func__, ret);
 		return;
+	}
+}
+
+static void sii8240_int_gpio_config(bool onoff)
+{
+	struct sii8240_platform_data *pdata = g_pdata;
+	int rc = 0;
+
+	if (onoff) {
+		rc = gpio_tlmm_config(GPIO_CFG(pdata->gpio_mhl_irq, 0,
+				GPIO_CFG_INPUT, GPIO_CFG_NO_PULL, GPIO_CFG_2MA),
+				GPIO_CFG_ENABLE);
+	} else {
+		rc = gpio_tlmm_config(GPIO_CFG(pdata->gpio_mhl_irq, 0,
+				GPIO_CFG_INPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA),
+				GPIO_CFG_ENABLE);
+	}
+
+	if (rc) {
+		pr_err("[ERROR] %s: gpio_tlmm_config(%#x)=%d\n, onoff: %s",
+				__func__, pdata->gpio_mhl_irq, rc, onoff ? "on": "off");
 	}
 }
 
@@ -352,7 +381,6 @@ static void of_sii8240_gpio_config(enum mhl_sleep_state sleep_status)
 					pr_err("[ERROR] %s() set gpio_mhl_reset\n", __func__);
 				break;
 			default:
-				pr_err("[ERROR] %s() unknown gpio_mhl_reset's type\n", __func__);
 				break;
 			}
 		} else {
@@ -376,7 +404,6 @@ static void of_sii8240_gpio_config(enum mhl_sleep_state sleep_status)
 					pr_err("[ERROR] %s() set gpio_mhl_en\n", __func__);
 				break;
 			default:
-				pr_err("[ERROR] %s() unknown gpio_mhl_en's type\n", __func__);
 				break;
 			}
 		} else {
@@ -403,7 +430,6 @@ static void of_sii8240_gpio_config(enum mhl_sleep_state sleep_status)
 					pr_err("[ERROR] %s() set gpio_mhl_reset\n", __func__);
 				break;
 			default:
-				pr_err("[ERROR] %s() unknown gpio_mhl_reset's type\n", __func__);
 				break;
 			}
 		} else {
@@ -427,7 +453,6 @@ static void of_sii8240_gpio_config(enum mhl_sleep_state sleep_status)
 					pr_err("[ERROR] %s() set gpio_mhl_en\n", __func__);
 				break;
 			default:
-				pr_err("[ERROR] %s() unknown gpio_mhl_en's type\n", __func__);
 				break;
 			}
 		} else {
@@ -441,7 +466,11 @@ static void of_sii8240_hw_onoff(bool onoff)
 	int ret;
 	struct sii8240_platform_data *pdata = g_pdata;
 	pr_info("%s: Onoff: %d\n", __func__, onoff);
-
+	if (mhl_power_on == onoff) {
+		pr_info("sii8240 : MHL power is already %d\n", onoff);
+		return;
+	}
+	mhl_power_on = onoff;
 	if (onoff) {
 		/*
 		if(pdata->gpio_barcode_emul)
@@ -599,10 +628,12 @@ static int of_sii8240_parse_dt(void)
 	if (pdata->gpio_mhl_reset > 0)
 		pr_info("gpio: mhl_reset = %d\n", pdata->gpio_mhl_reset);
 
-	of_property_read_string(np, "sii8240,gpio_mhl_reset_type",
-						(const char **)&temp_string);
-	pdata->gpio_mhl_reset_type = of_sii8240_get_gpio_type(temp_string);
-	pr_info("%s() gpio_mhl_reset_type = %d\n", __func__, pdata->gpio_mhl_reset_type);
+	if(of_property_read_string(np,
+		"sii8240,gpio_mhl_reset_type",
+		(const char **)&temp_string) == 0) {
+		pdata->gpio_mhl_reset_type = of_sii8240_get_gpio_type(temp_string);
+		pr_info("%s() gpio_mhl_reset_type = %d\n", __func__, pdata->gpio_mhl_reset_type);
+	}
 
 	pdata->gpio_mhl_wakeup = of_get_named_gpio_flags(np,
 		"sii8240,gpio_mhl_wakeup", 0, NULL);
@@ -625,22 +656,32 @@ static int of_sii8240_parse_dt(void)
 	if (pdata->gpio_mhl_en > 0)
 		pr_info("gpio: mhl_en = %d\n", pdata->gpio_mhl_en);
 
-	of_property_read_string(np, "sii8240,gpio_mhl_en_type",
-			(const char **)&temp_string);
-	pdata->gpio_mhl_en_type = of_sii8240_get_gpio_type(temp_string);
-
-	pr_info("%s() gpio_mhl_en_type = %d\n", __func__,
-			pdata->gpio_mhl_en_type);
+	temp_string = NULL;
+	if(of_property_read_string(np,
+		"sii8240,gpio_mhl_en_type",
+		(const char **)&temp_string) == 0) {
+		pdata->gpio_mhl_en_type = of_sii8240_get_gpio_type(temp_string);
+		pr_info("%s() gpio_mhl_en_type = %d\n", __func__, pdata->gpio_mhl_en_type);
+	}
 
 	pdata->gpio_ta_int = of_get_named_gpio_flags(np,
 		"sii8240,gpio_ta_int", 0, NULL);
 	if (pdata->gpio_ta_int > 0)
 		pr_info("gpio: ta_int = %d\n", pdata->gpio_ta_int);
 
+#ifdef	CONFIG_MACH_LT03_EUR
+	pdata->swing_level = 0x0D; /*1 5*/
+	pr_info("swing_level = 0x%X\n", pdata->swing_level);
+#else
 	if (!of_property_read_u32(np, "sii8240,swing_level",
 				&pdata->swing_level))
 		pr_info("swing_level = 0x%X\n", pdata->swing_level);
-
+#endif
+	if (!of_property_read_u32(np, "sii8240,damping",
+				&pdata->damping))
+		pr_info("damping = 0x%X\n", pdata->damping);
+	else
+		pdata->damping = BIT_MHLTX_CTL3_DAMPING_SEL_OFF;
 
 	pdata->gpio_barcode_emul = of_property_read_bool(np,
 			"sii8240,barcode_emul");
@@ -737,6 +778,7 @@ struct sii8240_platform_data *platform_init_data(struct i2c_client *client)
 	pdata->gpio_cfg = of_sii8240_gpio_config;
 	pdata->charger_mhl_cb = sii8240_charger_mhl_cb;
 	pdata->vbus_present = sii8240_vbus_present;
+	pdata->int_gpio_config =  sii8240_int_gpio_config;
 #ifdef MFD_MAX778XX_COMMON
 	pdata->muic_otg_set = muic_otg_control;
 #endif

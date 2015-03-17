@@ -658,13 +658,6 @@ config MSM_ADSPRPC
 	  applications DSP processor. Say M if you want to enable this
 	  module.
 
-config MMC_GENERIC_CSDIO
-	tristate "Generic sdio driver"
-	default n
-	help
-	  SDIO function driver that extends SDIO card as character device
-	  in user space.
-
 config CSDIO_VENDOR_ID
 	hex "Card VendorId"
 	depends on MMC_GENERIC_CSDIO
@@ -680,6 +673,13 @@ config CSDIO_DEVICE_ID
 	help
 	  Enter device id for targeted sdio device, this may be overwritten by
 	  module parameters.
-.
+
+config MSM_RDBG
+        tristate "Qualcomm Remote debug driver"
+        depends on MSM_AUDIO_QDSP6 || MSM_AUDIO_QDSP6V2
+        help
+          Implements a shared memory based transport mechanism that allows
+          for a debugger running on a host PC to communicate with a remote
+	  stub running on peripheral subsystems such as the ADSP, MODEM etc.
 endmenu
 

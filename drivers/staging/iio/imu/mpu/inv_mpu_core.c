@@ -109,6 +109,7 @@ static void inv_setup_reg(struct inv_reg_map_s *reg)
 	reg->fifo_en		= REG_FIFO_EN;
 	reg->gyro_config	= REG_GYRO_CONFIG;
 	reg->accel_config	= REG_ACCEL_CONFIG;
+	reg->accel_config2 = REG_6500_ACCEL_CONFIG2;
 	reg->fifo_count_h	= REG_FIFO_COUNT_H;
 	reg->fifo_r_w		= REG_FIFO_R_W;
 	reg->raw_accel		= REG_RAW_ACCEL;
@@ -297,7 +298,7 @@ static int inv_switch_engine(struct inv_mpu_state *st, bool en, u32 mask)
 			return result;
 	}
 	if ((BIT_PWR_ACCEL_STBY == mask) && en)
-		msleep(REG_UP_TIME);
+		mdelay(REG_UP_TIME);
 
 	return 0;
 }
@@ -339,12 +340,23 @@ static int set_power_itg(struct inv_mpu_state *st, bool power_on)
 		data = 0;
 	else
 		data = BIT_SLEEP;
-	result = inv_i2c_single_write(st, reg->pwr_mgmt_1, data);
+
+	if (!st->reactive_enable) {
+		result = inv_i2c_single_write(st, reg->pwr_mgmt_1, data);
+	} else {
+		if (power_on)
+			result = inv_i2c_single_write(st, reg->pwr_mgmt_1, data);
+		else
+			result = 0;
+	}
+
 	if (result)
 		return result;
 
-	if (power_on)
-		msleep(REG_UP_TIME);
+	if (power_on) {
+		mdelay(REG_UP_TIME);
+		st->chip_config.checkOnOff = 1;
+	}
 
 	st->chip_config.is_asleep = !power_on;
 
@@ -400,6 +412,11 @@ static int inv_init_config(struct iio_dev *indio_dev)
 			(INV_FS_02G << ACCEL_CONFIG_FSR_SHIFT));
 		if (result)
 			return result;
+
+		result = inv_i2c_single_write(st, reg->accel_config2,INV_FILTER_42HZ);
+		if (result)
+			return result;
+
 		st->tap.time = INIT_TAP_TIME;
 		st->tap.thresh = INIT_TAP_THRESHOLD;
 		st->tap.min_count = INIT_TAP_MIN_COUNT;
@@ -2907,7 +2924,6 @@ static int accel_do_calibrate(struct inv_mpu_state *st, int enable)
 	signed short x, y, z;
 	struct inv_reg_map_s *reg;
 	int result, i;
-	signed short m[9];
 	unsigned char data[6];
 	int acc_enable;
 	struct file *cal_filp;
@@ -2917,9 +2933,6 @@ static int accel_do_calibrate(struct inv_mpu_state *st, int enable)
 	reg = &(st->reg);
 
 	if (enable) {
-		for (i = 0; i < 9; i++)
-			m[i] = st->plat_data.orientation[i];
-
 		if (!st->chip_config.enable) {
 				result = st->set_power_state(st, true);
 				if (result) {
@@ -2950,12 +2963,12 @@ static int accel_do_calibrate(struct inv_mpu_state *st, int enable)
 			y = (signed short)(((data[2] << 8) | data[3])*st->chip_info.multi);
 			z = (signed short)(((data[4] << 8) | data[5])*st->chip_info.multi);
 
-			sum[0] += (0 - (m[0] * x + m[1] * y + m[2] * z));
-			sum[1] += (0 - (m[3] * x + m[4] * y + m[5] * z));
-			if ((m[6] * x + m[7] * y + m[8] * z) > 0)
-				sum[2] += (16383 - (m[6] * x + m[7] * y + m[8] * z));
+			sum[0] += 0 - x;
+			sum[1] += 0 - y;
+			if (z > 0)
+				sum[2] += 16383 - z;
 			else
-				sum[2] += (-16383 - (m[6] * x + m[7] * y + m[8] * z));
+				sum[2] += -16383 - z;
 			usleep_range(10000, 11000);
 		}
 
@@ -3049,6 +3062,7 @@ static ssize_t inv_accel_raw_data_show(struct device *dev,
 	signed short m[9];
 	unsigned char data[6];
 	int acc_enable;
+	u8 d;
 
 	st = dev_get_drvdata(dev);
 	reg = &(st->reg);
@@ -3056,23 +3070,38 @@ static ssize_t inv_accel_raw_data_show(struct device *dev,
 	for (i = 0; i < 9; i++)
 		m[i] = st->plat_data.orientation[i];
 
-	if (!st->chip_config.enable) {
-			result = st->set_power_state(st, true);
-			if (result) {
-				pr_err("%s,Could not chip enable fail.\n", __func__);
-				return result;
-			}
+	if( !st->chip_config.enable){
+		result = st->set_power_state(st,true);
+		if (result) {
+			pr_err("%s,Could not accel power fail.\n", __func__);
+			return result;
+		}
 	}
 
 	acc_enable = st->chip_config.accel_enable;
 	if (!acc_enable) {
 		st->chip_config.accel_enable = 1;
+		result = set_inv_enable(st->indio_dev,true);
 
-		result = st->switch_accel_engine(st, true);
 		if (result) {
 			pr_err("%s,Could not accel enable fail.\n", __func__);
 			return result;
 		}
+	}
+
+	if( st->chip_config.checkOnOff){
+		result = inv_i2c_read(st, reg->pwr_mgmt_1, 1, &d);
+		if (result) {
+			pr_err("%s,pwer_msmt_1 fail.\n", __func__);
+			return result;
+		}
+
+		if( d & 0x40){
+			result = inv_i2c_single_write(st, reg->pwr_mgmt_1, 0x00);
+		}
+
+		st->chip_config.checkOnOff = 0;
+		msleep(50);
 	}
 
 	result = inv_i2c_read(st, reg->raw_accel, BYTES_PER_SENSOR, data);
@@ -3089,22 +3118,25 @@ static ssize_t inv_accel_raw_data_show(struct device *dev,
 		cz = m[6] * x + m[7] * y + m[8] * z + st->cal_data[2];
 	}
 
+	pr_err("reg_accel_raw_value = %d_%d_%d\n", x,y,z);
+
 	if (!acc_enable) {
 		st->chip_config.accel_enable = acc_enable;
+		result = set_inv_enable(st->indio_dev,false);
 
-		result = st->switch_accel_engine(st, false);
 		if (result) {
 			pr_err("%s,Could not accel disable fail.\n", __func__);
 			return result;
 		}
 	}
 
-	if (!st->chip_config.enable) {
-			result = st->set_power_state(st, false);
-			if (result) {
-				pr_err("%s,Could not chip disable fail.\n", __func__);
-				return result;
-			}
+	if( !st->chip_config.enable){
+		result = st->set_power_state(st,false);
+
+		if (result) {
+			pr_err("%s,Could not accel power fail.\n", __func__);
+			return result;
+		}
 	}
 
 	return snprintf(buf, PAGE_SIZE, "%d, %d, %d\n", cx, cy, cz);
@@ -3122,6 +3154,86 @@ static ssize_t inv_mpu_name_show(struct device *dev,
 	return snprintf(buf, PAGE_SIZE, "%s\n", MPU_ID);
 }
 
+#if defined(CONFIG_SENSORS)
+static ssize_t inv_reactive_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct inv_mpu_state *st;
+	st = dev_get_drvdata(dev);
+
+	return snprintf(buf, PAGE_SIZE, "%d\n", st->reactive_state);
+}
+
+static ssize_t inv_reactive_store(struct device *dev,
+				struct device_attribute *attr,
+					const char *buf, size_t size)
+{
+	struct inv_mpu_state *st = dev_get_drvdata(dev);
+	bool onoff = false;
+	unsigned long enable = 0;
+	int result;
+
+	if (strict_strtoul(buf, 10, &enable)) {
+		pr_err("[SENSOR] %s, kstrtoint fail\n", __func__);
+		return -EINVAL;
+	}
+
+	pr_err("[SENSOR] %s: enable = %ld\n", __func__, enable);
+
+	if (enable == 1) {
+		onoff = true;
+	} else if (enable == 0) {
+		onoff = false;
+	} else if (enable == 2) {
+		onoff = true;
+		st->factory_mode = true;
+	} else {
+		pr_err("[SENSOR] %s: invalid value %d\n", __func__, *buf);
+		return -EINVAL;
+	}
+
+	if (onoff) {	/* enable reactive_alert */
+		enable_irq_wake(st->client->irq);
+		st->mot_st_time = jiffies;
+	} else {	/* disable reactive_alert */
+		disable_irq_wake(st->client->irq);
+		st->reactive_state = 0;
+		if (st->factory_mode)
+			st->factory_mode = false;
+	}
+
+	st->reactive_enable = onoff;
+
+	if (!(st->sensor[SENSOR_ACCEL].on |
+			st->sensor[SENSOR_GYRO].on |
+			st->sensor[SENSOR_COMPASS].on |
+			st->sensor[SENSOR_PRESSURE].on |
+			st->chip_config.dmp_on |
+			st->mot_int.mot_on)) {
+		result = set_inv_enable(st->indio_dev, false);
+		if (result)
+			pr_err("[SENSOR] %s, set_inv_enable error\n", __func__);
+	} else {
+		result = set_inv_enable(st->indio_dev, true);
+		if (result)
+			pr_err("[SENSOR] %s, set_inv_enable error\n", __func__);
+	}
+
+	pr_info("[SENSOR] %s: onoff = %d, state =%d OUT\n", __func__,
+			st->reactive_enable,
+			st->reactive_state);
+
+	return size;
+}
+
+#endif
+
+
+#if defined(CONFIG_SENSORS)
+static struct device_attribute dev_attr_acc_reactive_alert =
+	__ATTR(reactive_alert, S_IRUGO | S_IWUSR | S_IWGRP,
+		inv_reactive_show, inv_reactive_store);
+#endif
 static struct device_attribute dev_attr_acc_calibration =
 	__ATTR(calibration, S_IRUGO | S_IWUSR | S_IWGRP,
 		inv_accel_cal_show, inv_accel_cal_store);
@@ -3136,6 +3248,9 @@ static struct device_attribute dev_attr_acc_name =
 	inv_mpu_name_show, NULL);
 
 static struct device_attribute *accel_sensor_attrs[] = {
+#if defined(CONFIG_SENSORS)
+	&dev_attr_acc_reactive_alert,
+#endif
 	&dev_attr_acc_calibration,
 	&dev_attr_acc_raw_data,
 	&dev_attr_acc_vendor,
@@ -3165,18 +3280,31 @@ static ssize_t inv_mpu_temp_show(struct device *dev,
 	st = dev_get_drvdata(dev);
 	reg = &(st->reg);
 
-	if (st->chip_config.is_asleep)
-		return -EPERM;
+	if (!st->chip_config.enable){
+		result = st->set_power_state(st,true);
+		if (result) {
+			pr_err("%s,Could not accel power fail.\n", __func__);
+			return result;
+		}
+	}
 
 	result = inv_i2c_read(st, reg->temperature, 2, data);
 	if (result) {
 		printk(KERN_ERR "Could not read temperature register.\n");
-		return result;
+		return snprintf(buf, PAGE_SIZE, "-1\n");
 	}
 
 	temperature = (short) (((data[0]) << 8) | data[1]);
 	temperature = ((temperature + 521) / 340) + 35;
 
+	if (!st->chip_config.enable){
+		result = st->set_power_state(st,false);
+
+		if (result) {
+			pr_err("%s,Could not accel power fail.\n", __func__);
+			return result;
+		}
+	}
 	return snprintf(buf, PAGE_SIZE, "%d\n", temperature);
 }
 
@@ -3687,8 +3815,8 @@ static ssize_t inv_mag_selftest_show(struct device *dev,
 	pr_info("%s: x %s self test, expect %d <= x <= %d\n",
 			__func__,
 			result ? "failed" : "passed",
-			st->slave_compass->st_upper[0],
-			st->slave_compass->st_lower[0]);
+			st->slave_compass->st_lower[0],
+			st->slave_compass->st_upper[0]);
 	if (result){
 		iResult[2] = -1;
 		goto AKM_fail;
@@ -3698,8 +3826,8 @@ static ssize_t inv_mag_selftest_show(struct device *dev,
 	pr_info("%s: y %s self test, expect %d <= y <= %d\n",
 			__func__,
 			result ? "failed" : "passed",
-			st->slave_compass->st_upper[1],
-			st->slave_compass->st_lower[1]);
+			st->slave_compass->st_lower[1],
+			st->slave_compass->st_upper[1]);
 	if (result){
 		iResult[2] = -1;
 		goto AKM_fail;
@@ -3709,8 +3837,8 @@ static ssize_t inv_mag_selftest_show(struct device *dev,
 	pr_info("%s: z %s self test, expect %d <= z <= %d\n",
 			__func__,
 			result ? "failed" : "passed",
-			st->slave_compass->st_upper[2],
-			st->slave_compass->st_lower[2]);
+			st->slave_compass->st_lower[2],
+			st->slave_compass->st_upper[2]);
 	if (result){
 		iResult[2] = -1;
 		goto AKM_fail;
@@ -3762,6 +3890,37 @@ static ssize_t inv_mag_selftest_show(struct device *dev,
 	sen[1] = data[3] | (data[4] << 8);
 	sen[2] = data[5] | (data[6] << 8);
 
+	if (st->plat_data.sec_slave_id == COMPASS_ID_AK09911) {
+		result = sen[0] > st->slave_compass->adc_upper ||sen[0]< st->slave_compass->adc_lower;
+		pr_info("%s: ADC x %s self test, expect %d <= x <= %d\n",
+				__func__,
+				result ? "failed" : "passed",
+				st->slave_compass->adc_lower,
+				st->slave_compass->adc_upper);
+		if (result){
+			iResult[3] = -1;
+		}
+
+		result = sen[1] > st->slave_compass->adc_upper ||sen[1] < st->slave_compass->adc_lower;
+		pr_info("%s: ADC y %s self test, expect %d <= y <= %d\n",
+				__func__,
+				result ? "failed" : "passed",
+				st->slave_compass->adc_lower,
+				st->slave_compass->adc_upper);
+		if (result){
+			iResult[3] = -1;
+		}
+
+		result = sen[2] > st->slave_compass->adc_upper ||sen[2] < st->slave_compass->adc_lower;
+		pr_info("%s: ADC z %s self test, expect %d <= z <= %d\n",
+				__func__,
+				result ? "failed" : "passed",
+				st->slave_compass->adc_lower,
+				st->slave_compass->adc_upper);
+		if (result){
+			iResult[3] = -1;
+		}
+	}
 AKM_fail:
 	inv_i2c_single_write(st, REG_INT_PIN_CFG, st->plat_data.int_config);
 	inv_i2c_single_write(st, REG_PWR_MGMT_1, enable);
@@ -3945,12 +4104,14 @@ static int inv_mpu_parse_dt(struct mpu_platform_data *data, struct device *dev)
 		data->sec_slave_id = (u8)temp;
 	}
 
-	if (of_property_read_u32(this_node,
-			"mpu9250,secondary_i2c_addr", &temp) < 0) {
-		pr_err("%s : get secondary_i2c_addr(%d) error\n", __func__, temp);
-		return -ENODEV;
-	} else {
-		data->secondary_i2c_addr = (u16)temp;
+	if (data->sec_slave_type != SECONDARY_SLAVE_TYPE_NONE) {
+		if (of_property_read_u32(this_node,
+				"mpu9250,secondary_i2c_addr", &temp) < 0) {
+			pr_err("%s : get secondary_i2c_addr(%d) error\n", __func__, temp);
+			return -ENODEV;
+		} else {
+			data->secondary_i2c_addr = (u16)temp;
+		}
 	}
 
 	if (of_property_read_u32_array(this_node,
@@ -3961,13 +4122,15 @@ static int inv_mpu_parse_dt(struct mpu_platform_data *data, struct device *dev)
 	for (i = 0 ; i < 9 ; i++)
 		data->orientation[i] = ((s8)orientation[i]) - 1;
 
-	if (of_property_read_u32_array(this_node,
-		"mpu9250,secondary_orientation", orientation, 9) < 0) {
-		pr_err("%s : get secondary_orientation(%d) error\n", __func__, orientation[0]);
-		return -ENODEV;
+	if (data->sec_slave_type != SECONDARY_SLAVE_TYPE_NONE) {
+		if (of_property_read_u32_array(this_node,
+			"mpu9250,secondary_orientation", orientation, 9) < 0) {
+			pr_err("%s : get secondary_orientation(%d) error\n", __func__, orientation[0]);
+			return -ENODEV;
+		}
+		for (i = 0 ; i < 9 ; i++)
+			data->secondary_orientation[i] = ((s8)orientation[i]) - 1;
 	}
-	for (i = 0 ; i < 9 ; i++)
-		data->secondary_orientation[i] = ((s8)orientation[i]) - 1;
 
 	if (of_property_read_u32_array(this_node,
 		"mpu9250,key", key, 16) < 0) {
@@ -4010,6 +4173,28 @@ static int inv_mpu_regulator_onoff(struct device *dev, bool onoff)
 	devm_regulator_put(mpu9250_vcc);
 	devm_regulator_put(mpu9250_lvs1);
 	msleep(10);
+
+	return 0;
+}
+
+static int inv_mpu_regulator_onoff_primary(struct device *dev, bool onoff)
+{
+	struct regulator *mpu9250_lvs1;
+
+	mpu9250_lvs1 = devm_regulator_get(dev, "mpu9250-lvs1");
+	if (IS_ERR(mpu9250_lvs1)) {
+		pr_err("%s: cannot get mpu9250_lvs1\n", __func__);
+		return -ENODEV;
+	}
+
+	if (onoff) {
+		regulator_enable(mpu9250_lvs1);
+	} else {
+		regulator_disable(mpu9250_lvs1);
+	}
+
+	devm_regulator_put(mpu9250_lvs1);
+	msleep(20);
 
 	return 0;
 }
@@ -4067,14 +4252,17 @@ static int inv_mpu_probe(struct i2c_client *client,
 	st->sl_handle = client->adapter;
 	st->i2c_addr = client->addr;
 
-	inv_mpu_regulator_onoff(&client->dev, true);
-
 	result = inv_mpu_parse_dt(&st->plat_data, &client->dev);
 	if (result) {
 		dev_err(&client->adapter->dev,
 			"Could not initialize device.\n");
 		goto out_free;
 	}
+
+	if(st->plat_data.sec_slave_type == SECONDARY_SLAVE_TYPE_NONE)
+		inv_mpu_regulator_onoff_primary(&client->dev, true);
+	else
+		inv_mpu_regulator_onoff(&client->dev, true);
 
 	result = inv_mpu_pin(client, (unsigned)st->plat_data.irq);
 	if (result)
@@ -4149,12 +4337,13 @@ static int inv_mpu_probe(struct i2c_client *client,
 	if (result) {
 		dev_err(&client->adapter->dev,
 			"%s could not be turned off.\n", st->hw->name);
-		goto out_unreg_iio;
+		goto out_remove_dmp_sysfs;
 	}
 	inv_init_sensor_struct(st);
-	dev_info(&client->dev, "%s is ready to go!\n", indio_dev->name);
 
 #ifdef CONFIG_SENSORS
+	wake_lock_init(&st->reactive_wake_lock, WAKE_LOCK_SUSPEND,
+			"reactive_wake_lock");
 	result = sensors_register(st->gyro_sensor_device,
 		st, gyro_sensor_attrs, "gyro_sensor");
 	if (result) {
@@ -4178,18 +4367,25 @@ static int inv_mpu_probe(struct i2c_client *client,
 		__func__, result);
 		goto err_magnetic_sensor_register_failed;
 	}
+#endif
+
+	dev_info(&client->dev, "%s is ready to go!\n", indio_dev->name);
 
 	return 0;
 
+#ifdef CONFIG_SENSORS
 err_magnetic_sensor_register_failed:
 	sensors_unregister(st->magnetic_sensor_device, magnetic_sensor_attrs);
 err_accel_sensor_register_failed:
 	sensors_unregister(st->accel_sensor_device, accel_sensor_attrs);
 err_gyro_sensor_register_failed:
 	sensors_unregister(st->gyro_sensor_device, gyro_sensor_attrs);
-#else
-	return 0;
+	wake_lock_destroy(&st->reactive_wake_lock);
 #endif
+
+out_remove_dmp_sysfs:
+	mutex_destroy(&st->suspend_resume_lock);
+	kfifo_free(&st->timestamps);
 out_unreg_iio:
 	iio_device_unregister(indio_dev);
 out_remove_trigger:
@@ -4215,7 +4411,7 @@ static void inv_mpu_shutdown(struct i2c_client *client)
 	int result;
 
 	reg = &st->reg;
-	mutex_lock(&indio_dev->mlock);
+
 	dev_dbg(&client->adapter->dev, "Shutting down %s...\n", st->hw->name);
 
 	/* reset to make sure previous state are not there */
@@ -4229,9 +4425,13 @@ static void inv_mpu_shutdown(struct i2c_client *client)
 	if (result)
 		dev_err(&client->adapter->dev, "Failed to turn off %s\n",
 			st->hw->name);
-	mutex_unlock(&indio_dev->mlock);
 
-	inv_mpu_regulator_onoff(&client->dev, false);
+	if(st->plat_data.sec_slave_type == SECONDARY_SLAVE_TYPE_NONE)
+		inv_mpu_regulator_onoff_primary(&client->dev, false);
+	else
+		inv_mpu_regulator_onoff(&client->dev, false);
+
+	pr_info("[SENSOR] %s is done\n", __func__);
 }
 
 /*
@@ -4293,9 +4493,8 @@ static int inv_mpu_resume(struct device *dev)
 	struct inv_mpu_state *st = iio_priv(indio_dev);
 	int result;
 
-	pr_err("%s inv_mpu_resume(%d,%d)\n", __func__,
-		st->chip_config.dmp_on, st->chip_config.enable);
-	mutex_lock(&indio_dev->mlock);
+	pr_err("%s inv_mpu_resume(%d,%d,%d)\n", __func__,
+		st->chip_config.dmp_on, st->chip_config.enable, st->chip_config.is_overflow);
 
 	result = 0;
 	if (st->chip_config.dmp_on && st->chip_config.enable) {
@@ -4311,9 +4510,7 @@ static int inv_mpu_resume(struct device *dev)
 		result = st->set_power_state(st, true);
 	}
 
-	mutex_unlock(&indio_dev->mlock);
-	mutex_unlock(&st->suspend_resume_lock);
-
+	enable_irq(st->client->irq);
 	if (result)
 		pr_err("%s result fail %d\n", __func__, result);
 	return 0;
@@ -4327,7 +4524,7 @@ static int inv_mpu_suspend(struct device *dev)
 
 	pr_err("%s inv_mpu_suspend(%d,%d)\n", __func__,
 		st->chip_config.dmp_on, st->chip_config.enable);
-	mutex_lock(&indio_dev->mlock);
+	disable_irq(st->client->irq);
 
 	result = 0;
 	if (st->chip_config.dmp_on && st->chip_config.enable) {
@@ -4351,9 +4548,6 @@ static int inv_mpu_suspend(struct device *dev)
 		/* in non DMP case, just turn off the power */
 		result |= st->set_power_state(st, false);
 	}
-
-	mutex_unlock(&indio_dev->mlock);
-	mutex_lock(&st->suspend_resume_lock);
 
 	if (result)
 		pr_err("%s result fail %d\n", __func__, result);

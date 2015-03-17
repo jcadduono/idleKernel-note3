@@ -59,6 +59,11 @@
 
 #define BT_WAKE 58
 #define BT_EN 76
+#elif defined(CONFIG_SEC_PATEK_PROJECT)
+#define BT_HOST_WAKE 75
+
+#define BT_WAKE 91
+#define BT_EN 25
 #else
 #define BT_HOST_WAKE 75
 
@@ -72,6 +77,11 @@
 #define GPIO_BT_UART_RXD BT_UART_RXD
 #define GPIO_BT_UART_TXD BT_UART_TXD
 #define GPIO_BT_HOST_WAKE BT_HOST_WAKE
+#if defined(CONFIG_BCM4335) || defined(CONFIG_BCM4335_MODULE) || defined(CONFIG_BCM4339) || defined(CONFIG_BCM4339_MODULE)
+int bt_is_running=0;
+#endif
+
+EXPORT_SYMBOL(bt_is_running);
 
 static struct rfkill *bt_rfkill;
 
@@ -173,6 +183,9 @@ static int bcm4339_bt_rfkill_set_power(void *data, bool blocked)
 #endif
 
         gpio_set_value(get_gpio_hwrev(BT_EN), 1);
+#if defined(CONFIG_BCM4335) || defined(CONFIG_BCM4335_MODULE) || defined(CONFIG_BCM4339) || defined(CONFIG_BCM4339_MODULE)
+			bt_is_running = 1;
+#endif
     } else {
 #ifdef BT_UART_CFG
         for (pin = 0; pin < ARRAY_SIZE(bt_uart_off_table); pin++) {
@@ -187,6 +200,9 @@ static int bcm4339_bt_rfkill_set_power(void *data, bool blocked)
 
         gpio_set_value(get_gpio_hwrev(BT_EN), 0);
 		gpio_set_value(get_gpio_hwrev(BT_WAKE), 0);
+#if defined(CONFIG_BCM4335) || defined(CONFIG_BCM4335_MODULE) || defined(CONFIG_BCM4339) || defined(CONFIG_BCM4339_MODULE)
+			bt_is_running = 0;
+#endif
     }
     return 0;
 }
@@ -245,12 +261,25 @@ static int bcm4339_bluetooth_probe(struct platform_device *pdev)
 #ifdef BT_UART_CFG
     int pin = 0;
 #endif
+#if defined(CONFIG_BCM4335) || defined(CONFIG_BCM4335_MODULE) || defined(CONFIG_BCM4339) || defined(CONFIG_BCM4339_MODULE)
+	bt_is_running = 0;
+#endif
     rc = gpio_request(get_gpio_hwrev(BT_EN), "bcm4339_bten_gpio");
     if (unlikely(rc)) {
         pr_err("[BT] GPIO_BT_EN request failed.\n");
         return rc;
     }
+
+#if defined(CONFIG_SEC_PATEK_PROJECT)
+    gpio_tlmm_config(GPIO_CFG(BT_EN, 0, GPIO_CFG_OUTPUT,
+        GPIO_CFG_PULL_DOWN, GPIO_CFG_8MA), GPIO_CFG_ENABLE);
+    gpio_set_value(BT_EN, 0);
+    gpio_tlmm_config(GPIO_CFG(BT_WAKE, 0, GPIO_CFG_OUTPUT,
+        GPIO_CFG_NO_PULL, GPIO_CFG_8MA), GPIO_CFG_ENABLE);
+    gpio_set_value(BT_WAKE, 0);
+#else
     gpio_direction_output(get_gpio_hwrev(BT_EN), 0);
+#endif
 
 	/* gpio request for bt_wake will be in bluesleeep.
     rc = gpio_request(get_gpio_hwrev(BT_WAKE), "bcm4339_btwake_gpio");

@@ -145,6 +145,7 @@ static void print_sensordata(struct ssp_data *data, unsigned int uSensor)
 		ssp_dbg("[SSP] %u : %u(%ums)\n", uSensor,
 			data->buf[uSensor].step_diff,
 			get_msdelay(data->adDelayBuf[uSensor]));
+		break;
 	default:
 		ssp_dbg("[SSP] Wrong sensorCnt: %u\n", uSensor);
 		break;

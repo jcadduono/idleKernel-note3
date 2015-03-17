@@ -43,6 +43,7 @@ struct ISDBT_INIT_INFO_T *hInit;
 #define FC8150_NAME		"isdbt"
 static struct isdbt_platform_data *isdbt_pdata;
 
+u8 static_ringbuffer[RING_BUFFER_SIZE];
 
 enum ISDBT_MODE driver_mode = ISDBT_POWEROFF;
 static DEFINE_MUTEX(ringbuffer_lock);
@@ -428,7 +429,8 @@ int isdbt_open(struct inode *inode, struct file *filp)
 	printk("isdbt_open. \n");
 	hOpen = kmalloc(sizeof(struct ISDBT_OPEN_INFO_T), GFP_KERNEL);
 
-	hOpen->buf = kmalloc(RING_BUFFER_SIZE, GFP_KERNEL);
+//	hOpen->buf = kmalloc(RING_BUFFER_SIZE, GFP_KERNEL); //Fix for PLM P140326-05955
+	hOpen->buf = &static_ringbuffer[0];
 	hOpen->isdbttype = 0;
 
 	list_add(&(hOpen->hList), &(hInit->hHead));
@@ -498,7 +500,7 @@ int isdbt_release(struct inode *inode, struct file *filp)
 	hOpen->isdbttype = 0;
 
 	list_del(&(hOpen->hList));
-	kfree(hOpen->buf);
+	/* kfree(hOpen->buf); */
 	kfree(hOpen);
 
 	return 0;

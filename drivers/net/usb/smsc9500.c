@@ -204,7 +204,7 @@ linkdownsuspend = 0----> Disabled
 linkdownsuspend = 1----> Enabled, wake up on auto-negotiation complete, device is in suspend0.
 linkdownsuspend = 2----> Enabled, wake up on energy detection, device is in suspend1.
 */
-static uint linkdownsuspend=2;
+static uint linkdownsuspend=0;
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2,6,0))
 	module_param(linkdownsuspend, uint, 0);
 #else
@@ -212,7 +212,7 @@ static uint linkdownsuspend=2;
 #endif
 MODULE_PARM_DESC(linkdownsuspend,"Suspend device when link is down");
 
-static u32 dynamicsuspend=1;
+static u32 dynamicsuspend=0;
 module_param(dynamicsuspend,uint, 0);
 MODULE_PARM_DESC(dynamicsuspend,"Enable dynamic autosuspend mode");
 
@@ -1852,19 +1852,21 @@ static int Phy_UpdateLinkMode(struct usbnet *dev)
 				}
 			}
 			netif_carrier_on(dev->net);
+			SMSC_TRACE(DBG_LINK_CHANGE, "link is UP!<______________________");
 			Tx_WakeQueue(dev,0x01);
 			SetGpo(dev, adapterData->LinkLedOnGpio, !adapterData->LinkLedOnGpioPolarity);
 			NICStartRxPath(dev);
 			set_bit (EVENT_LINK_UP, &dev->flags);
-			
+
 		} else {
 			SMSC_TRACE(DBG_LINK_CHANGE,"Link is now DOWN");
 			Tx_StopQueue(dev,0x01);
 			netif_carrier_off(dev->net);
 			SetGpo(dev,  adapterData->LinkLedOnGpio, adapterData->LinkLedOnGpioPolarity);
-			
+
+			SMSC_TRACE(DBG_LINK, "stop and flush RX path!!!");
 			NICStopAndFlushRxPath(dev);
-			
+
 			dwTemp=0x0UL;
 			CHECK_RETURN_STATUS(smsc9500_write_reg(dev,	FLOW, dwTemp));
 			CHECK_RETURN_STATUS(smsc9500_read_reg(dev,	AFC_CFG,&dwValue));
@@ -3501,7 +3503,10 @@ static int smsc9500_bind(struct usbnet *dev, struct usb_interface *intf)
 
 	adapterData->LanInitialized=TRUE;
 
-	usb_enable_autosuspend(dev->udev);
+	SMSC_TRACE(DBG_LINK_CHANGE, "LINK OFF in BIND");
+	netif_carrier_off(dev->net);
+	if (dynamicsuspend || linkdownsuspend)
+		usb_enable_autosuspend(dev->udev);
 
 	SMSC_TRACE(DBG_INIT,"<--------out of bind, return 0\n");
 	return 0;

@@ -69,6 +69,9 @@ static const char * const iio_chan_type_name_spec[] = {
 	[IIO_TIMESTAMP] = "timestamp",
 	[IIO_CAPACITANCE] = "capacitance",
 	[IIO_GRIP] = "grip",
+#if defined(CONFIG_SEC_LOCALE_KOR_FRESCO)
+	[IIO_QUATERNION] = "quaternion",
+#endif
 };
 
 static const char * const iio_modifier_names[] = {

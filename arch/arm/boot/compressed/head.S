@@ -391,10 +391,10 @@ wont_overwrite:
  *   sp  = stack pointer
  */
 		orrs	r1, r0, r5
-#ifndef CONFIG_CRYPTO_FIPS
-		beq	not_relocated
+#ifdef CONFIG_CRYPTO_FIPS_OLD_INTEGRITY_CHECK
+		beq not_relocated_copy
 #else
-        beq not_relocated_copy
+		beq	not_relocated
 #endif
 		add	r11, r11, r0
 		add	r12, r12, r0
@@ -408,7 +408,7 @@ wont_overwrite:
 		add	r2, r2, r0
 		add	r3, r3, r0
 
-#ifdef CONFIG_CRYPTO_FIPS
+#ifdef CONFIG_CRYPTO_FIPS_OLD_INTEGRITY_CHECK
         bl copy_compressed
 #endif
 		/*
@@ -495,7 +495,7 @@ params:		ldr	r0, =0x10000100		@ params_phys for RPC
  * change@ksingh.sra-dallas - Copying the zImage to a secure location 
  * this copy will be used to computer integrity for FIPS validation
  */
-#ifdef CONFIG_CRYPTO_FIPS
+#ifdef CONFIG_CRYPTO_FIPS_OLD_INTEGRITY_CHECK
 not_relocated_copy:
 		bl copy_compressed
 		b not_relocated

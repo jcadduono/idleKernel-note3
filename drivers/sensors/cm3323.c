@@ -23,6 +23,7 @@
 #include <linux/slab.h>
 #include <linux/delay.h>
 #include <linux/of_gpio.h>
+#include <linux/regulator/consumer.h>
 
 #include "sensors_core.h"
 
@@ -60,21 +61,57 @@ static const u8 als_reg_setting[ALS_REG_NUM][2] = {
 	{REG_CS_CONF1, 0x01},	/* disable */
 };
 
+#define CM3323_DEFAULT_DELAY		200000000LL
+
 /* driver data */
 struct cm3323_p {
 	struct i2c_client *i2c_client;
 	struct input_dev *input;
-	struct hrtimer light_timer;
-	struct workqueue_struct *light_wq;
-	struct work_struct work_light;
 	struct device *light_dev;
-	ktime_t poll_delay;
+	struct delayed_work work;
+	atomic_t delay;
 
 	u8 power_state;
 	u16 color[4];
 	int irq;
 	int time_count;
+#ifdef CONFIG_SEC_RUBENS_PROJECT
+	struct regulator *vdd_2p85;
+#endif
 };
+
+#ifdef CONFIG_SEC_RUBENS_PROJECT
+static void sensor_power_on_vdd(struct cm3323_p *info, int onoff)
+{
+	int ret;
+	if (info->vdd_2p85 == NULL) {
+		info->vdd_2p85 =regulator_get(&info->i2c_client->dev, "8226_l19");
+		if (IS_ERR(info->vdd_2p85)){
+			pr_err("%s: regulator_get failed for 8226_l19\n", __func__);
+			return ;
+		}
+		ret = regulator_set_voltage(info->vdd_2p85, 2850000, 2850000);
+		if (ret)
+			pr_err("%s: error vsensor_2p85 setting voltage ret=%d\n",__func__, ret);
+	}
+	if (onoff == 1) {
+		ret = regulator_enable(info->vdd_2p85);
+		if (ret)
+			pr_err("%s: error enablinig regulator info->vdd_2p85\n", __func__);
+	}
+    else if (onoff == 0) {
+		if (regulator_is_enabled(info->vdd_2p85)) {
+			ret = regulator_disable(info->vdd_2p85);
+			if (ret)
+				pr_err("%s: error vdd_2p85 disabling regulator\n",__func__);
+		}
+	}
+	msleep(30);
+	return;
+}
+#endif
+
+
 
 static int cm3323_i2c_read_word(struct cm3323_p *data,
 		unsigned char reg_addr, u16 *buf)
@@ -134,37 +171,22 @@ static int cm3323_i2c_write(struct cm3323_p *data,
 static void cm3323_light_enable(struct cm3323_p *data)
 {
 	cm3323_i2c_write(data, REG_CS_CONF1, als_reg_setting[0][1]);
-	hrtimer_start(&data->light_timer, data->poll_delay,
-	      HRTIMER_MODE_REL);
+	schedule_delayed_work(&data->work,
+		nsecs_to_jiffies(atomic_read(&data->delay)));
 }
 
 static void cm3323_light_disable(struct cm3323_p *data)
 {
 	/* disable setting */
 	cm3323_i2c_write(data, REG_CS_CONF1, als_reg_setting[1][1]);
-
-	hrtimer_cancel(&data->light_timer);
-	cancel_work_sync(&data->work_light);
-}
-
-/* This function is for light sensor.  It operates every a few seconds.
- * It asks for work to be done on a thread because i2c needs a thread
- * context (slow and blocking) and then reschedules the timer to run again.
- */
-static enum hrtimer_restart cm3323_light_timer_func(struct hrtimer *timer)
-{
-	struct cm3323_p *data = container_of(timer,
-					struct cm3323_p, light_timer);
-
-	queue_work(data->light_wq, &data->work_light);
-	hrtimer_forward_now(&data->light_timer, data->poll_delay);
-
-	return HRTIMER_RESTART;
+	cancel_delayed_work_sync(&data->work);
 }
 
 static void cm3323_work_func_light(struct work_struct *work)
 {
-	struct cm3323_p *data = container_of(work, struct cm3323_p, work_light);
+	struct cm3323_p *data = container_of((struct delayed_work *)work,
+			struct cm3323_p, work);
+	unsigned long delay = nsecs_to_jiffies(atomic_read(&data->delay));
 
 	cm3323_i2c_read_word(data, REG_RED, &data->color[0]);
 	cm3323_i2c_read_word(data, REG_GREEN, &data->color[1]);
@@ -177,7 +199,7 @@ static void cm3323_work_func_light(struct work_struct *work)
 	input_report_rel(data->input, REL_WHITE, data->color[3] + 1);
 	input_sync(data->input);
 
-	if ((ktime_to_ns(data->poll_delay) * (int64_t)data->time_count)
+	if (((int64_t)atomic_read(&data->delay) * (int64_t)data->time_count)
 		>= ((int64_t)LIGHT_LOG_TIME * NSEC_PER_SEC)) {
 		pr_info("[SENSOR]: %s - r = %u g = %u b = %u w = %u\n",
 			__func__, data->color[0], data->color[1],
@@ -186,6 +208,8 @@ static void cm3323_work_func_light(struct work_struct *work)
 	} else {
 		data->time_count++;
 	}
+
+	schedule_delayed_work(&data->work, delay);
 }
 
 /* sysfs */
@@ -194,8 +218,7 @@ static ssize_t cm3323_poll_delay_show(struct device *dev,
 {
 	struct cm3323_p *data = dev_get_drvdata(dev);
 
-	return snprintf(buf, PAGE_SIZE, "%lld\n",
-			ktime_to_ns(data->poll_delay));
+	return snprintf(buf, PAGE_SIZE, "%d\n", atomic_read(&data->delay));
 }
 
 static ssize_t cm3323_poll_delay_store(struct device *dev,
@@ -211,15 +234,8 @@ static ssize_t cm3323_poll_delay_store(struct device *dev,
 		return ret;
 	}
 
-	if (new_delay != ktime_to_ns(data->poll_delay)) {
-		data->poll_delay = ns_to_ktime(new_delay);
-		if (data->power_state & LIGHT_ENABLED) {
-			cm3323_light_disable(data);
-			cm3323_light_enable(data);
-		}
-		pr_info("[SENSOR]: %s - poll_delay = %lld\n",
-			__func__, new_delay);
-	}
+	atomic_set(&data->delay, new_delay);
+	pr_info("[SENSOR]: %s - poll_delay = %lld\n", __func__, new_delay);
 
 	return size;
 }
@@ -403,7 +419,9 @@ static int cm3323_probe(struct i2c_client *client,
 
 	data->i2c_client = client;
 	i2c_set_clientdata(client, data);
-
+#ifdef CONFIG_SEC_RUBENS_PROJECT
+	sensor_power_on_vdd(data,1);
+#endif
 	/* Check if the device is there or not. */
 	ret = cm3323_setup_reg(data);
 	if (ret < 0) {
@@ -416,24 +434,10 @@ static int cm3323_probe(struct i2c_client *client,
 	if (ret < 0)
 		goto exit_input_init;
 
-	/* light_timer settings. we poll for light values using a timer. */
-	hrtimer_init(&data->light_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
-	data->poll_delay = ns_to_ktime(200 * NSEC_PER_MSEC);
-	data->light_timer.function = cm3323_light_timer_func;
+	atomic_set(&data->delay, CM3323_DEFAULT_DELAY);
 	data->time_count = 0;
 
-	/* the timer just fires off a work queue request.  we need a thread
-	   to read the i2c (can be slow and blocking). */
-	data->light_wq = create_singlethread_workqueue("cm3323_light_wq");
-	if (!data->light_wq) {
-		ret = -ENOMEM;
-		pr_err("[SENSOR]: %s - could not create light workqueue\n",
-			__func__);
-		goto exit_create_light_workqueue;
-	}
-
-	/* this is the thread function we run on the work queue */
-	INIT_WORK(&data->work_light, cm3323_work_func_light);
+	INIT_DELAYED_WORK(&data->work, cm3323_work_func_light);
 
 	/* set sysfs for light sensor */
 	sensors_register(data->light_dev, data, sensor_attrs, MODULE_NAME);
@@ -441,13 +445,12 @@ static int cm3323_probe(struct i2c_client *client,
 
 	return 0;
 
-exit_create_light_workqueue:
-	sysfs_remove_group(&data->input->dev.kobj, &light_attribute_group);
-	sensors_remove_symlink(&data->input->dev.kobj, data->input->name);
-	input_unregister_device(data->input);
 exit_input_init:
 exit_setup_reg:
 	kfree(data);
+#ifdef CONFIG_SEC_RUBENS_PROJECT
+	sensor_power_on_vdd(data,0);
+#endif
 exit_kzalloc:
 exit:
 	pr_err("[SENSOR]: %s - Probe fail!\n", __func__);
@@ -471,9 +474,6 @@ static int __devexit cm3323_remove(struct i2c_client *client)
 	if (data->power_state & LIGHT_ENABLED)
 		cm3323_light_disable(data);
 
-	/* destroy workqueue */
-	destroy_workqueue(data->light_wq);
-
 	/* sysfs destroy */
 	sensors_unregister(data->light_dev, sensor_attrs);
 	sensors_remove_symlink(&data->input->dev.kobj, data->input->name);
@@ -490,8 +490,10 @@ static int cm3323_suspend(struct device *dev)
 {
 	struct cm3323_p *data = dev_get_drvdata(dev);
 
-	if (data->power_state & LIGHT_ENABLED)
+	if (data->power_state & LIGHT_ENABLED) {
+		pr_info("[SENSOR]: %s\n", __func__);
 		cm3323_light_disable(data);
+	}
 
 	return 0;
 }
@@ -500,8 +502,10 @@ static int cm3323_resume(struct device *dev)
 {
 	struct cm3323_p *data = dev_get_drvdata(dev);
 
-	if (data->power_state & LIGHT_ENABLED)
+	if (data->power_state & LIGHT_ENABLED) {
+		pr_info("[SENSOR]: %s\n", __func__);
 		cm3323_light_enable(data);
+	}
 
 	return 0;
 }

@@ -31,23 +31,27 @@ extern "C" {
 
 /* #define BBM_I2C_SPI */
 #define BBM_I2C_TSIF
-/* #define BBM_INT_LOW_ACTIVE */
+#define BBM_INT_LOW_ACTIVE
 /* #define BBM_AUX_INT */
 #define BBM_NULL_PID_FILTER
 /* #define BBM_FAIL_FRAME */
 /* #define BBM_TS_204 */
 /* #define BBM_2_DIVERSITY */
 /* #define BBM_4_DIVERSITY */
+/* #define BBM_DESCRAMBLER */
+/* #define BBM_SPI_30M */ /* ONLY CS */
+/* #define BBM_I2C_PARALLEL_TSIF */
 #define BBM_ES /* deprecated */
 /* #define BBM_ES_CURRENT */ /* deprecated */
 
+/* From TRLTE onwards, the frequency value is set at run-time during probe of fc8300 */
 /* #define BBM_XTAL_FREQ               16000 */
 /* #define BBM_XTAL_FREQ               16384 */
 /* #define BBM_XTAL_FREQ               18000 */
 /*#define BBM_XTAL_FREQ               19200 */
 /* #define BBM_XTAL_FREQ               24000 */
 /* #define BBM_XTAL_FREQ               24576 */
- #define BBM_XTAL_FREQ               26000 
+/* #define BBM_XTAL_FREQ               26000 */
 /* #define BBM_XTAL_FREQ               27000 */
 /* #define BBM_XTAL_FREQ               27120 */
 /* #define BBM_XTAL_FREQ               32000 */
@@ -155,6 +159,7 @@ extern "C" {
 #define BBM_AC_PAT                  0x00a2
 #define BBM_VERIFY_TEST             0x00a4
 #define BBM_RF_POWER_SAVE           0x00ae
+#define BBM_ADC_BIAS                0x00b3
 #define BBM_ADC_PWRDN               0x00b4
 #define BBM_ADC_RST                 0x00b5
 #define BBM_RF_RST                  0x00b9
@@ -246,7 +251,10 @@ extern "C" {
 #define BBM_SLPF_COEF_02            0x1052
 #define BBM_SLPF_COEF_03            0x1053
 #define BBM_PGA_GAIN_MAX            0x1064
+#define BBM_PGA_GAIN_MIN            0x1065
 #define BBM_CSF_GAIN_MAX            0x1069
+#define BBM_PSAT_ON_REF_1SEG_QPSK   0x1083
+#define BBM_PSAT_ON_REF_1SEG_16QAM  0x1084
 
 	/* SYNC */
 #define BBM_FREQ_COMPEN_VAL0        0x2008
@@ -290,6 +298,7 @@ extern "C" {
 #define BBM_MAN_LAYER_B_TI_LENGTH   0x41fc
 #define BBM_MAN_LAYER_C_TI_LENGTH   0x41fd
 #define BBM_FD_RD_LATENCY_1SEG      0x4200
+#define BBM_FD_OUT_MODE             0x4208
 #define BBM_MSNR_FREQ_S_POW_MAN_VALUE3 0x4247
 
 	/* DIVERSITY */
@@ -297,6 +306,7 @@ extern "C" {
 #define BBM_DIVERSITY_MODE          0x4301
 #define BBM_CN_WEIGHT_USE_EN        0x4304
 #define BBM_D_SYNC_TIME_OUT_TH      0x4305
+#define BBM_DIV_START_MODE          0x4307
 #define BBM_COMB_OFF                0x4314
 #define BBM_COMB_CN_OK_FD_EN        0x4333
 

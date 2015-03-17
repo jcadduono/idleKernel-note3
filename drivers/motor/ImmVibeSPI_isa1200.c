@@ -59,7 +59,15 @@ int32_t vibe_set_pwm_freq(int nForce)
 {
 	/* Put the MND counter in reset mode for programming */
 	HWIO_OUTM(GP1_CFG_RCGR, HWIO_GP_SRC_SEL_VAL_BMSK,0 << HWIO_GP_SRC_SEL_VAL_SHFT); //SRC_SEL = 000(cxo)
+#if defined (CONFIG_MACH_MATISSELTE_ATT)
+	HWIO_OUTM(GP1_CFG_RCGR, HWIO_GP_SRC_DIV_VAL_BMSK,23 << HWIO_GP_SRC_DIV_VAL_SHFT); //SRC_DIV = 11111 (Div 12)
+#else
+#if defined (CONFIG_MACH_MATISSE3G_OPEN) || defined (CONFIG_SEC_MATISSELTE_COMMON)
+	HWIO_OUTM(GP1_CFG_RCGR, HWIO_GP_SRC_DIV_VAL_BMSK,29 << HWIO_GP_SRC_DIV_VAL_SHFT); //SRC_DIV = 11111 (Div 16)
+#else
 	HWIO_OUTM(GP1_CFG_RCGR, HWIO_GP_SRC_DIV_VAL_BMSK,31 << HWIO_GP_SRC_DIV_VAL_SHFT); //SRC_DIV = 11111 (Div 16)
+#endif
+#endif//CONFIG_MACH_MATISSELTE_ATT
 	HWIO_OUTM(GP1_CFG_RCGR, HWIO_GP_MODE_VAL_BMSK,2 << HWIO_GP_MODE_VAL_SHFT); //Mode Select 10
 	//M value
 	HWIO_OUTM(GP_M_REG, HWIO_GP_MD_REG_M_VAL_BMSK,g_nlra_gp_clk_m << HWIO_GP_MD_REG_M_VAL_SHFT);
@@ -125,11 +133,11 @@ IMMVIBESPIAPI VibeStatus ImmVibeSPI_ForceOut_AmpDisable(VibeUInt8 nActuatorIndex
 	printk("[VIBETONZ] %s \n",__func__);
 	g_bAmpEnabled = false;
 	vib_isa1200_onoff(0);
-#if defined CONFIG_MACH_MATISSE3G_OPEN
+#if defined (CONFIG_MACH_MATISSE3G_OPEN) || defined (CONFIG_SEC_MATISSELTE_COMMON) || defined (CONFIG_MACH_T10_3G_OPEN)
 	vibrator_drvdata.power_onoff(0);
 #endif
 	gpio_set_value(vibrator_drvdata.motor_en, VIBRATION_OFF);
-	gpio_tlmm_config(GPIO_CFG(vibrator_drvdata.vib_clk,  0, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_2MA),GPIO_CFG_ENABLE);
+	gpio_tlmm_config(GPIO_CFG(vibrator_drvdata.vib_clk,  0, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA),GPIO_CFG_ENABLE);
 	gpio_set_value(vibrator_drvdata.vib_clk, VIBRATION_OFF);
     }
 
@@ -148,7 +156,7 @@ IMMVIBESPIAPI VibeStatus ImmVibeSPI_ForceOut_AmpEnable(VibeUInt8 nActuatorIndex)
 	printk("[VIBETONZ] %s \n",__func__);
 	g_bAmpEnabled = true;
 
-#if defined CONFIG_MACH_MATISSE3G_OPEN
+#if defined (CONFIG_MACH_MATISSE3G_OPEN) || defined (CONFIG_SEC_MATISSELTE_COMMON) || defined (CONFIG_MACH_T10_3G_OPEN)
 	vibrator_drvdata.power_onoff(1);
 	gpio_tlmm_config(GPIO_CFG(vibrator_drvdata.vib_clk,  3, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_2MA),GPIO_CFG_ENABLE);
 #else
@@ -156,6 +164,9 @@ IMMVIBESPIAPI VibeStatus ImmVibeSPI_ForceOut_AmpEnable(VibeUInt8 nActuatorIndex)
 #endif
 	gpio_set_value(vibrator_drvdata.vib_clk, VIBRATION_ON);
 	gpio_set_value(vibrator_drvdata.motor_en, VIBRATION_ON);
+#if defined (CONFIG_MACH_MATISSE3G_OPEN) || defined (CONFIG_SEC_MATISSELTE_COMMON)
+	msleep(1);
+#endif
 	vib_isa1200_onoff(1);
     }
 
@@ -169,7 +180,7 @@ IMMVIBESPIAPI VibeStatus ImmVibeSPI_ForceOut_Initialize(void)
 {
 	g_bAmpEnabled = true;
 	DbgOut((KERN_DEBUG "ImmVibeSPI_ForceOut_Initialize.\n"));
-	gpio_tlmm_config(GPIO_CFG(vibrator_drvdata.vib_clk,0, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_2MA),GPIO_CFG_ENABLE);
+	gpio_tlmm_config(GPIO_CFG(vibrator_drvdata.vib_clk,0, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA),GPIO_CFG_ENABLE);
 	msleep(1);
 	vibrator_write_register(HCTRL0, 0x08);
 	vibrator_write_register(HCTRL1, 0x4B);

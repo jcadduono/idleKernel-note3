@@ -2179,7 +2179,7 @@ static bool synaptics_skip_firmware_update(struct synaptics_rmi4_data *rmi4_data
 			__func__);
 		return false;
 	}
-#if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
+#if defined(CONFIG_USE_INPUTLOCATION_FOR_ENG)
 	/* Test firmware file does not have version infomation */
 	if (!rmi4_data->fw_version_of_ic
 		&& !rmi4_data->fw_release_date_of_ic){
@@ -2198,7 +2198,7 @@ static bool synaptics_skip_firmware_update(struct synaptics_rmi4_data *rmi4_data
 #endif
 
 	if ((rmi4_data->ic_revision_of_bin == rmi4_data->ic_revision_of_ic)
-#ifdef CONFIG_SEC_H_PROJECT /*hlte temp 0423 force firm update*/
+#if defined(CONFIG_SEC_H_PROJECT)/*hlte temp 0423 force firm update*/
 		&& (rmi4_data->fw_version_of_bin == rmi4_data->fw_version_of_ic)) {
 #else
 		&& (rmi4_data->fw_version_of_bin <= rmi4_data->fw_version_of_ic)) {
@@ -2328,7 +2328,7 @@ static int synaptics_load_fw_from_ums(struct synaptics_rmi4_data *rmi4_data)
 			error = -EIO;
 		} else {
 			/* UMS case */
-#if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
+#if defined(CONFIG_USE_INPUTLOCATION_FOR_ENG)
 			int ic_revision_of_bin =
 				(int)fw_data[IC_REVISION_BIN_OFFSET];
 			int fw_version_of_bin =

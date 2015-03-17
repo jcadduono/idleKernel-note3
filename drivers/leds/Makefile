@@ -59,6 +59,9 @@ obj-$(CONFIG_LEDS_MSM_GPIO_FLASH)	+= leds-msm-gpio-flash.o
 obj-$(CONFIG_LEDS_SEC_BACKLIGHT)	+= leds-sec-backlight.o
 obj-$(CONFIG_LEDS_MAX77803)		+= leds-max77803.o
 obj-$(CONFIG_LEDS_MAX77804K)		+= leds-max77804k.o
+obj-$(CONFIG_LEDS_MAX77828)		+= leds-max77828.o
+obj-$(CONFIG_LEDS_MAX77888)		+= leds-max77888.o
+obj-$(CONFIG_LEDS_KTD2026)		+= leds-ktd2026.o
 
 # LED SPI Drivers
 obj-$(CONFIG_LEDS_DAC124S085)		+= leds-dac124s085.o

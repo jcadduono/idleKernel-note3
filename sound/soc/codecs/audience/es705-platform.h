@@ -23,6 +23,8 @@ void es705_vs_event(struct es705_priv *es705);
 void es705_gpio_wakeup(struct es705_priv *es705);
 int es705_init_input_device(struct es705_priv *es705);
 void es705_unregister_input_device(struct es705_priv *es705);
+void es705_uart_pin_preset(struct es705_priv *es705);
+void es705_uart_pin_postset(struct es705_priv *es705);
 #endif
 
 struct esxxx_platform_data *es705_populate_dt_pdata(struct device *dev);

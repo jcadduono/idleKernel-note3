@@ -23,10 +23,10 @@
 				qcom,pwm-us = <1000>;
 				qcom,max-current = <12>;
 				qcom,default-state = "off";
+				qcom,turn-off-delay-ms = <0>;
 				qcom,id = <3>;
 				status = "ok";
-				linux,default-trigger =
-					"battery-charging";
+				linux,default-trigger =	"none";
 			};
 
 			qcom,rgb_1 {
@@ -36,8 +36,11 @@
 				qcom,pwm-channel = <5>;
 				qcom,pwm-us = <1000>;
 				qcom,max-current = <12>;
+				qcom,default-state = "off";
+				qcom,turn-off-delay-ms = <0>;
 				qcom,id = <4>;
 				status = "ok";
+				linux,default-trigger = "none";
 			};
 
 			qcom,rgb_2 {
@@ -47,8 +50,11 @@
 				qcom,pwm-channel = <4>;
 				qcom,pwm-us = <1000>;
 				qcom,max-current = <12>;
+				qcom,default-state = "off";
+				qcom,turn-off-delay-ms = <0>;
 				qcom,id = <5>;
 				status = "ok";
+				linux,default-trigger =	"none";
 			};
 		};
 

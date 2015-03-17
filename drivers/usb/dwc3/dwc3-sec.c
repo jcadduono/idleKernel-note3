@@ -11,7 +11,7 @@
 #include <linux/host_notify.h>
 #include <linux/of_gpio.h>
 
-#ifdef CONFIG_CHARGER_BQ24260
+#if defined (CONFIG_CHARGER_BQ24260) || defined (CONFIG_CHARGER_SMB358)
 #include <linux/gpio.h>
 #include <mach/rpm-regulator-smd.h>
 #endif
@@ -20,8 +20,8 @@
 #include <linux/power_supply.h>
 #endif
 
-#if defined(CONFIG_SEC_K_PROJECT) || defined(CONFIG_SEC_KACTIVE_PROJECT)
-	extern int vienna_usb_rdrv_pin;
+#if defined(CONFIG_SEC_K_PROJECT)
+	extern int sec_qcom_usb_rdrv;
 #endif
 
 struct dwc3_sec {
@@ -32,9 +32,89 @@ static struct dwc3_sec sec_noti;
 
 #ifdef CONFIG_USB_HOST_NOTIFY
 static int booster_enable;
+static int gpio_usb_vbus_msm;
 #endif
 
-#ifdef CONFIG_CHARGER_BQ24260
+#ifdef CONFIG_CHARGER_SMB1357
+struct delayed_work	smb1357_late_power_work;
+int smb1357_otg_control(int enable)
+{
+	union power_supply_propval value;
+	int i, ret = 0;
+	struct power_supply *psy;
+	int current_cable_type;
+
+	pr_info("%s: enable(%d)\n", __func__, enable);
+
+#ifdef CONFIG_USB_HOST_NOTIFY
+	booster_enable = enable;
+#endif
+	for (i = 0; i < 10; i++) {
+		psy = power_supply_get_by_name("battery");
+		if (psy)
+			break;
+	}
+	if (i == 10) {
+		pr_err("%s: fail to get battery ps\n", __func__);
+		schedule_delayed_work(&smb1357_late_power_work, msecs_to_jiffies(5000));
+		return -1;
+	}
+
+	if (enable == 1)
+		current_cable_type = POWER_SUPPLY_TYPE_OTG;
+	else if (enable == 2)
+		current_cable_type = POWER_SUPPLY_TYPE_LAN_HUB;
+	else
+		current_cable_type = POWER_SUPPLY_TYPE_BATTERY;
+
+	value.intval = current_cable_type;
+	ret = psy->set_property(psy, POWER_SUPPLY_PROP_ONLINE, &value);
+	msleep(500);
+
+	if (ret) {
+		pr_err("%s: fail to set power_suppy ONLINE property(%d)\n",
+			__func__, ret);
+	}
+	return ret;
+}
+
+static void smb1357_late_power(struct work_struct *work)
+{
+	struct dwc3_sec *snoti = &sec_noti;
+	struct dwc3_msm *dwcm;
+	
+	if (!snoti) {
+		pr_err("%s: dwc3_otg (snoti) is null\n", __func__);
+		return;
+	}
+
+	dwcm = snoti->dwcm;
+	if (!dwcm) {
+		pr_err("%s: dwc3_otg (dwcm) is null\n", __func__);
+		return;
+	}
+	
+	pr_info("%s, ext_xceiv.id=%d\n", __func__, dwcm->ext_xceiv.id);
+
+#ifdef CONFIG_USB_HOST_NOTIFY
+	if (dwcm->ext_xceiv.id == DWC3_ID_GROUND) {
+		if (gpio_usb_vbus_msm > 0) {
+			if (gpio_get_value(gpio_usb_vbus_msm) == 0)
+				smb1357_otg_control(booster_enable);
+		} else {
+			smb1357_otg_control(booster_enable);
+		}
+	}
+#endif
+}
+
+static void usb_vbus_msm_init(struct dwc3_msm *dwcm, struct usb_phy *phy)
+{
+	INIT_DELAYED_WORK(&smb1357_late_power_work, smb1357_late_power);
+}
+#endif
+
+#if defined (CONFIG_CHARGER_BQ24260) || defined (CONFIG_CHARGER_SMB358)
 struct delayed_work	bq24260_late_power_work;
 int bq24260_otg_control(int enable)
 {
@@ -94,8 +174,16 @@ static void bq24260_late_power(struct work_struct *work)
 	
 	pr_info("%s, ext_xceiv.id=%d\n", __func__, dwcm->ext_xceiv.id);
 
-	if (dwcm->ext_xceiv.id == DWC3_ID_GROUND)
-		bq24260_otg_control(booster_enable);
+#ifdef CONFIG_USB_HOST_NOTIFY
+	if (dwcm->ext_xceiv.id == DWC3_ID_GROUND) {
+		if (gpio_usb_vbus_msm > 0) {
+			if (gpio_get_value(gpio_usb_vbus_msm) == 0)
+				bq24260_otg_control(booster_enable);
+		} else {
+			bq24260_otg_control(booster_enable);
+		}
+	}
+#endif
 }
 
 struct booster_data sec_booster = {
@@ -103,6 +191,7 @@ struct booster_data sec_booster = {
 	.boost = bq24260_otg_control,
 };
 
+#ifdef CONFIG_USB_HOST_NOTIFY
 #if defined(CONFIG_MACH_VIENNA)
 static struct rpm_regulator *s2a_regulator;
 
@@ -118,6 +207,7 @@ static void usb_vbus_s2a_force_pwm(unsigned int en)
 			en ? RPM_REGULATOR_MODE_HPM : RPM_REGULATOR_MODE_AUTO);
 }
 #endif
+#endif
 
 static void usb_vbus_msm_init(struct dwc3_msm *dwcm, struct usb_phy *phy)
 {
@@ -130,7 +220,6 @@ static void usb_vbus_msm_init(struct dwc3_msm *dwcm, struct usb_phy *phy)
 
 
 #ifdef CONFIG_USB_HOST_NOTIFY
-static int gpio_usb_vbus_msm;
 static irqreturn_t msm_usb_vbus_msm_irq(int irq, void *data)
 {
 	struct dwc3_sec *snoti = &sec_noti;
@@ -309,24 +398,40 @@ struct sec_cable {
 
 static struct sec_cable support_cable_list[] = {
 	{ .cable_type = EXTCON_USB, },
+#ifdef CONFIG_USB_HOST_NOTIFY
 	{ .cable_type = EXTCON_USB_HOST, },
+	{ .cable_type = EXTCON_USB_HOST_5V, },
 	{ .cable_type = EXTCON_TA, },
 	{ .cable_type = EXTCON_AUDIODOCK, },
 	{ .cable_type = EXTCON_SMARTDOCK_TA, },
+#endif
 	{ .cable_type = EXTCON_SMARTDOCK_USB, },
+	{ .cable_type = EXTCON_JIG_USBON, },
+	{ .cable_type = EXTCON_CHARGE_DOWNSTREAM, },
 };
 
+/* USB3.0 Popup option */
+#if defined(CONFIG_SEC_K_PROJECT)
+extern u8 usb30en;
+#endif
+
+extern void set_ncm_ready(bool ready);
 static void sec_usb_work(int usb_mode)
 {
 	struct power_supply *psy;
 
-#if defined(CONFIG_SEC_K_PROJECT) || defined(CONFIG_SEC_KACTIVE_PROJECT)
-	gpio_set_value(vienna_usb_rdrv_pin, usb_mode);
+#if defined(CONFIG_SEC_K_PROJECT)
+	gpio_set_value(sec_qcom_usb_rdrv, usb_mode);
 	pr_info("%s klte_usb_rdrv_pin = %d, enable=%d\n",
 		__func__,
-		vienna_usb_rdrv_pin,
+		sec_qcom_usb_rdrv,
 		usb_mode);
+	if(!usb_mode)
+/* USB3.0 Popup option */
+		usb30en = 0;
 #endif
+	if(!usb_mode)
+		set_ncm_ready(false);
 
 	psy = power_supply_get_by_name("dwc-usb");
 	pr_info("usb: dwc3 power supply set(%d)", usb_mode);
@@ -342,16 +447,18 @@ static void sec_cable_event_worker(struct work_struct *work)
 		extcon_cable_name[cable->cable_type],
 		cable->cable_state ? "attached" : "detached");
 
-#ifdef CONFIG_USB_HOST_NOTIFY
 	switch (cable->cable_type) {
 	case EXTCON_USB:
-	case EXTCON_SMARTDOCK_USB: 
+	case EXTCON_SMARTDOCK_USB:
+	case EXTCON_JIG_USBON:
+	case EXTCON_CHARGE_DOWNSTREAM:
 		sec_usb_work(cable->cable_state);
 		break;
-	case EXTCON_USB_HOST: 
+#ifdef CONFIG_USB_HOST_NOTIFY
+	case EXTCON_USB_HOST:
 		if (cable->cable_state)
 			sec_otg_notify(HNOTIFY_ID);
-		else	
+		else
 			sec_otg_notify(HNOTIFY_ID_PULL);
 		break;
 	case EXTCON_TA: break;
@@ -367,9 +474,15 @@ static void sec_cable_event_worker(struct work_struct *work)
 		else
 			sec_otg_notify(HNOTIFY_SMARTDOCK_OFF);
 		break;
+	case EXTCON_USB_HOST_5V:
+		if (cable->cable_state)
+			sec_otg_notify(HNOTIFY_OTG_POWER_ON);
+		else
+			sec_otg_notify(HNOTIFY_OTG_POWER_OFF);
+		break;
+#endif
 	default : break;
 	}
-#endif
 }
 
 static int sec_cable_notifier(struct notifier_block *nb,
@@ -424,7 +537,7 @@ static int sec_otg_init(struct dwc3_msm *dwcm, struct usb_phy *phy)
 	sec_noti.nb.notifier_call = sec_otg_notifications;
 	sec_noti.dwcm = dwcm;
 
-#ifdef CONFIG_CHARGER_BQ24260
+#if defined (CONFIG_CHARGER_BQ24260) || defined (CONFIG_CHARGER_SMB358) || defined (CONFIG_CHARGER_SMB1357)
 	usb_vbus_msm_init(dwcm, phy);
 #endif
 

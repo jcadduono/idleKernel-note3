@@ -44,6 +44,7 @@
 static char cabc_tune_data1[CABC_TUNE_FIRST_SIZE] = {0,};
 static char cabc_tune_data2[CABC_TUNE_SECOND_SIZE] = {0,};
 static char cabc_tune_data3[CABC_TUNE_THIRD_SIZE] = {0,};
+static char cabc_tune_data4[CABC_TUNE_FOURTH_SIZE] = {0,};
 static char cabc_select_data[CABC_TUNE_SELECT_SIZE] = {0,};
 
 static char tuning_file[128];
@@ -66,6 +67,8 @@ static struct dsi_cmd_desc cabc_tune_cmd[] = {
 		sizeof(cabc_tune_data2)}, cabc_tune_data2},
 	{{DTYPE_GEN_LWRITE, 1, 0, 0, 0,
 		sizeof(cabc_tune_data3)}, cabc_tune_data3},
+	{{DTYPE_GEN_LWRITE, 1, 0, 0, 0,
+		sizeof(cabc_tune_data4)}, cabc_tune_data4},
 	{{DTYPE_DCS_WRITE1, 1, 0, 0, 0,
 		sizeof(cabc_select_data)}, cabc_select_data},
 };
@@ -113,7 +116,7 @@ static void mdss_dsi_cmds_send(struct mdss_dsi_ctrl_pdata *ctrl,
 
 	mdss_dsi_cmdlist_put(ctrl, &cmdreq);
 }
-
+//#define CABC_TUN_DATA_DEBUG
 #ifdef CABC_TUN_DATA_DEBUG
 static void print_tun_data(void)
 {
@@ -128,11 +131,15 @@ static void print_tun_data(void)
 	for (i = 0; i < CABC_TUNE_SECOND_SIZE ; i++)
 		DPRINT("0x%x ", PAYLOAD2.payload[i]);
 	DPRINT("\n");
-	DPRINT("---- size2 : %d", PAYLOAD3.dchdr.dlen);
+	DPRINT("---- size3 : %d", PAYLOAD3.dchdr.dlen);
 	for (i = 0; i < CABC_TUNE_THIRD_SIZE ; i++)
 		DPRINT("0x%x ", PAYLOAD3.payload[i]);
 	DPRINT("\n");
-	DPRINT("---- size2 : %d", SELECT.dchdr.dlen);
+	DPRINT("---- size4 : %d", PAYLOAD4.dchdr.dlen);
+	for (i = 0; i < CABC_TUNE_FOURTH_SIZE ; i++)
+		DPRINT("0x%x ", PAYLOAD4.payload[i]);
+	DPRINT("\n");
+	DPRINT("---- size5 : %d", SELECT.dchdr.dlen);
 	for (i = 0; i < CABC_TUNE_SELECT_SIZE ; i++)
 		DPRINT("0x%x ", SELECT.payload[i]);
 	DPRINT("\n");
@@ -179,8 +186,9 @@ void CABC_Set_Mode(void)
 		return;
 	}
 
-	DPRINT("CABC_Set_Mode start , mode(%d), lux(%d)\n",
-		cabc_tun_state.mode, cabc_tun_state.luxvalue);
+	DPRINT("CABC_Set_Mode start , mode(%d), negative(%d), lux(%d)\n",
+		cabc_tun_state.mode, cabc_tun_state.negative,
+						cabc_tun_state.luxvalue);
 
 	switch (cabc_tun_state.mode) {
 	case CABC_MODE_UI:
@@ -197,7 +205,23 @@ void CABC_Set_Mode(void)
 		INPUT_PAYLOAD3(CABC_NORMAL_3);
 		break;
 	default:
-		DPRINT("[%s] no option (%d)\n", __func__, cabc_tun_state.mode);
+		DPRINT("[%s] no option for mode (%d)\n", __func__,
+							cabc_tun_state.mode);
+		return;
+	}
+
+	switch (cabc_tun_state.negative) {
+	case CABC_NEGATIVE_OFF:
+		DPRINT(" = Negative Disabled =\n");
+		INPUT_PAYLOAD4(CABC_NORMAL_4);
+		break;
+	case CABC_NEGATIVE_ON:
+		DPRINT(" = Negative Enabled =\n");
+		INPUT_PAYLOAD4(CABC_NEGATIVE_4);
+		break;
+	default:
+		DPRINT("[%s] no option for Negative (%d)\n", __func__,
+						cabc_tun_state.negative);
 		return;
 	}
 
@@ -205,11 +229,11 @@ void CABC_Set_Mode(void)
 		DPRINT(" = Auto Br Enabled =\n");
 		switch (cabc_tun_state.luxvalue) {
 		case CABC_LUX_0:
-			DPRINT(" = LUX 0 ~ 500 =\n");
+			DPRINT(" = LUX 0 ~ 150 =\n");
 			INPUT_SELECT(CABC_SELECT_2);
 			break;
 		case CABC_LUX_1:
-			DPRINT(" = LUX 500 ~ 5000 =\n");
+			DPRINT(" = LUX 150 ~ 5000 =\n");
 			if(cabc_tun_state.mode == CABC_MODE_VIDEO)
 				INPUT_SELECT(CABC_SELECT_2);
 			else
@@ -233,27 +257,10 @@ void CABC_Set_Mode(void)
 	sending_tuning_cmd();
 	free_tun_cmd();
 
-	DPRINT("CABC_Set_Mode end , mode(%d), lux(%d)\n",
-		cabc_tun_state.mode, cabc_tun_state.luxvalue);
+	DPRINT("CABC_Set_Mode end , mode(%d), negative(%d), lux(%d)\n",
+		cabc_tun_state.mode, cabc_tun_state.negative,
+						cabc_tun_state.luxvalue);
 
-}
-
-void CABC_Set_Negative(void)
-{
-	if (!get_panel_power_state()) {
-		pr_info("%s : get_panel_power_state off", __func__);
-		return;
-	}
-	DPRINT("CABC_Set_Negative START\n");
-
-	if (cabc_tun_state.negative == CABC_NEGATIVE_OFF) {
-		CABC_Set_Mode();
-
-	} else {
-		CABC_Set_Mode();
-	}
-
-	DPRINT("CABC_Set_Negative END\n");
 }
 
 static ssize_t show_auto_br(struct device *dev,
@@ -288,43 +295,33 @@ static ssize_t store_auto_br(struct device *dev,
 }
 static DEVICE_ATTR(auto_br, 0664, show_auto_br, store_auto_br);
 
-static ssize_t show_lux(struct device *dev,
-			     struct device_attribute *dev_attr, char *buf)
+static unsigned int lux_to_value(unsigned int input_lux)
 {
-	return sprintf(buf, "%d\n", cabc_tun_state.luxvalue);
-
+	if(input_lux <= 150)
+		return 0;
+	else if (input_lux <= 5000)
+		return 1;
+	else
+		return 2;
 }
 
-static ssize_t store_lux(struct device *dev,
-			    struct device_attribute *dev_attr,
-			    const char *buf, size_t count)
+void update_lux(unsigned int input_lux)
 {
-	int ret;
 	unsigned int value;
 
-	ret = kstrtouint(buf, 10, &value);
+	value = lux_to_value(input_lux);
 
-	if (ret)
-		return ret;
-
-	if (!get_panel_power_state()) {
-		pr_info("%s : Panel is off state", __func__);
-		return count;
-	}
+	pr_info("%s : Input Lux=%d Lux Value=%d\n", __func__, input_lux, value);
 
 	if (value >= CABC_LUX_MAX) {
-		pr_err("Undefied  CABC illumiate value : %d\n\n", value);
-		return count;
+		pr_err("Undefied  CABC lux value : %d\n\n", value);
+		return;
 	}
 	if (value != cabc_tun_state.luxvalue) {
 		cabc_tun_state.luxvalue = value;
 		CABC_Set_Mode();
 	}
-
-	return count;
 }
-
-static DEVICE_ATTR(lux, 0664, show_lux, store_lux);
 
 static ssize_t show_mode(struct device *dev,
 			     struct device_attribute *dev_attr, char *buf)
@@ -345,11 +342,6 @@ static ssize_t store_mode(struct device *dev,
 	if (ret)
 		return ret;
 
-	if (!get_panel_power_state()) {
-		pr_info("%s : Panel is off state", __func__);
-		return count;
-	}
-
 	if (value >= CABC_MODE_MAX) {
 		pr_err("Undefied CABC MODE value : %d\n\n", value);
 		return count;
@@ -363,6 +355,55 @@ static ssize_t store_mode(struct device *dev,
 }
 
 static DEVICE_ATTR(mode, 0664, show_mode, store_mode);
+
+static ssize_t store_lux(struct device *dev,
+			    struct device_attribute *dev_attr,
+			    const char *buf, size_t count)
+{
+	return count;
+}
+
+static DEVICE_ATTR(lux, 0664, NULL, store_lux);
+
+
+static ssize_t accessibility_show(struct device *dev,
+			struct device_attribute *attr,
+			char *buf)
+{
+	DPRINT("%s %s\n", __func__, cabc_tun_state.negative ?
+					"NEGATIVE" : "ACCESSIBILITY_OFF");
+	return snprintf(buf, 256, "%s %s\n", __func__, cabc_tun_state.negative ?
+		 			"NEGATIVE" : "ACCESSIBILITY_OFF");
+}
+
+static ssize_t accessibility_store(struct device *dev,
+			struct device_attribute *attr,
+			const char *buf, size_t size)
+{
+	int cmd_value;
+
+	sscanf(buf, "%d", &cmd_value);
+
+	switch (cmd_value) {
+	case ACCESSIBILITY_OFF :
+		cabc_tun_state.negative = CABC_NEGATIVE_OFF;
+		break;
+	case NEGATIVE :
+		cabc_tun_state.negative = CABC_NEGATIVE_ON;
+		break;
+	default :
+		pr_info("%s Undefined Command (%d)", __func__, cmd_value);
+		return size;
+	}
+
+	pr_info("%s cmd_value : %d size : %d", __func__, cmd_value, size);
+
+	CABC_Set_Mode();
+	return size;
+}
+static DEVICE_ATTR(accessibility, 0664, accessibility_show,
+		   accessibility_store);
+
 
 /* Using for CABC Key String */
 static ssize_t show_cabc(struct device *dev,
@@ -700,12 +741,12 @@ void cabc_tuning_init(struct mdss_dsi_ctrl_pdata *dsi_pdata)
 			pr_err("Failed to create device(mdnie)!\n");
 
 		if (device_create_file
-		    (tune_cabc_dev, &dev_attr_lux) < 0)
+		    (tune_cabc_dev, &dev_attr_auto_br) < 0)
 			pr_err("Failed to create device file(%s)!\n",
-		       dev_attr_lux.attr.name);
+		       dev_attr_auto_br.attr.name);
 
 		if (device_create_file
-		    (tune_cabc_dev, &dev_attr_auto_br) < 0)
+		    (tune_cabc_dev, &dev_attr_lux) < 0)
 			pr_err("Failed to create device file(%s)!\n",
 		       dev_attr_lux.attr.name);
 
@@ -728,6 +769,11 @@ void cabc_tuning_init(struct mdss_dsi_ctrl_pdata *dsi_pdata)
 		/* Using for CABC Key String */
 		if (device_create_file
 		    (tune_mdnie_dev, &dev_attr_cabc) < 0)
+			pr_err("Failed to create device file(%s)!\n",
+				dev_attr_cabc.attr.name);
+
+		if (device_create_file
+		    (tune_mdnie_dev, &dev_attr_accessibility) < 0)
 			pr_err("Failed to create device file(%s)!\n",
 				dev_attr_cabc.attr.name);
 

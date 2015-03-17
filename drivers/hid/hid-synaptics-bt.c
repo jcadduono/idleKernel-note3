@@ -157,6 +157,7 @@ static int hid_synaptics_probe(struct hid_device *hdev, const struct hid_device_
 	input_dev = input_allocate_device();
 	if (!input_dev) {
 		ret = -ENOMEM;
+		kfree(syntp_data);
 		goto hid_stop;
 	}
 
@@ -202,7 +203,10 @@ static int hid_synaptics_probe(struct hid_device *hdev, const struct hid_device_
 	syntp_data->input = input_dev;
 	ret = input_register_device(syntp_data->input);
 	if (ret)
+	{
+		input_free_device(syntp_data->input);
 		goto hid_init_failed;
+	}
 
 	hid_set_drvdata(hdev, syntp_data);
 
@@ -249,9 +253,9 @@ static int samsung_bookcover_input_mapping(struct hid_device *hdev,
 #else
 		case 0x32: samsung_kbd_mouse_map_key_clear(KEY_BACKSLASH); break;
 		case 0x64: samsung_kbd_mouse_map_key_clear(KEY_102ND); break;
+#endif
 		/* Only for BR keyboard */
 		case 0x87: samsung_kbd_mouse_map_key_clear(KEY_RO); break;
-#endif
 		default:
 			return 0;
 		}

@@ -31,12 +31,14 @@
 #define CABC_TUNE_FIRST_SIZE 7
 #define CABC_TUNE_SECOND_SIZE 7
 #define CABC_TUNE_THIRD_SIZE 18
+#define CABC_TUNE_FOURTH_SIZE 36
 #define CABC_TUNE_SELECT_SIZE 2
 
 #define PAYLOAD1 cabc_tune_cmd[0]
 #define PAYLOAD2 cabc_tune_cmd[1]
 #define PAYLOAD3 cabc_tune_cmd[2]
-#define SELECT cabc_tune_cmd[3]
+#define PAYLOAD4 cabc_tune_cmd[3]
+#define SELECT cabc_tune_cmd[4]
 
 #define CABC_OFF 0
 #define CABC_ON 1
@@ -44,6 +46,7 @@
 #define INPUT_PAYLOAD1(x) PAYLOAD1.payload = x
 #define INPUT_PAYLOAD2(x) PAYLOAD2.payload = x
 #define INPUT_PAYLOAD3(x) PAYLOAD3.payload = x
+#define INPUT_PAYLOAD4(x) PAYLOAD4.payload = x
 #define INPUT_SELECT(x) SELECT.payload = x
 
 
@@ -72,6 +75,13 @@ enum CABC_Auto_Br {
 	CABC_AUTO_BR_MAX
 };
 
+enum ACCESSIBILITY {
+	ACCESSIBILITY_OFF = 0,
+	NEGATIVE,
+	COLOR_BLIND,
+	ACCESSIBILITY_MAX,
+};
+
 struct cabc_tun_type {
 	struct mutex cabc_mutex;
 	bool cabc_enable;
@@ -82,7 +92,8 @@ struct cabc_tun_type {
 };
 
 void cabc_tuning_init(struct mdss_dsi_ctrl_pdata *dsi_pdata);
-void CABC_Set_Negative(void);
+void CABC_Set_Mode(void);
+void update_lux(unsigned int input_lux);
 int get_panel_power_state(void);
 
 #endif

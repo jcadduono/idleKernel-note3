@@ -29,7 +29,7 @@
 /* jmodel */
 #if defined(CONFIG_ARCH_EXYNOS)
 #include <mach/smc.h>
-#elif defined(CONFIG_ARCH_APQ8064) || defined(CONFIG_ARCH_MSM8974)
+#elif defined(CONFIG_ARCH_APQ8064) || defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
 #include <mach/scm.h>
 #endif
 
@@ -41,25 +41,9 @@
 /******************************************************************************
  * log
  ******************************************************************************/
-
-#ifdef FELICA_DEBUG
-#define FELICA_LOG_DEBUG(fmt, args...) printk(KERN_INFO fmt, ## args)
-#else
-#define FELICA_LOG_DEBUG(fmt, args...)
-#endif
-#define FELICA_LOG_ERR(fmt, args...) printk(KERN_ERR fmt, ## args)
-
-#ifdef FELICA_DEBUG_READ_DATA
-#define FELICA_LOG_DEBUG2(fmt, args...) printk(KERN_INFO fmt, ## args)
-#else
-#define FELICA_LOG_DEBUG2(fmt, args...)
-#endif
-
-#ifdef FELICA_UICC_INIT_LOG
-#define FELICA_LOG_UICC_INIT(fmt, args...) printk(KERN_INFO fmt, ## args)
-#else
-#define FELICA_LOG_UICC_INIT(fmt, args...)
-#endif
+#include <mach/sec_debug.h>
+#define NO_CHECK_TAMPER
+#define SRIB_DIAG_ENABLED
 
 /******************************************************************************
  * Board configuration
@@ -70,21 +54,42 @@
 #endif
 
 /* Hmodel */
-#ifdef CONFIG_ARCH_MSM8974
+#if defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
+#if !defined(CONFIG_MACH_KLTE_KDI) && !defined(CONFIG_MACH_KLTE_DCM) && !defined(CONFIG_MACH_KLTE_SBM)
 static int gfelica_irq_int_pin = -1;
+#endif
 static struct platform_device *felica_gpio_pdev;
 
 #if defined(CONFIG_MACH_HLTEDCM)
 static int g_uicc_initrev = 7;		//HW Rev 0.9
 static int gfelica_sps_pin = 130;	//Select Power Supply
+static int gfelica_hsel_pin = GPIO_PINID_NFC_HSEL;
 #define HW_REV09_OR_10		7	// to fix hltedcm i2c h/w issue in REV 09/10.
 extern void of_sii8240_hw_poweron(bool enable);  // to fix hltedcm i2c h/w issue in REV 09/10.  Defined in driver/video/msm/mhl_v2/sii8240.c
+/* K MODEL */
+#elif defined(CONFIG_MACH_KLTE_DCM) || defined(CONFIG_MACH_KLTE_SBM)
+static int gfelica_sps_pin = -1;	//Select Power Supply
+static int gfelica_pon_pin = GPIO_FELICA_PON_REV06;	// PON
+static int gfelica_hsel_pin = -1;
+static int g_uicc_initrev = 0;
+//#define NO_CHECK_TAMPER
+//#define SRIB_DIAG_ENABLED
+#elif defined(CONFIG_MACH_KLTE_KDI)
+static int gfelica_pon_pin = GPIO_FELICA_PON_REV06;	// PON
+static int gfelica_hsel_pin = -1;
+static int gfelica_sps_pin = -1;
+static int g_uicc_initrev = 0;
+static int gfelica_uim_mon = 0;
+//#define NO_CHECK_TAMPER
+//#define SRIB_DIAG_ENABLED
 #elif defined(CONFIG_MACH_HLTEKDI)
 static int g_uicc_initrev = 4;
 static int gfelica_sps_pin = -1;
+static int gfelica_hsel_pin = GPIO_PINID_NFC_HSEL;
 #elif defined(CONFIG_MACH_JS01LTEDCM)
 static int g_uicc_initrev = 8;      // HW Rev 0.4
 static int gfelica_sps_pin = 130;	// Select Power Supply
+static int gfelica_hsel_pin = GPIO_PINID_NFC_HSEL;
 #endif
 #endif /* CONFIG_ARCH_MSM8974 */
 
@@ -242,14 +247,14 @@ static void felica_uart_init(void)
 {
 	int ret;
 	struct device *device_felica_uart;
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	devid_felica_uart = MKDEV(FELICA_MAJOR, FELICA_MINOR);
 	ret =
 	    alloc_chrdev_region(&devid_felica_uart, FELICA_BASEMINOR,
 				FELICA_MINOR_COUNT, FELICA_UART_NAME);
 	if (ret < 0) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(alloc_chrdev_region), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(alloc_chrdev_region), ret=[%d]",
 			       __func__, ret);
 		return;
 	}
@@ -259,7 +264,7 @@ static void felica_uart_init(void)
 	    cdev_add(&cdev_felica_uart, devid_felica_uart, FELICA_MINOR_COUNT);
 	if (ret < 0) {
 		unregister_chrdev_region(devid_felica_uart, FELICA_MINOR_COUNT);
-		FELICA_LOG_ERR("[MFDD] %s ERROR(cdev_add), ret=[%d]", __func__,
+		FELICA_PR_ERR(" %s ERROR(cdev_add), ret=[%d]", __func__,
 			       ret);
 		return;
 	}
@@ -270,7 +275,7 @@ static void felica_uart_init(void)
 	if (IS_ERR(device_felica_uart)) {
 		cdev_del(&cdev_felica_uart);
 		unregister_chrdev_region(devid_felica_uart, FELICA_MINOR_COUNT);
-		FELICA_LOG_ERR("[MFDD] %s ERROR(device_create)", __func__);
+		FELICA_PR_ERR(" %s ERROR(device_create)", __func__);
 		return;
 	}
 
@@ -278,7 +283,7 @@ static void felica_uart_init(void)
 	if (!dev_sem) {
 		cdev_del(&cdev_felica_uart);
 		unregister_chrdev_region(devid_felica_uart, FELICA_MINOR_COUNT);
-		FELICA_LOG_ERR("[MFDD] %s ERROR(dev_sem malloc)", __func__);
+		FELICA_PR_ERR(" %s ERROR(dev_sem malloc)", __func__);
 		return;
 	}
 	sema_init(&dev_sem->felica_sem, 1);
@@ -290,7 +295,7 @@ static void felica_uart_init(void)
 	gfelica_poll_data.open_flag = 0;
 #endif /* CONFIG_NFC_FELICA */
 
-	FELICA_LOG_DEBUG("[MFDD] %s END, major=[%d], minor=[%d]", __func__,
+	FELICA_PR_DBG(" %s END, major=[%d], minor=[%d]", __func__,
 			 MAJOR(devid_felica_uart), MINOR(devid_felica_uart));
 }
 
@@ -299,14 +304,12 @@ static void felica_uart_init(void)
  */
 static void felica_uart_exit(void)
 {
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
-
 	kfree(dev_sem);
 	device_destroy(felica_class, devid_felica_uart);
 	cdev_del(&cdev_felica_uart);
 	unregister_chrdev_region(devid_felica_uart, FELICA_MINOR_COUNT);
 
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 }
 
 /*
@@ -316,19 +319,23 @@ static int felica_uart_open(struct inode *inode, struct file *file)
 {
 	uid_t uid;
 	int ret;
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 
 	uid = __task_cred(current)->uid;
 	if ((uid != gmfc_uid) && (uid != gdiag_uid) && (uid != gant_uid)) {
-		FELICA_LOG_ERR
-		    ("[MFDD] %s END -EACCESS, uid=[%d], gmfc_uid=[%d], gdiag_uid=[%d]",
+		FELICA_PR_ERR
+		    (" %s END -EACCESS, uid=[%d], gmfc_uid=[%d], gdiag_uid=[%d]",
 		     __func__, uid, gmfc_uid, gdiag_uid);
+#ifdef SRIB_DIAG_ENABLED
+		FELICA_PR_ERR(" SRIB-Diag enabled just for test\n");
+#else
 		return -EACCES;
+#endif
 	}
 
 	if (down_interruptible(&dev_sem->felica_sem)) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(down_interruptible)", \
+		FELICA_PR_ERR(" %s ERROR(down_interruptible)", \
 				 __func__);
 		return -ERESTARTSYS;
 	}
@@ -341,25 +348,25 @@ static int felica_uart_open(struct inode *inode, struct file *file)
 				/* felica open-waiting for nfc autopolling */
 				ret = felica_uart_open_wait_for_polling();
 				if (ret < 0) {
-					FELICA_LOG_ERR( \
-					"[MFDD] %s open-waiting fail= [%d]\n " \
+					FELICA_PR_ERR( \
+					" %s open-waiting fail= [%d]\n " \
 					, __func__, ret);
 					return ret;
 				}
-				FELICA_LOG_DEBUG( \
-					"[MFDD] %s open wait release\n", \
+				FELICA_PR_INFO( \
+					" %s open wait release\n", \
 					__func__);
 			}
 			break;
 		case UARTCC_NFC_START_ENDPROC:	/* Unused NFC */
 			/* set felica status -> in use */
 			uartcc_set_felica_status(UARTCC_FELICA_STATAUS_IN_USE);
-			FELICA_LOG_DEBUG( \
-				"[MFDD] %s started using FeliCa=[%d]\n", \
+			FELICA_PR_INFO( \
+				" %s started using FeliCa=[%d]\n", \
 				__func__, guartcc_start_req);
 			break;
 		default:	/* NFC in use */
-			FELICA_LOG_ERR("[MFDD] -EFAULT %s NFC in use=[%d]\n", \
+			FELICA_PR_ERR(" -EFAULT %s NFC in use=[%d]\n", \
 				__func__, guartcc_start_req);
 			/* reset felica status -> idle */
 			uartcc_set_felica_status(
@@ -379,7 +386,7 @@ static int felica_uart_open(struct inode *inode, struct file *file)
 		if (ret == 0) {
 			felica_nl_wait_ret_msg();
 			if (gfa_rcv_str[1] == FELICA_NL_EFAILED) {
-				FELICA_LOG_ERR("[MFDD] %s Open Fail", __func__);
+				FELICA_PR_ERR(" %s Open Fail", __func__);
 #ifdef CONFIG_NFC_FELICA
 				/* reset felica status -> idle */
 				uartcc_set_felica_status(
@@ -389,7 +396,7 @@ static int felica_uart_open(struct inode *inode, struct file *file)
 				return -EFAULT;
 			}
 		} else {
-			FELICA_LOG_ERR("[MFDD] %s felica_nl_send_msg Fail", \
+			FELICA_PR_ERR(" %s felica_nl_send_msg Fail", \
 					__func__);
 #ifdef CONFIG_NFC_FELICA
 			/* reset felica status -> idle */
@@ -401,14 +408,14 @@ static int felica_uart_open(struct inode *inode, struct file *file)
 		}
 #ifdef F_WAKE_LOCK
 		wake_lock(&felica_wake_2);
-		FELICA_LOG_DEBUG("[MFDD] %s Wake Lock(2)", __func__);
+		FELICA_PR_INFO(" %s Wake Lock(2)", __func__);
 #endif
 	}
 	gfa_open_cnt++;
 
 	up(&dev_sem->felica_sem);
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 	return 0;
 }
 
@@ -421,7 +428,7 @@ static int felica_uart_open_wait_for_polling(void)
 	int ret = 0;
 	struct icc_poll_data *felica_poll = &gfelica_poll_data;
 
-	FELICA_LOG_DEBUG("[MFDD] %s START\n", __func__);
+	FELICA_PR_DBG(" %s START\n", __func__);
 
 	/* set felica status -> wait polling */
 	uartcc_set_felica_status(UARTCC_FELICA_STATAUS_WAIT_POLLING);
@@ -432,15 +439,15 @@ static int felica_uart_open_wait_for_polling(void)
 	if (ret < 0) {
 		/* reset felica status -> idle */
 		uartcc_set_felica_status(UARTCC_FELICA_STATAUS_IDLE);
-		FELICA_LOG_ERR
-		("[MFDD] %s ERROR(wait_event_interruptible), ret=[%d]\n", \
+		FELICA_PR_ERR
+		(" %s ERROR(wait_event_interruptible), ret=[%d]\n", \
 				__func__, ret);
 		return -EIO;
 	}
 	if (down_interruptible(&dev_sem->felica_sem)) {
 		/* reset felica status -> idle */
 		uartcc_set_felica_status(UARTCC_FELICA_STATAUS_IDLE);
-		FELICA_LOG_ERR("[MFDD] %s ERROR(down_interruptible)\n", \
+		FELICA_PR_ERR(" %s ERROR(down_interruptible)\n", \
 				 __func__);
 		return -ERESTARTSYS;
 	}
@@ -449,7 +456,7 @@ static int felica_uart_open_wait_for_polling(void)
 	uartcc_set_felica_status(UARTCC_FELICA_STATAUS_IN_USE);
 	felica_poll->rsp_done = 0;
 
-	FELICA_LOG_DEBUG("[MFDD] %s END\n", __func__);
+	FELICA_PR_DBG(" %s END\n", __func__);
 	return 0;
 }
 #endif /* CONFIG_NFC_FELICA */
@@ -460,10 +467,10 @@ static int felica_uart_open_wait_for_polling(void)
 static int felica_uart_close(struct inode *inode, struct file *file)
 {
 	int ret;
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	if (down_interruptible(&dev_sem->felica_sem)) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(down_interruptible)", \
+		FELICA_PR_ERR(" %s ERROR(down_interruptible)", \
 					__func__);
 		return -ERESTARTSYS;
 	}
@@ -477,7 +484,7 @@ static int felica_uart_close(struct inode *inode, struct file *file)
 		if (ret == 0) {
 			felica_nl_wait_ret_msg();
 			if (gfa_rcv_str[1] == FELICA_NL_EFAILED) {
-				FELICA_LOG_ERR("[MFDD] %s Close Fail",\
+				FELICA_PR_ERR(" %s Close Fail",\
 						 __func__);
 				gfa_open_cnt++;
 				up(&dev_sem->felica_sem);
@@ -490,8 +497,8 @@ static int felica_uart_close(struct inode *inode, struct file *file)
 				if (0 != g_cen_sts) {
 					if (GPIO_VALUE_LOW != g_rfs_sts) {
 						available_d->rsp_done = 1;
-						FELICA_LOG_DEBUG(
-							"[MFDD] wake up available");
+						FELICA_PR_INFO(
+							" wake up available");
 						wake_up_interruptible(
 						&available_d->read_wait);
 					}
@@ -499,7 +506,7 @@ static int felica_uart_close(struct inode *inode, struct file *file)
 			}
 #endif /* CONFIG_NFC_FELICA */
 		} else {
-			FELICA_LOG_ERR("[MFDD] %s felica_nl_send_msg Fail", \
+			FELICA_PR_ERR(" %s felica_nl_send_msg Fail", \
 					__func__);
 			gfa_open_cnt++;
 			up(&dev_sem->felica_sem);
@@ -507,13 +514,13 @@ static int felica_uart_close(struct inode *inode, struct file *file)
 		}
 #ifdef F_WAKE_LOCK
 		wake_unlock(&felica_wake_2);
-		FELICA_LOG_DEBUG("[MFDD] %s Wake UnLock(2)", __func__);
+		FELICA_PR_INFO(" %s Wake UnLock(2)", __func__);
 #endif
 	}
 
 	up(&dev_sem->felica_sem);
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 	return 0;
 }
 
@@ -527,10 +534,10 @@ static ssize_t felica_uart_read(struct file *file, char __user *buf,
 	int nlret;
 	size_t wk_len = 0;
 
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	if (down_interruptible(&dev_sem->felica_sem)) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(down_interruptible)", \
+		FELICA_PR_ERR(" %s ERROR(down_interruptible)", \
 					 __func__);
 		return -ERESTARTSYS;
 	}
@@ -540,7 +547,7 @@ static ssize_t felica_uart_read(struct file *file, char __user *buf,
 
 	wk_len = len;
 	if (FELICA_NL_MSG_DATA_SIZE < wk_len) {
-		FELICA_LOG_DEBUG("[MFDD] %s  read max size over [%d]", __func__,
+		FELICA_PR_INFO(" %s  read max size over [%d]", __func__,
 				 wk_len);
 		wk_len = FELICA_NL_MSG_DATA_SIZE;
 	}
@@ -556,23 +563,23 @@ static ssize_t felica_uart_read(struct file *file, char __user *buf,
 			wk_len =
 			    (((int)gfa_rcv_str[2] << 8) & 0xFF00) | \
 				(int)gfa_rcv_str[3];
-			FELICA_LOG_DEBUG2("[MFDD] %s Rcv len [%d]", __func__, wk_len);
-			FELICA_LOG_DEBUG2(
-				"[MFDD] %s Rcv data [%x][%x][%x][%x][%x][%x][%x][%x][%x][%x]",
+			FELICA_PR_DBG(" %s Rcv len [%d]", __func__, wk_len);
+			FELICA_PR_DBG(
+				" %s Rcv data [%x][%x][%x][%x][%x][%x][%x][%x][%x][%x]",
 				__func__, gfa_rcv_str[4], gfa_rcv_str[5],
 				gfa_rcv_str[6], gfa_rcv_str[7],
 				gfa_rcv_str[8], gfa_rcv_str[9],
 				gfa_rcv_str[10], gfa_rcv_str[11],
 				gfa_rcv_str[12], gfa_rcv_str[13]);
-			FELICA_LOG_DEBUG2(
-				"[MFDD] %s Rcv data2 [%x][%x][%x][%x][%x][%x][%x][%x][%x][%x]",
+			FELICA_PR_DBG(
+				" %s Rcv data2 [%x][%x][%x][%x][%x][%x][%x][%x][%x][%x]",
 				__func__, gfa_rcv_str[14], gfa_rcv_str[15],
 				gfa_rcv_str[16], gfa_rcv_str[17],
 				gfa_rcv_str[18], gfa_rcv_str[19],
 				gfa_rcv_str[20], gfa_rcv_str[21],
 				gfa_rcv_str[22], gfa_rcv_str[23]);
-			FELICA_LOG_DEBUG2(
-				"[MFDD] %s Rcv data3 [%x][%x][%x][%x][%x][%x][%x][%x][%x][%x]",
+			FELICA_PR_DBG(
+				" %s Rcv data3 [%x][%x][%x][%x][%x][%x][%x][%x][%x][%x]",
 				__func__, gfa_rcv_str[24], gfa_rcv_str[25],
 				gfa_rcv_str[26], gfa_rcv_str[27],
 				gfa_rcv_str[28], gfa_rcv_str[29],
@@ -580,27 +587,27 @@ static ssize_t felica_uart_read(struct file *file, char __user *buf,
 				gfa_rcv_str[32], gfa_rcv_str[33]);
 			ret = copy_to_user(buf, &gfa_rcv_str[4], wk_len);
 			if (ret != 0) {
-				FELICA_LOG_ERR
-				    ("[MFDD]%s ERROR(copy_from_user), ret=[%d]",
+				FELICA_PR_ERR
+				    ("%s ERROR(copy_from_user), ret=[%d]",
 					  __func__, ret);
 				up(&dev_sem->felica_sem);
 				return -EFAULT;
 			}
 			*ppos = *ppos + wk_len;
 		} else {
-			FELICA_LOG_ERR("[MFDD] %s FAIL", __func__);
+			FELICA_PR_ERR(" %s FAIL", __func__);
 			up(&dev_sem->felica_sem);
 			return -EFAULT;
 		}
 	} else {
-		FELICA_LOG_ERR("[MFDD] %s FAIL", __func__);
+		FELICA_PR_ERR(" %s FAIL", __func__);
 		up(&dev_sem->felica_sem);
 		return -EFAULT;
 	}
 
 	up(&dev_sem->felica_sem);
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 	return (ssize_t) wk_len;
 }
 
@@ -614,10 +621,10 @@ static ssize_t felica_uart_write(struct file *file, const char __user *data,
 	int nlret;
 	size_t wk_len = 0;
 
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	if (down_interruptible(&dev_sem->felica_sem)) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(down_interruptible)", \
+		FELICA_PR_ERR(" %s ERROR(down_interruptible)", \
 				 __func__);
 		return -ERESTARTSYS;
 	}
@@ -627,7 +634,7 @@ static ssize_t felica_uart_write(struct file *file, const char __user *data,
 
 	wk_len = len;
 	if (FELICA_NL_MSG_DATA_SIZE < wk_len) {
-		FELICA_LOG_DEBUG("[MFDD] %s read max size over [%d]", __func__,
+		FELICA_PR_INFO(" %s read max size over [%d]", __func__,
 				 wk_len);
 		wk_len = FELICA_NL_MSG_DATA_SIZE;
 	}
@@ -636,7 +643,7 @@ static ssize_t felica_uart_write(struct file *file, const char __user *data,
 	gfa_send_str[2] = (char)wk_len;
 	ret = copy_from_user(&gfa_send_str[3], data, wk_len);
 	if (ret != 0) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(copy_from_user), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(copy_from_user), ret=[%d]",
 			       __func__, ret);
 		up(&dev_sem->felica_sem);
 		return -EFAULT;
@@ -648,18 +655,18 @@ static ssize_t felica_uart_write(struct file *file, const char __user *data,
 		wk_len = (((int)gfa_rcv_str[2] << 8) & 0xFF00) | \
 				(int)gfa_rcv_str[3];
 		if (gfa_rcv_str[1] == FELICA_NL_EFAILED) {
-			FELICA_LOG_ERR("[MFDD] %s Write Fail", __func__);
+			FELICA_PR_ERR(" %s Write Fail", __func__);
 			up(&dev_sem->felica_sem);
 			return -EINVAL;
 		}
 	} else {
-		FELICA_LOG_ERR("[MFDD] %s felica_nl_send_msg Fail", __func__);
+		FELICA_PR_ERR(" %s felica_nl_send_msg Fail", __func__);
 		up(&dev_sem->felica_sem);
 		return -EINVAL;
 	}
 	up(&dev_sem->felica_sem);
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 	return wk_len;
 }
 
@@ -669,8 +676,8 @@ static ssize_t felica_uart_write(struct file *file, const char __user *data,
 static int felica_uart_sync(struct file *file, loff_t start,
 		loff_t len, int datasync)
 {
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 	return 0;
 }
 
@@ -682,16 +689,16 @@ static long felica_uart_ioctl(struct file *file, unsigned int cmd,
 {
 	unsigned int ret_str = 0;
 	int ret;
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
-	FELICA_LOG_DEBUG("[MFDD] %s cmd = [0x%x]", __func__, cmd);
+	FELICA_PR_DBG(" %s START", __func__);
+	FELICA_PR_INFO(" %s cmd = [0x%x]", __func__, cmd);
 
 	/* Ignore [TCGETS:0x5401] and [TCSBRK:0x5409] */
 	if (TCGETS == cmd || TCSBRK == cmd) {
-		FELICA_LOG_DEBUG("[MFDD] %s cmd throw [0x%x]", __func__, cmd);
+		FELICA_PR_INFO(" %s cmd throw [0x%x]", __func__, cmd);
 		return 0;
 	}
 	if (down_interruptible(&dev_sem->felica_sem)) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(down_interruptible)", \
+		FELICA_PR_ERR(" %s ERROR(down_interruptible)", \
 				__func__);
 		return -ERESTARTSYS;
 	}
@@ -715,22 +722,22 @@ static long felica_uart_ioctl(struct file *file, unsigned int cmd,
 			ret_str =
 			    (((unsigned int)gfa_rcv_str[2] << 8) & 0xFF00) | \
 				(unsigned int)gfa_rcv_str[3];
-			FELICA_LOG_DEBUG("[MFDD] Available Success data size [%d]", \
+			FELICA_PR_INFO(" Available Success data size [%d]", \
 				ret_str);
 		} else {
-			FELICA_LOG_ERR("[MFDD] %s Available Fail", __func__);
+			FELICA_PR_ERR(" %s Available Fail", __func__);
 			up(&dev_sem->felica_sem);
 			return -EINVAL;
 		}
 	} else {
-		FELICA_LOG_ERR("[MFDD] %s felica_nl_send_msg Fail", __func__);
+		FELICA_PR_ERR(" %s felica_nl_send_msg Fail", __func__);
 		up(&dev_sem->felica_sem);
 		return -EINVAL;
 	}
 
 	up(&dev_sem->felica_sem);
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 	return put_user(ret_str, (unsigned int __user *)arg);
 
 }
@@ -740,7 +747,7 @@ static long felica_uart_ioctl(struct file *file, unsigned int cmd,
  */
 static void felica_nl_init(void)
 {
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	gfa_connect_flag = 0;
 	gfa_pid = 0;
@@ -752,9 +759,9 @@ static void felica_nl_init(void)
 	    netlink_kernel_create(&init_net, FELICA_NL_NETLINK_USER, 0,
 				  felica_nl_recv_msg, NULL, THIS_MODULE);
 	if (!gfanl_sk)
-		FELICA_LOG_ERR("[MFDD] Error creating socket. %s\n", __func__);
+		FELICA_PR_ERR(" Error creating socket. %s\n", __func__);
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 }
 
 /*
@@ -762,11 +769,11 @@ static void felica_nl_init(void)
  */
 static void felica_nl_exit(void)
 {
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	netlink_kernel_release(gfanl_sk);
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 }
 
 /*
@@ -777,15 +784,15 @@ static int felica_nl_send_msg(int len)
 	struct nlmsghdr *nlh;
 	struct sk_buff *skb_out;
 	int msg_size = 0;
-	FELICA_LOG_DEBUG("[MFDD] %s START len: %d", __func__,len);
+	FELICA_PR_DBG(" %s START len: %d", __func__,len);
 
 	if (!gfanl_sk) {
-		FELICA_LOG_ERR("[MFDD]Error Not creating socket. %s\n",
+		FELICA_PR_ERR("Error Not creating socket. %s\n",
 			       __func__);
 		return 1;
 	}
 	if (gfa_pid == 0) {
-		FELICA_LOG_ERR("[MFDD]Error Not Rcv Connect Msg %s\n",
+		FELICA_PR_ERR("Error Not Rcv Connect Msg %s\n",
 			       __func__);
 		return 1;
 	}
@@ -794,7 +801,7 @@ static int felica_nl_send_msg(int len)
 	skb_out = nlmsg_new(msg_size, 0);
 
 	if (!skb_out) {
-		FELICA_LOG_ERR("[MFDD] Failed to allocate new skb_out %s\n", __func__);
+		FELICA_PR_ERR(" Failed to allocate new skb_out %s\n", __func__);
 		return 1;
 	}
 	nlh = nlmsg_put(skb_out, 0, 0, NLMSG_DONE, msg_size, 0);
@@ -804,7 +811,7 @@ static int felica_nl_send_msg(int len)
 	/* "skb_out" will release by netlink.*/
 	nlmsg_unicast(gfanl_sk, skb_out, gfa_pid);
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 	return 0;
 }
 
@@ -816,15 +823,13 @@ static void felica_nl_recv_msg(struct sk_buff *skb)
 
 	struct nlmsghdr *nlh;
 	struct sk_buff *wskb;
-#if defined(CONFIG_MACH_T0) || defined(CONFIG_MACH_M3)
-	int port_threshold = 0;
-#endif
+
 #ifdef FELICA_UICC_FUNCTION
 	int init_flag = 0;
 #endif
 
 	if (!skb) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(skb NULL)", __func__);
+		FELICA_PR_ERR(" %s ERROR(skb NULL)", __func__);
 		return;
 	}
 
@@ -832,18 +837,14 @@ static void felica_nl_recv_msg(struct sk_buff *skb)
 	if (wskb && (wskb->len > NLMSG_SPACE(0))) {
 		nlh = nlmsg_hdr(wskb);
 		memcpy(gfa_rcv_str, NLMSG_DATA(nlh), sizeof(gfa_rcv_str));
-	FELICA_LOG_DEBUG("[MFDD] %s START gfa_rcv_str[0]: 0x%x", __func__,gfa_rcv_str[0]);
+		FELICA_PR_DBG(" %s START gfa_rcv_str[0]: 0x%x", __func__,gfa_rcv_str[0]);
 		if ((gfa_rcv_str[0] == FELICA_NL_CONNECT_MSG)
 		    && (gfa_connect_flag == 0)) {
 			/* pid of sending process */
 			gfa_pid = nlh->nlmsg_pid;
 
-#if defined(CONFIG_MACH_T0)
-			port_threshold = 0x0a;
-#elif defined(CONFIG_MACH_M3)
-			port_threshold = 0x02;
-#endif
-			if (felica_get_tamper_fuse_cmd() != 1) {
+	if (felica_get_tamper_fuse_cmd() != 1)
+			{
 			/* jmodel */
 #if defined(CONFIG_ARCH_EXYNOS)
 			s3c_gpio_cfgall_range(FELICA_UART1RX, 2,\
@@ -851,7 +852,9 @@ static void felica_nl_recv_msg(struct sk_buff *skb)
 			felica_uart_port = 1;
 #elif defined(CONFIG_ARCH_APQ8064)
 			felica_uart_port = 2;
-#elif defined(CONFIG_ARCH_MSM8974)
+#elif defined(CONFIG_MACH_KLTE_DCM) || defined(CONFIG_MACH_KLTE_KDI) || defined(CONFIG_MACH_KLTE_SBM)
+			felica_uart_port = 2;
+#elif defined(CONFIG_MACH_HLTEDCM)	|| defined(CONFIG_MACH_HLTEKDI) || defined(CONFIG_MACH_JS01LTEDCM)
 			felica_uart_port = 1;
 #endif
 
@@ -878,7 +881,7 @@ static void felica_nl_recv_msg(struct sk_buff *skb)
 #ifdef FELICA_UICC_FUNCTION
 			init_flag = 1;
 			guartcc_felica_status = UARTCC_FELICA_STATAUS_IN_INIT;
-			FELICA_LOG_DEBUG("[MFDD] RCV MSG [%d]", gfa_rcv_str[0]);
+			FELICA_PR_INFO(" RCV MSG [%d]", gfa_rcv_str[0]);
 #endif
 		} else if ((gfa_rcv_str[0] == FELICA_NL_RESPONCE)
 				&& (gfa_pid == nlh->nlmsg_pid)) {
@@ -887,17 +890,17 @@ static void felica_nl_recv_msg(struct sk_buff *skb)
 #ifdef FELICA_UICC_FUNCTION
 		} else if ((gfa_rcv_str[0] == FELICA_INIT_UICC_END)
 				&& (gfa_pid == nlh->nlmsg_pid)) {
-			FELICA_LOG_UICC_INIT("RCV MSG FELICA_INIT_UICC_END [%d]",
+			FELICA_PR_INFO("RCV MSG FELICA_INIT_UICC_END [%d]",
 			gfa_rcv_str[0]);
 			if (gfa_rcv_str[1] == FELICA_NL_SUCCESS)
-				FELICA_LOG_UICC_INIT("UICC INIT END SUCCESS");
+				FELICA_PR_INFO("UICC INIT END SUCCESS");
 			else
-				FELICA_LOG_UICC_INIT("UICC INIT END FAIL");
+				FELICA_PR_INFO("UICC INIT END FAIL");
 
 			guartcc_felica_status = UARTCC_FELICA_STATAUS_IDLE;
 #endif
 		} else {
-			FELICA_LOG_ERR("[MFDD] %s ERROR(RCV Undefine MSG) RCV MSG [%d], rcv pid [%d], gfa_pid [%d]",
+			FELICA_PR_ERR(" %s ERROR(RCV Undefine MSG) RCV MSG [%d], rcv pid [%d], gfa_pid [%d]",
 				       __func__, gfa_rcv_str[0],nlh->nlmsg_pid,gfa_pid);
 		}
 	}
@@ -905,18 +908,18 @@ static void felica_nl_recv_msg(struct sk_buff *skb)
 
 #ifdef FELICA_UICC_FUNCTION
 	if (init_flag) {
-		FELICA_LOG_UICC_INIT("UICC INIT START");
+		FELICA_PR_INFO("UICC INIT START");
 		memset(gfa_send_str, 0, FELICA_NL_MSG_SIZE);
 		memset(gfa_rcv_str, 0, FELICA_NL_MSG_SIZE);
 		gfa_send_str[0] = FELICA_NL_INIT_END_RES;
 		felica_nl_send_msg(1);
 	}
 #endif
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 }
 static void felica_set_felica_info(void)
 {
-	FELICA_LOG_DEBUG("[MFDD] %s START ", __func__);
+	FELICA_PR_DBG(" %s START ", __func__);
 	memset(gdiag_name, 0x00, DIAG_NAME_MAXSIZE + 1);
 #ifdef FELICA_UICC_FUNCTION
 	memset(gproc_name, 0x00, PROC_NAME_MAXSIZE + 1);
@@ -957,7 +960,7 @@ static void felica_set_felica_info(void)
 	memcpy(gproc_name, &gfa_rcv_str[MSG_PROC_NAME_OFFSET],
 							PROC_NAME_MAXSIZE);
 #endif
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 }
 
 /*
@@ -966,11 +969,11 @@ static void felica_set_felica_info(void)
 static void felica_nl_wait_ret_msg(void)
 {
 	unsigned int cnt = 0;
-	FELICA_LOG_DEBUG("[MFDD] %s START ", __func__);
+	FELICA_PR_DBG(" %s START ", __func__);
 
 	while (1) {
 		if (gfa_wait_flag == 1) {
-			FELICA_LOG_DEBUG("[MFDD] %s sleep cnt [%d]", __func__,
+			FELICA_PR_DBG(" %s sleep cnt [%d]", __func__,
 					 cnt);
 			break;
 		}
@@ -979,7 +982,7 @@ static void felica_nl_wait_ret_msg(void)
 	}
 	gfa_wait_flag = 0;
 
-	FELICA_LOG_DEBUG("[MFDD] %s END ", __func__);
+	FELICA_PR_DBG(" %s END ", __func__);
 }
 
 
@@ -1023,7 +1026,7 @@ static int felica_Cpu0(void)
 	int ret = 0;
 	struct cpumask mask = CPU_MASK_CPU0;
 
-	FELICA_LOG_DEBUG("[MFDD] System has %d CPU's, we are on CPU #%d\n"
+	FELICA_PR_INFO(" System has %d CPU's, we are on CPU #%d\n"
 	    "\tBinding this process to CPU #0.\n"
 	    "\tactive mask is %lx, setting it to mask=%lx\n",
 	    nr_cpu_ids,
@@ -1031,9 +1034,9 @@ static int felica_Cpu0(void)
 
 	ret = set_cpus_allowed_ptr(current, &mask);
 	if (0 != ret)
-		FELICA_LOG_DEBUG("[MFDD] set_cpus_allowed_ptr=%d.\n", ret);
+		FELICA_PR_INFO(" set_cpus_allowed_ptr=%d.\n", ret);
 
-	FELICA_LOG_DEBUG("[MFDD] And now we are on CPU #%d", raw_smp_processor_id());
+	FELICA_PR_INFO(" And now we are on CPU #%d", raw_smp_processor_id());
 
 	return ret;
 }
@@ -1043,7 +1046,7 @@ static int felica_CpuAll(void)
 	int ret = 0;
 	struct cpumask mask = CPU_MASK_ALL;
 
-	FELICA_LOG_DEBUG("[MFDD] System has %d CPU's, we are on CPU #%d\n"
+	FELICA_PR_INFO(" System has %d CPU's, we are on CPU #%d\n"
 	    "\tBinding this process to CPU #0.\n"
 	    "\tactive mask is %lx, setting it to mask=%lx\n",
 	    nr_cpu_ids,
@@ -1051,9 +1054,9 @@ static int felica_CpuAll(void)
 
 	ret = set_cpus_allowed_ptr(current, &mask);
 	if (0 != ret)
-		FELICA_LOG_DEBUG("[MFDD] set_cpus_allowed_ptr=%d.\n", ret);
+		FELICA_PR_INFO(" set_cpus_allowed_ptr=%d.\n", ret);
 
-	FELICA_LOG_DEBUG("[MFDD] And now we are on CPU #%d", raw_smp_processor_id());
+	FELICA_PR_INFO(" And now we are on CPU #%d", raw_smp_processor_id());
 
 	return ret;
 }
@@ -1066,23 +1069,23 @@ static uint8_t felica_get_tamper_fuse_cmd(void)
 
 	ret = felica_Cpu0();
 	if (0 != ret) {
-		FELICA_LOG_DEBUG("[MFDD] changing core failed!");
+		FELICA_PR_ERR(" changing core failed!");
 		return -1;
 	}
 
-	FELICA_LOG_DEBUG("[MFDD] get_fuse");
+	FELICA_PR_INFO(" get_fuse");
 
 	if (felica_smc_read_oemflag(0x80010001, (u32 *)&fuse_id) < 0) {
-		FELICA_LOG_ERR("[MFDD] %s read flag error", __func__);
+		FELICA_PR_ERR(" %s read flag error", __func__);
 		return -1;
 	}
-	FELICA_LOG_DEBUG("[MFDD] Kernel Status[%x]", fuse_id);
+	FELICA_PR_INFO(" Kernel Status[%x]", fuse_id);
 	felica_CpuAll();
 
 	return (uint8_t)fuse_id;
 }
 
-#elif defined(CONFIG_ARCH_APQ8064) || defined(CONFIG_ARCH_MSM8974)
+#elif defined(CONFIG_ARCH_APQ8064) || defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
 
 static uint8_t felica_get_tamper_fuse_cmd(void)
 {
@@ -1093,7 +1096,7 @@ static uint8_t felica_get_tamper_fuse_cmd(void)
 	size_t resp_len = 0;
 	uint8_t resp_buf;
 
-	FELICA_LOG_DEBUG("[MFDD] %s START ", __func__);
+	FELICA_PR_DBG(" %s START ", __func__);
 
 	resp_len = sizeof(resp_buf);
 	cmd_buf = (void *)&fuse_id;
@@ -1101,12 +1104,17 @@ static uint8_t felica_get_tamper_fuse_cmd(void)
 
 	scm_call(FELICA_SCM_SVC_FUSE, FELICA_SCM_IS_SW_FUSE_BLOWN_ID, cmd_buf,
 						cmd_len, &resp_buf, resp_len);
-	FELICA_LOG_DEBUG("[MFDD] %s END resp_buf = %d\n",__func__, resp_buf);
+	FELICA_PR_DBG(" %s END resp_buf = %d\n",__func__, resp_buf);
 	
+#ifdef NO_CHECK_TAMPER
+	FELICA_PR_ERR(" No checking tampered kernel just for test!\n");
+	return 0;
+#endif		
+
 	return resp_buf;
 }
-
 #endif
+
 
 /******************************************************************************
  * /dev/felica_pon
@@ -1130,14 +1138,14 @@ static void felica_pon_init(void)
 {
 	int ret;
 	struct device *device_felica_pon;
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
-
+	FELICA_PR_DBG(" %s START", __func__);
+	
 	devid_felica_pon = MKDEV(FELICA_MAJOR, FELICA_MINOR);
 	ret =
 	    alloc_chrdev_region(&devid_felica_pon, FELICA_BASEMINOR,
 				FELICA_MINOR_COUNT, FELICA_PON_NAME);
 	if (ret < 0) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(alloc_chrdev_region), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(alloc_chrdev_region), ret=[%d]",
 			       __func__, ret);
 		return;
 	}
@@ -1146,7 +1154,7 @@ static void felica_pon_init(void)
 	ret = cdev_add(&cdev_felica_pon, devid_felica_pon, FELICA_MINOR_COUNT);
 	if (ret < 0) {
 		unregister_chrdev_region(devid_felica_pon, FELICA_MINOR_COUNT);
-		FELICA_LOG_ERR("[MFDD] %s ERROR(cdev_add), ret=[%d]", __func__,
+		FELICA_PR_ERR(" %s ERROR(cdev_add), ret=[%d]", __func__,
 			       ret);
 		return;
 	}
@@ -1157,11 +1165,11 @@ static void felica_pon_init(void)
 	if (IS_ERR(device_felica_pon)) {
 		cdev_del(&cdev_felica_pon);
 		unregister_chrdev_region(devid_felica_pon, FELICA_MINOR_COUNT);
-		FELICA_LOG_ERR("[MFDD] %s ERROR(device_create)", __func__);
+		FELICA_PR_ERR(" %s ERROR(device_create)", __func__);
 		return;
 	}
 
-	FELICA_LOG_DEBUG("[MFDD] %s END, major=[%d], minor=[%d]", __func__,
+	FELICA_PR_DBG(" %s END, major=[%d], minor=[%d]", __func__,
 			 MAJOR(devid_felica_pon), MINOR(devid_felica_pon));
 }
 
@@ -1170,13 +1178,13 @@ static void felica_pon_init(void)
  */
 static void felica_pon_exit(void)
 {
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	device_destroy(felica_class, devid_felica_pon);
 	cdev_del(&cdev_felica_pon);
 	unregister_chrdev_region(devid_felica_pon, FELICA_MINOR_COUNT);
 
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 }
 
 /*
@@ -1186,6 +1194,7 @@ static int felica_pon_open(struct inode *inode, struct file *file)
 {
 	uid_t uid;
 #ifdef FELICA_UICC_FUNCTION
+	int ret = 0;
 	char *cmdpos;
 	static char cmdline[1025];
 	static unsigned long start_adr, end_adr, leng;
@@ -1199,10 +1208,13 @@ static int felica_pon_open(struct inode *inode, struct file *file)
 	if (1024 < leng)
 		leng = 1024;
 	cmdpos = (char *)(current->mm->arg_start);
-	memcpy(cmdline, cmdpos, leng);
+	ret = copy_from_user(cmdline, cmdpos, leng);
 	cmdline[leng] = '\0';
-	FELICA_LOG_DEBUG("[MFDD] %s cmdline[%s]", __func__, cmdline);
-
+	if(ret != 0)
+	{
+		FELICA_PR_ERR(" %s cmdline[%s] ret[%d]", __func__, cmdline, ret);
+		return -EFAULT;
+	}
 #endif
 	uid = __task_cred(current)->uid;
 #ifdef FELICA_UICC_FUNCTION
@@ -1213,13 +1225,17 @@ static int felica_pon_open(struct inode *inode, struct file *file)
 	if ((uid != gmfc_uid) && (uid != gdiag_uid)
 	&& (uid != gant_uid)) {
 #endif
-		FELICA_LOG_ERR
-		    ("[MFDD] %s END -EACCES, uid=[%d], gmfc_uid=[%d], gdiag_uid=[%d]",
+		FELICA_PR_ERR
+		    (" %s END -EACCES, uid=[%d], gmfc_uid=[%d], gdiag_uid=[%d]",
 		     __func__, uid, gmfc_uid, gdiag_uid);
+#ifdef SRIB_DIAG_ENABLED
+		FELICA_PR_ERR(" SRIB-Diag enabled just for test\n");
+#else
 		return -EACCES;
+#endif
 	}
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 	return 0;
 }
 
@@ -1233,11 +1249,15 @@ static int felica_pon_close(struct inode *inode, struct file *file)
 	gpio_set_value(GPIO_PINID_FELICA_PON, GPIO_VALUE_LOW);
 #elif defined(CONFIG_ARCH_APQ8064)
 	ice_gpiox_set(GPIO_PINID_FELICA_PON, GPIO_VALUE_LOW);
-#elif defined(CONFIG_ARCH_MSM8974)
+#elif defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
+#if defined(CONFIG_MACH_KLTE_KDI) || defined(CONFIG_MACH_KLTE_DCM) || defined(CONFIG_MACH_KLTE_SBM)
+	gpio_set_value(gfelica_pon_pin, GPIO_VALUE_LOW);
+#else
 	gpio_set_value(GPIO_PINID_FELICA_PON, GPIO_VALUE_LOW);
+#endif	// CONFIG_MACH_KLTE
 #endif
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 	return 0;
 }
 
@@ -1254,28 +1274,32 @@ static ssize_t felica_pon_read(struct file *file, char __user *buf, size_t len,
 	ret = gpio_get_value(GPIO_PINID_FELICA_PON);
 #elif defined(CONFIG_ARCH_APQ8064)
 	ret = ice_gpiox_get(GPIO_PINID_FELICA_PON);
-#elif defined(CONFIG_ARCH_MSM8974)
+#elif defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
+#if defined(CONFIG_MACH_KLTE_KDI) || defined(CONFIG_MACH_KLTE_DCM) || defined(CONFIG_MACH_KLTE_SBM)
+	ret = gpio_get_value(gfelica_pon_pin);
+#else
 	ret = gpio_get_value(GPIO_PINID_FELICA_PON);
+#endif // CONFIG_MACH_KLTE
 #endif
-	FELICA_LOG_DEBUG("[MFDD] %s GPIO Read value of GPIO_PINID_FELICA_PON -> ret=[%d]", __func__,ret);
+	FELICA_PR_INFO(" %s GPIO Read value of GPIO_PINID_FELICA_PON -> ret=[%d]", __func__,ret);
 
 	if (ret == GPIO_VALUE_HIGH) {
 		retparam = FELICA_PON_WIRED;
-		FELICA_LOG_DEBUG("[MFDD] Wired interface Status is [%d][start]",
+		FELICA_PR_INFO(" Wired interface Status is [%d][start]",
 				 retparam);
 	} else if (ret == GPIO_VALUE_LOW) {
 		retparam = FELICA_PON_WIRELESS;
-		FELICA_LOG_DEBUG("[MFDD] Wired interface Status is [%d][standby]",
+		FELICA_PR_INFO(" Wired interface Status is [%d][standby]",
 				 retparam);
 	} else {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(gpio_get_value), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(gpio_get_value), ret=[%d]",
 			       __func__, ret);
 		return -EIO;
 	}
 
 	ret = copy_to_user(buf, &retparam, FELICA_PON_DATA_LEN);
 	if (ret != 0) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(copy_to_user), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(copy_to_user), ret=[%d]",
 			       __func__, ret);
 		return -EFAULT;
 	}
@@ -1296,21 +1320,21 @@ static ssize_t felica_pon_write(struct file *file, const char __user *data,
 
 	ret = copy_from_user(&pon, data, FELICA_PON_DATA_LEN);
 	if (ret != 0) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(copy_from_user), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(copy_from_user), ret=[%d]",
 			       __func__, ret);
 		return -EFAULT;
 	}
 
 	if (pon == FELICA_PON_WIRED) {
 		setparam = GPIO_VALUE_HIGH;
-		FELICA_LOG_DEBUG("[MFDD] Set wired interface to [%d][start]",
+		FELICA_PR_INFO(" Set wired interface to [%d][start]",
 				 setparam);
 	} else if (pon == FELICA_PON_WIRELESS) {
 		setparam = GPIO_VALUE_LOW;
-		FELICA_LOG_DEBUG("[MFDD] Set wired interface to [%d][standby]",
+		FELICA_PR_INFO(" Set wired interface to [%d][standby]",
 				 setparam);
 	} else {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(copy_from_user), pon=[%d]",
+		FELICA_PR_ERR(" %s ERROR(copy_from_user), pon=[%d]",
 			       __func__, pon);
 		return -EINVAL;
 	}
@@ -1319,9 +1343,20 @@ static ssize_t felica_pon_write(struct file *file, const char __user *data,
 	gpio_set_value(GPIO_PINID_FELICA_PON, setparam);
 #elif defined(CONFIG_ARCH_APQ8064)
 	ice_gpiox_set(GPIO_PINID_FELICA_PON, setparam);
-#elif defined(CONFIG_ARCH_MSM8974)
+#elif defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
+#if defined(CONFIG_MACH_KLTE_KDI)
+	if(gfelica_uim_mon == 1) {
+		FELICA_PR_ERR(" %s gfelica_uim_mon=%d\n", __func__, gfelica_uim_mon);
+		gpio_set_value(gfelica_pon_pin, GPIO_VALUE_HIGH);		
+		return FELICA_PON_DATA_LEN;
+	}
+	gpio_set_value(gfelica_pon_pin, setparam);
+#elif defined(CONFIG_MACH_KLTE_DCM) || defined(CONFIG_MACH_KLTE_SBM)
+	gpio_set_value(gfelica_pon_pin, setparam);
+#else
 	gpio_set_value(GPIO_PINID_FELICA_PON, setparam);
-#endif
+#endif // CONFIG_MACH_KLTE
+#endif 
 
 	return FELICA_PON_DATA_LEN;
 }
@@ -1330,31 +1365,35 @@ static ssize_t felica_pon_write(struct file *file, const char __user *data,
  * felica_i2c_driver
  ******************************************************************************/
 static struct i2c_client *felica_i2c_client;
-static const struct i2c_device_id felica_i2c_idtable[] = {
+static const struct i2c_device_id felica_i2c_idtable[] = 
+{
 	{FELICA_I2C_NAME, 0},
 	{}
 };
 
 MODULE_DEVICE_TABLE(i2c, felica_i2c_idtable);
 
-#ifdef CONFIG_ARCH_MSM8974
-static struct of_device_id felica_i2c_match_table[] = {
-	{ .compatible = "felica,felica_irq",},
-	{ },
+#if defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
+static struct of_device_id felica_i2c_match_table[] = 
+{
+	{ .compatible = "felica,felica-i2c",},
+	{},
 };
 #endif
 
 
-static struct i2c_driver felica_i2c_driver = {
+static struct i2c_driver felica_i2c_driver = 
+{
 	.probe = felica_i2c_probe,
 	.remove = felica_i2c_remove,
-	.driver = {
+	.driver = 
+			{
 		   .name = FELICA_I2C_NAME,
 		   .owner = THIS_MODULE,
-#ifdef CONFIG_ARCH_MSM8974
+#if defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
 		   .of_match_table = felica_i2c_match_table,
 #endif
-		   },
+			},
 	.id_table = felica_i2c_idtable,
 };
 
@@ -1364,16 +1403,16 @@ static struct i2c_driver felica_i2c_driver = {
 static void felica_i2c_init(void)
 {
 	int ret;
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	ret = i2c_add_driver(&felica_i2c_driver);
 	if (ret < 0) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(i2c_add_driver), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(i2c_add_driver), ret=[%d]",
 			       __func__, ret);
 		return;
 	}
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 	return;
 }
 
@@ -1382,9 +1421,9 @@ static void felica_i2c_init(void)
  */
 static void felica_i2c_exit(void)
 {
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 	i2c_del_driver(&felica_i2c_driver);
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 	return;
 }
 
@@ -1394,18 +1433,18 @@ static void felica_i2c_exit(void)
 static int felica_i2c_probe(struct i2c_client *client,
 			    const struct i2c_device_id *devid)
 {
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_INFO(" %s START", __func__);
 
 	felica_i2c_client = client;
 	if (!felica_i2c_client) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(felica_i2c_client==NULL)", \
+		FELICA_PR_ERR(" %s ERROR(felica_i2c_client==NULL)", \
 							__func__);
 		return -EINVAL;
 	}
 
 
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_INFO(" %s END", __func__);
 	return 0;
 }
 
@@ -1415,7 +1454,7 @@ static int felica_i2c_probe(struct i2c_client *client,
 static int felica_i2c_remove(struct i2c_client *client)
 {
 	/* no operation */
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 	return 0;
 }
 
@@ -1441,14 +1480,14 @@ static void felica_cen_init(void)
 {
 	int ret;
 	struct device *device_felica_cen;
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	devid_felica_cen = MKDEV(FELICA_MAJOR, FELICA_MINOR);
 	ret =
 	    alloc_chrdev_region(&devid_felica_cen, FELICA_BASEMINOR,
 				FELICA_MINOR_COUNT, FELICA_CEN_NAME);
 	if (ret < 0) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(alloc_chrdev_region), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(alloc_chrdev_region), ret=[%d]",
 			       __func__, ret);
 		return;
 	}
@@ -1457,7 +1496,7 @@ static void felica_cen_init(void)
 	ret = cdev_add(&cdev_felica_cen, devid_felica_cen, FELICA_MINOR_COUNT);
 	if (ret < 0) {
 		unregister_chrdev_region(devid_felica_cen, FELICA_MINOR_COUNT);
-		FELICA_LOG_ERR("[MFDD] %s ERROR(cdev_add), ret=[%d]", __func__,
+		FELICA_PR_ERR(" %s ERROR(cdev_add), ret=[%d]", __func__,
 			       ret);
 		return;
 	}
@@ -1468,11 +1507,11 @@ static void felica_cen_init(void)
 	if (IS_ERR(device_felica_cen)) {
 		cdev_del(&cdev_felica_cen);
 		unregister_chrdev_region(devid_felica_cen, FELICA_MINOR_COUNT);
-		FELICA_LOG_ERR("[MFDD] %s ERROR(device_create)", __func__);
+		FELICA_PR_ERR(" %s ERROR(device_create)", __func__);
 		return;
 	}
 
-	FELICA_LOG_DEBUG("[MFDD] %s END, major=[%d], minor=[%d]", __func__,
+	FELICA_PR_DBG(" %s END, major=[%d], minor=[%d]", __func__,
 			 MAJOR(devid_felica_cen), MINOR(devid_felica_cen));
 }
 
@@ -1481,13 +1520,13 @@ static void felica_cen_init(void)
  */
 static void felica_cen_exit(void)
 {
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	device_destroy(felica_class, devid_felica_cen);
 	cdev_del(&cdev_felica_cen);
 	unregister_chrdev_region(devid_felica_cen, FELICA_MINOR_COUNT);
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 }
 
 /*
@@ -1497,18 +1536,19 @@ static int felica_cen_open(struct inode *inode, struct file *file)
 {
 	uid_t uid;
 #ifdef FELICA_UICC_FUNCTION
+	int ret = 0;
 	char *cmdpos;
 	static char cmdline[1025];
 	static unsigned long start_adr, end_adr, leng;
 #endif
 
-	FELICA_LOG_DEBUG("[MFDD] %s START . system_rev=[%d]", __func__,system_rev);
+	FELICA_PR_DBG(" %s START . system_rev=[%d]", __func__,system_rev);
 
 	#if defined(CONFIG_MACH_HLTEDCM)
 	//high
 	if (system_rev == HW_REV09_OR_10)
 	{
-		FELICA_LOG_DEBUG("[MFDD] %s Making MHL_EN HIGH", __func__);
+		FELICA_PR_INFO(" %s Making MHL_EN HIGH", __func__);
 		of_sii8240_hw_poweron(FELICA_CEN_UNLOCK);
 	}
 	#endif
@@ -1521,10 +1561,13 @@ static int felica_cen_open(struct inode *inode, struct file *file)
 	if (1024 < leng)
 		leng = 1024;
 	cmdpos = (char *)(current->mm->arg_start);
-	memcpy(cmdline, cmdpos, leng);
+	ret = copy_from_user(cmdline, cmdpos, leng);
 	cmdline[leng] = '\0';
-	FELICA_LOG_DEBUG("[MFDD] %s cmdline[%s]", __func__, cmdline);
-
+	if(ret != 0)
+	{
+		FELICA_PR_ERR(" %s cmdline[%s] ret[%d]", __func__, cmdline, ret);
+		return -EFAULT;
+	}
 #endif
 
 	uid = __task_cred(current)->uid;
@@ -1535,21 +1578,25 @@ static int felica_cen_open(struct inode *inode, struct file *file)
 #else
 		if ((uid != gdiag_uid) && (uid != gmfl_uid)) {
 #endif
-	FELICA_LOG_ERR("[MFDD] %s END -EACCES, uid=[%d], gmfc_uid=[%d], gdiag_uid=[%d], gmfl_uid=[%d]\n", __func__, uid,gmfc_uid,gdiag_uid,gmfl_uid);
+	FELICA_PR_ERR(" %s END -EACCES, uid=[%d], gmfc_uid=[%d], gdiag_uid=[%d], gmfl_uid=[%d]\n", __func__, uid,gmfc_uid,gdiag_uid,gmfl_uid);
 			
 			#if defined(CONFIG_MACH_HLTEDCM)
 			//low
 			if (system_rev == HW_REV09_OR_10)
 			{
-				FELICA_LOG_DEBUG("[MFDD] %s Making MHL_EN LOW", __func__);
+				FELICA_PR_INFO(" %s Making MHL_EN LOW", __func__);
 		//		of_sii8240_hw_poweron(FELICA_CEN_LOCK);
 			}
 			#endif
 			
+#ifdef SRIB_DIAG_ENABLED
+		FELICA_PR_ERR(" SRIB-Diag enabled just for test\n");
+#else
 			return -EACCES;
+#endif
 		}
 	}
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 	return 0;
 }
 
@@ -1563,12 +1610,12 @@ static int felica_cen_close(struct inode *inode, struct file *file)
 	//low
 	if (system_rev == HW_REV09_OR_10)
 	{
-		FELICA_LOG_DEBUG("[MFDD] %s Making MHL_EN LOW", __func__);
+		FELICA_PR_INFO(" %s Making MHL_EN LOW", __func__);
 	//	of_sii8240_hw_poweron(FELICA_CEN_LOCK);
 	}
 	#endif
 	
-	FELICA_LOG_DEBUG("[MFDD] %s END system_rev=[%d]", __func__,system_rev);
+	FELICA_PR_DBG(" %s END system_rev=[%d]", __func__,system_rev);
 	return 0;
 }
 
@@ -1594,19 +1641,19 @@ static ssize_t felica_cen_read(struct file *file, char __user *buf, \
 	read_msgs[1].buf = &read_buff;
 
 	if (felica_i2c_client == NULL) {
-		FELICA_LOG_ERR("[MFDD] felica_i2c_client is NULL %s -EIO",__func__);
+		FELICA_PR_ERR(" felica_i2c_client is NULL %s -EIO",__func__);
 		return -EIO;
 	}
 
 	ret = i2c_transfer(felica_i2c_client->adapter, &read_msgs[0], 1);
 	if (ret < 0) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(i2c_transfer[0]), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(i2c_transfer[0]), ret=[%d]",
 			       __func__, ret);
 		return -EIO;
 	}
 	ret = i2c_transfer(felica_i2c_client->adapter, &read_msgs[1], 1);
 	if (ret < 0) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(i2c_transfer[1]), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(i2c_transfer[1]), ret=[%d]",
 			       __func__, ret);
 		return -EIO;
 	}
@@ -1617,11 +1664,11 @@ static ssize_t felica_cen_read(struct file *file, char __user *buf, \
 	g_cen_sts = read_buff;
 #endif
 
-	FELICA_LOG_DEBUG("[MFDD] %s g_cen_sts=[%d]", __func__, g_cen_sts);
+	FELICA_PR_INFO(" %s g_cen_sts=[%d]", __func__, g_cen_sts);
 
 	ret = copy_to_user(buf, &read_buff, FELICA_CEN_DATA_LEN);
 	if (ret != 0) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(copy_to_user), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(copy_to_user), ret=[%d]",
 			       __func__, ret);
 		return -EFAULT;
 	}
@@ -1641,7 +1688,7 @@ static ssize_t felica_cen_write(struct file *file, const char __user *data,
 	unsigned char write_buff[2];
 
 	if (felica_i2c_client == NULL) {
-		FELICA_LOG_ERR("[MFDD] felica_i2c_client is NULL %s",__func__);
+		FELICA_PR_ERR(" felica_i2c_client is NULL %s",__func__);
 		return -EIO;
 	}
 
@@ -1651,26 +1698,26 @@ static ssize_t felica_cen_write(struct file *file, const char __user *data,
 
 	ret = copy_from_user(&cen, data, FELICA_CEN_DATA_LEN);
 	if (ret != 0) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(copy_from_user), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(copy_from_user), ret=[%d]",
 			       __func__, ret);
 		return -EFAULT;
 	}
 	if (cen == FELICA_CEN_UNLOCK) {
 		write_buff[1] = FELICA_CEN_SET_UNLOCK;
-		FELICA_LOG_DEBUG("[MFDD] Set FeliCa-Lock status to [%d][UnLock]",
+		FELICA_PR_INFO(" Set FeliCa-Lock status to [%d][UnLock]",
 				 write_buff[1]);
 	} else if (cen == FELICA_CEN_LOCK) {
 		write_buff[1] = FELICA_CEN_SET_LOCK;
-		FELICA_LOG_DEBUG("[MFDD] Set FeliCa-Lock status to [%d][Lock]",
+		FELICA_PR_INFO(" Set FeliCa-Lock status to [%d][Lock]",
 				 write_buff[1]);
 	} else {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(copy_from_user), cen=[%d]",
+		FELICA_PR_ERR(" %s ERROR(copy_from_user), cen=[%d]",
 			       __func__, cen);
 		return -EINVAL;
 	}
 	ret = i2c_transfer(felica_i2c_client->adapter, gwrite_msgs, 1);
 	if (ret < 0) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(i2c_transfer), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(i2c_transfer), ret=[%d]",
 			       __func__, ret);
 		return -EIO;
 	}
@@ -1681,7 +1728,7 @@ static ssize_t felica_cen_write(struct file *file, const char __user *data,
 			if (GPIO_VALUE_LOW != g_rfs_sts) {
 				if (0 == guartcc_felica_status) {
 					available_d->rsp_done = 1;
-					FELICA_LOG_DEBUG("[MFDD] wake up available");
+					FELICA_PR_INFO(" wake up available");
 					wake_up_interruptible(
 					&available_d->read_wait);
 				}
@@ -1690,7 +1737,7 @@ static ssize_t felica_cen_write(struct file *file, const char __user *data,
 	}
 
 #endif
-	FELICA_LOG_DEBUG("[MFDD] %s END, g_cen_sts =%d, g_rfs_sts = %d", __func__, g_cen_sts, g_rfs_sts);
+	FELICA_PR_INFO(" %s END, g_cen_sts =%d, g_rfs_sts = %d", __func__, g_cen_sts, g_rfs_sts);
 	return FELICA_CEN_DATA_LEN;
 }
 
@@ -1715,14 +1762,14 @@ static void felica_rfs_init(void)
 {
 	int ret;
 	struct device *device_felica_rfs;
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	devid_felica_rfs = MKDEV(FELICA_MAJOR, FELICA_MINOR);
 	ret =
 	    alloc_chrdev_region(&devid_felica_rfs, FELICA_BASEMINOR,
 				FELICA_MINOR_COUNT, FELICA_RFS_NAME);
 	if (ret < 0) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(alloc_chrdev_region), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(alloc_chrdev_region), ret=[%d]",
 			       __func__, ret);
 		return;
 	}
@@ -1731,7 +1778,7 @@ static void felica_rfs_init(void)
 	ret = cdev_add(&cdev_felica_rfs, devid_felica_rfs, FELICA_MINOR_COUNT);
 	if (ret < 0) {
 		unregister_chrdev_region(devid_felica_rfs, FELICA_MINOR_COUNT);
-		FELICA_LOG_ERR("[MFDD] %s ERROR(cdev_add), ret=[%d]", __func__,
+		FELICA_PR_ERR(" %s ERROR(cdev_add), ret=[%d]", __func__,
 			       ret);
 		return;
 	}
@@ -1742,11 +1789,11 @@ static void felica_rfs_init(void)
 	if (IS_ERR(device_felica_rfs)) {
 		cdev_del(&cdev_felica_rfs);
 		unregister_chrdev_region(devid_felica_rfs, FELICA_MINOR_COUNT);
-		FELICA_LOG_ERR("[MFDD] %s ERROR(device_create)", __func__);
+		FELICA_PR_ERR(" %s ERROR(device_create)", __func__);
 		return;
 	}
 
-	FELICA_LOG_DEBUG("[MFDD] %s END, major=[%d], minor=[%d]", __func__,
+	FELICA_PR_DBG(" %s END, major=[%d], minor=[%d]", __func__,
 			 MAJOR(devid_felica_rfs), MINOR(devid_felica_rfs));
 }
 
@@ -1755,13 +1802,13 @@ static void felica_rfs_init(void)
  */
 static void felica_rfs_exit(void)
 {
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	device_destroy(felica_class, devid_felica_rfs);
 	cdev_del(&cdev_felica_rfs);
 	unregister_chrdev_region(devid_felica_rfs, FELICA_MINOR_COUNT);
 
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 }
 
 /*
@@ -1774,13 +1821,17 @@ static int felica_rfs_open(struct inode *inode, struct file *file)
 	uid = __task_cred(current)->uid;
 
 	if ((uid != gmfc_uid) && (uid != gdiag_uid)) {
-		FELICA_LOG_ERR
-		    ("[MFDD] %s -EACCESS, uid=[%d], gmfc_uid=[%d], gdiag_uid=[%d]",
+		FELICA_PR_ERR
+		    (" %s -EACCESS, uid=[%d], gmfc_uid=[%d], gdiag_uid=[%d]",
 		     __func__, uid, gmfc_uid, gdiag_uid);
+#ifdef SRIB_DIAG_ENABLED
+		FELICA_PR_ERR(" SRIB-Diag enabled just for test\n");
+#else
 		return -EACCES;
+#endif
 	}
 
-	FELICA_LOG_DEBUG("[MFDD] %s END, uid=[%d], gmfc_uid=[%d], gdiag_uid=[%d]",  __func__, uid, gmfc_uid, gdiag_uid);
+	FELICA_PR_DBG(" %s END, uid=[%d], gmfc_uid=[%d], gdiag_uid=[%d]",  __func__, uid, gmfc_uid, gdiag_uid);
 	return 0;
 }
 
@@ -1790,7 +1841,7 @@ static int felica_rfs_open(struct inode *inode, struct file *file)
 static int felica_rfs_close(struct inode *inode, struct file *file)
 {
 	/* no operation */
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 	return 0;
 }
 
@@ -1802,33 +1853,33 @@ static ssize_t felica_rfs_read(struct file *file, char __user *buf, \
 {
 	int ret;
 	char retparam;
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	ret = gpio_get_value(GPIO_PINID_FELICA_RFS);
 
 	if (ret == GPIO_VALUE_HIGH) {
 		retparam = FELICA_RFS_STANDBY;
-		FELICA_LOG_DEBUG("[MFDD] Carrier-Wave Status is [%d][standby]",
+		FELICA_PR_INFO(" Carrier-Wave Status is [%d][standby]",
 				 retparam);
 	} else if (ret == GPIO_VALUE_LOW) {
 		retparam = FELICA_RFS_DETECTED;
-		FELICA_LOG_DEBUG("[MFDD] Carrier-Wave Status is [%d][detected]",
+		FELICA_PR_INFO(" Carrier-Wave Status is [%d][detected]",
 				 retparam);
 	} else {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(gpio_get_value), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(gpio_get_value), ret=[%d]",
 			       __func__, ret);
 		return -EIO;
 	}
 
 	ret = copy_to_user(buf, &retparam, FELICA_RFS_DATA_LEN);
 	if (ret != 0) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(copy_to_user), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(copy_to_user), ret=[%d]",
 			       __func__, ret);
 		return -EFAULT;
 	}
 	*ppos += 1;
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 	return FELICA_RFS_DATA_LEN;
 }
 
@@ -1854,14 +1905,14 @@ static void felica_rws_init(void)
 {
 	int ret;
 	struct device *device_felica_rws;
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	devid_felica_rws = MKDEV(FELICA_MAJOR, FELICA_MINOR);
 	ret =
 	    alloc_chrdev_region(&devid_felica_rws, FELICA_BASEMINOR,
 				FELICA_MINOR_COUNT, FELICA_RWS_NAME);
 	if (ret < 0) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(alloc_chrdev_region), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(alloc_chrdev_region), ret=[%d]",
 			       __func__, ret);
 		return;
 	}
@@ -1870,7 +1921,7 @@ static void felica_rws_init(void)
 	ret = cdev_add(&cdev_felica_rws, devid_felica_rws, FELICA_MINOR_COUNT);
 	if (ret < 0) {
 		unregister_chrdev_region(devid_felica_rws, FELICA_MINOR_COUNT);
-		FELICA_LOG_ERR("[MFDD] %s ERROR(cdev_add), ret=[%d]", __func__,
+		FELICA_PR_ERR(" %s ERROR(cdev_add), ret=[%d]", __func__,
 			       ret);
 		return;
 	}
@@ -1881,13 +1932,13 @@ static void felica_rws_init(void)
 	if (IS_ERR(device_felica_rws)) {
 		cdev_del(&cdev_felica_rws);
 		unregister_chrdev_region(devid_felica_rws, FELICA_MINOR_COUNT);
-		FELICA_LOG_ERR("[MFDD] %s ERROR(device_create)", __func__);
+		FELICA_PR_ERR(" %s ERROR(device_create)", __func__);
 		return;
 	}
 
 	gfelica_rw_status = FELICA_RW_STATUS_INIT;
 
-	FELICA_LOG_DEBUG("[MFDD] %s END, major=[%d], minor=[%d]", __func__,
+	FELICA_PR_DBG(" %s END, major=[%d], minor=[%d]", __func__,
 			 MAJOR(devid_felica_rws), MINOR(devid_felica_rws));
 }
 
@@ -1896,13 +1947,11 @@ static void felica_rws_init(void)
  */
 static void felica_rws_exit(void)
 {
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	device_destroy(felica_class, devid_felica_rws);
 	cdev_del(&cdev_felica_rws);
 	unregister_chrdev_region(devid_felica_rws, FELICA_MINOR_COUNT);
-
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
 }
 
 /*
@@ -1911,26 +1960,34 @@ static void felica_rws_exit(void)
 static int felica_rws_open(struct inode *inode, struct file *file)
 {
 	uid_t uid;
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	uid = __task_cred(current)->uid;
 	if (file->f_mode & FMODE_WRITE) {
 		if (uid != grwm_uid) {
-			FELICA_LOG_ERR(\
-			"[MFDD] %s END -EACCES, uid=[%d],gmfc_uid=[%d],gdiag_uid=[%d]",
+			FELICA_PR_ERR(\
+			" %s END -EACCES, uid=[%d],gmfc_uid=[%d],gdiag_uid=[%d]",
 			     __func__, uid, gmfc_uid, gdiag_uid);
+#ifdef SRIB_DIAG_ENABLED
+		FELICA_PR_ERR(" SRIB-Diag enabled just for test\n");
+#else
 			return -EACCES;
+#endif
 		}
 	} else {
 		if ((uid != gmfc_uid) && (uid != grwm_uid)) {
-			FELICA_LOG_ERR(\
-			"[MFDD] %s END -EACCES, uid=[%d],gmfc_uid=[%d],gdiag_uid=[%d]",
+			FELICA_PR_ERR(\
+			" %s END -EACCES, uid=[%d],gmfc_uid=[%d],gdiag_uid=[%d]",
 			     __func__, uid, gmfc_uid, gdiag_uid);
+#ifdef SRIB_DIAG_ENABLED
+		FELICA_PR_ERR(" SRIB-Diag enabled just for test\n");
+#else
 			return -EACCES;
+#endif
 		}
 	}
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 	return 0;
 }
 
@@ -1940,7 +1997,7 @@ static int felica_rws_open(struct inode *inode, struct file *file)
 static int felica_rws_close(struct inode *inode, struct file *file)
 {
 	/* no operation */
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 	return 0;
 }
 
@@ -1955,21 +2012,21 @@ static ssize_t felica_rws_read(struct file *file, char __user *buf, size_t len,
 
 	if (gfelica_rw_status == FELICA_RW_STATUS_ENABLE) {
 		retparam = FELICA_RW_STATUS_ENABLE;
-		FELICA_LOG_DEBUG("[MFDD] ReaderWriterFunction status is [%d][enabled] %s",
+		FELICA_PR_INFO(" ReaderWriterFunction status is [%d][enabled] %s",
 				 retparam,__func__);
 	} else if (gfelica_rw_status == FELICA_RW_STATUS_DISABLE) {
 		retparam = FELICA_RW_STATUS_DISABLE;
-		FELICA_LOG_DEBUG
-		    ("[MFDD] ReaderWriterFunction status is [%d][disabled] %s", retparam,__func__);
+		FELICA_PR_INFO
+		    (" ReaderWriterFunction status is [%d][disabled] %s", retparam,__func__);
 	} else {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(gfelica_rw_status), RWM=[%d]",
+		FELICA_PR_ERR(" %s ERROR(gfelica_rw_status), RWM=[%d]",
 			       __func__, gfelica_rw_status);
 		return -EIO;
 	}
 
 	ret = copy_to_user(buf, &retparam, FELICA_RWS_DATA_LEN);
 	if (ret != 0) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(copy_to_user), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(copy_to_user), ret=[%d]",
 			       __func__, ret);
 		return -EFAULT;
 	}
@@ -1986,30 +2043,30 @@ static ssize_t felica_rws_write(struct file *file, const char __user *data,
 {
 	char work;
 	int ret;
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	ret = copy_from_user(&work, data, FELICA_RWS_DATA_LEN);
 	if (ret != 0) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(copy_from_user), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(copy_from_user), ret=[%d]",
 			       __func__, ret);
 		return -EFAULT;
 	}
 
 	if (work == FELICA_RW_STATUS_ENABLE) {
-		FELICA_LOG_DEBUG
+		FELICA_PR_INFO
 		    ("Set ReaderWriterFunction status to [%d][enable]", work);
 	} else if (work == FELICA_RW_STATUS_DISABLE) {
-		FELICA_LOG_DEBUG
+		FELICA_PR_INFO
 		    ("Set ReaderWriterFunction status to s[%d][disable]", work);
 	} else {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(copy_from_user), work=[%d]",
+		FELICA_PR_ERR(" %s ERROR(copy_from_user), work=[%d]",
 			       __func__, work);
 		return -EINVAL;
 	}
 
 	gfelica_rw_status = work;
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 	return FELICA_RWS_DATA_LEN;
 }
 
@@ -2032,17 +2089,21 @@ static const struct file_operations fops_felica_int_poll = {
  */
 static irqreturn_t felica_int_irq_handler(int irq, void *dev_id)
 {
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
-#ifdef CONFIG_ARCH_MSM8974
+#if defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
+#if defined(CONFIG_MACH_KLTE_KDI) || defined(CONFIG_MACH_KLTE_DCM) || defined(CONFIG_MACH_KLTE_SBM)
+	disable_irq_nosync(gpio_to_irq(GPIO_PINID_FELICA_INT));
+#else
 	disable_irq_nosync(gpio_to_irq(gfelica_irq_int_pin));
+#endif	
 #else
 	disable_irq_nosync(gpio_to_irq(GPIO_PINID_FELICA_INT_REV03));
 #endif /* CONFIG_ARCH_MSM8974 */
 	schedule_delayed_work(&pgint_irq->work,
 			      msecs_to_jiffies(FELICA_INT_DELAY_TIME));
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 	return IRQ_HANDLED;
 }
 
@@ -2051,9 +2112,13 @@ static irqreturn_t felica_int_irq_handler(int irq, void *dev_id)
  */
 static void felica_int_irq_work(struct work_struct *work)
 {
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
-#ifdef CONFIG_ARCH_MSM8974
+	FELICA_PR_DBG(" %s START", __func__);
+#if defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
+#if defined(CONFIG_MACH_KLTE_KDI) || defined(CONFIG_MACH_KLTE_DCM) || defined(CONFIG_MACH_KLTE_SBM)
+	enable_irq(gpio_to_irq(GPIO_PINID_FELICA_INT));
+#else
 	enable_irq(gpio_to_irq(gfelica_irq_int_pin));
+#endif // CONFIG_MACH_KLTE
 #else
 	enable_irq(gpio_to_irq(GPIO_PINID_FELICA_INT_REV03));
 #endif /* CONFIG_ARCH_MSM8974 */
@@ -2062,11 +2127,11 @@ static void felica_int_irq_work(struct work_struct *work)
 
 #ifdef F_WAKE_LOCK
 	wake_lock_timeout(&felica_wake_1, msecs_to_jiffies(tmout_1));
-	FELICA_LOG_DEBUG("[MFDD] %s Wake Lock(1)[%d]", __func__, tmout_1);
+	FELICA_PR_INFO(" %s Wake Lock(1)[%d]", __func__, tmout_1);
 #endif
 	wake_up_interruptible(&pgint_irq->read_wait);
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 }
 
 /*
@@ -2076,21 +2141,22 @@ static void felica_int_poll_init(void)
 {
 	int ret;
 	struct device *device_felica_int_poll;
-
-
-#ifdef CONFIG_ARCH_MSM8974
+	
+#if defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
+#if !defined(CONFIG_MACH_KLTE_KDI) && !defined(CONFIG_MACH_KLTE_DCM) && !defined(CONFIG_MACH_KLTE_SBM)
 	struct device *dev = &felica_gpio_pdev->dev;
 	struct device_node *np;
+#endif	// CONFIG_MACH_KLTE
 #endif
 
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	devid_felica_int_poll = MKDEV(FELICA_MAJOR, FELICA_MINOR);
 	ret =
 	    alloc_chrdev_region(&devid_felica_int_poll, FELICA_BASEMINOR,
 				FELICA_MINOR_COUNT, FELICA_INT_POLL_NAME);
 	if (ret < 0) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(alloc_chrdev_region), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(alloc_chrdev_region), ret=[%d]",
 			       __func__, ret);
 		return;
 	}
@@ -2102,7 +2168,7 @@ static void felica_int_poll_init(void)
 	if (ret < 0) {
 		unregister_chrdev_region(devid_felica_int_poll,
 					 FELICA_MINOR_COUNT);
-		FELICA_LOG_ERR("[MFDD] %s ERROR(cdev_add), ret=[%d]", __func__,
+		FELICA_PR_ERR(" %s ERROR(cdev_add), ret=[%d]", __func__,
 			       ret);
 		return;
 	}
@@ -2114,7 +2180,7 @@ static void felica_int_poll_init(void)
 		cdev_del(&cdev_felica_int_poll);
 		unregister_chrdev_region(devid_felica_int_poll,
 					 FELICA_MINOR_COUNT);
-		FELICA_LOG_ERR("[MFDD] %s ERROR(device_create)", __func__);
+		FELICA_PR_ERR(" %s ERROR(device_create)", __func__);
 		return;
 	}
 
@@ -2123,29 +2189,29 @@ static void felica_int_poll_init(void)
 	init_waitqueue_head(&pgint_irq->read_wait);
 
 
-#ifdef CONFIG_ARCH_MSM8974
+#if defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
+#if !defined(CONFIG_MACH_KLTE_KDI) && !defined(CONFIG_MACH_KLTE_DCM) && !defined(CONFIG_MACH_KLTE_SBM)
 	if (!dev) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR NULL", __func__);
+		FELICA_PR_ERR(" %s ERROR NULL", __func__);
 		return;
 	}
 	np  = dev->of_node;
 	gfelica_irq_int_pin = of_get_named_gpio(np, "felica,irq-gpio", 0);
-	FELICA_LOG_DEBUG("[MFDD] %s gfelica_irq_int_pin [%d]",
+	FELICA_PR_INFO(" %s gfelica_irq_int_pin [%d]",
 		__func__, gfelica_irq_int_pin);
+#endif // CONFIG_MACH_KLTE
 
-//for test -s-
-#ifdef CONFIG_ARCH_MSM8974
 #if defined(CONFIG_MACH_HLTEKDI)
 	gfelica_sps_pin = of_get_named_gpio(np, "felica,sps-gpio", 0);
 	if(gfelica_sps_pin < 0)
 	{
-		FELICA_LOG_ERR("[MFDD] %s ERROR(), ret=[%d]",__func__, gfelica_sps_pin);
+		FELICA_PR_ERR(" %s ERROR(), ret=[%d]",__func__, gfelica_sps_pin);
 		return;
 	}
-	FELICA_LOG_DEBUG("[MFDD] %s gfelica_sps_pin [%d]",
+	FELICA_PR_INFO(" %s gfelica_sps_pin [%d]",
 		__func__, gfelica_sps_pin);
 	ret = gpio_get_value(gfelica_sps_pin);
-	FELICA_LOG_DEBUG("[MFDD] %s gfelica_sps_pin [%d]",
+	FELICA_PR_INFO(" %s gfelica_sps_pin [%d]",
 		__func__, ret);
 #endif
 #if defined(CONFIG_MACH_HLTEDCM) || defined(CONFIG_MACH_JS01LTEDCM)
@@ -2153,15 +2219,25 @@ static void felica_int_poll_init(void)
 		gpio_tlmm_config(GPIO_CFG(gfelica_sps_pin, GPIOMUX_FUNC_GPIO,
 				 GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_2MA),
 				 GPIO_CFG_ENABLE);
-		FELICA_LOG_DEBUG("[MFDD] %s gfelica_sps_pin dcm [%d]",
+		FELICA_PR_INFO(" %s gfelica_sps_pin dcm [%d]",
 			__func__, gfelica_sps_pin);
-		FELICA_LOG_DEBUG("[MFDD] %s gfelica_sps_pin dcm [%d]",
+		FELICA_PR_INFO(" %s gfelica_sps_pin dcm [%d]",
 			__func__, gpio_get_value(gfelica_sps_pin));
 	}
 #endif
-#endif
-//for test -e-
 
+#if defined(CONFIG_MACH_KLTE_KDI) || defined(CONFIG_MACH_KLTE_DCM) || defined(CONFIG_MACH_KLTE_SBM)
+	ret = request_threaded_irq(
+		  gpio_to_irq(GPIO_PINID_FELICA_INT),
+		  NULL,
+		  felica_int_irq_handler,
+		  IRQF_TRIGGER_FALLING,
+		  FELICA_INT_POLL_NAME,
+		  (void *)pgint_irq);
+	
+	FELICA_PR_INFO(" %s INFO(request_irq)= %d GPIO=%d, ret=[%d]",
+			       __func__, gpio_to_irq(GPIO_PINID_FELICA_INT),GPIO_PINID_FELICA_INT,ret);		  
+#else
 	ret = request_threaded_irq(
 		  gpio_to_irq(gfelica_irq_int_pin),
 		  NULL,
@@ -2169,6 +2245,7 @@ static void felica_int_poll_init(void)
 		  IRQF_TRIGGER_FALLING,
 		  FELICA_INT_POLL_NAME,
 		  (void *)pgint_irq);
+#endif	// CONFIG_MACH_KLTE  
 #else
 	ret = request_irq(gpio_to_irq(GPIO_PINID_FELICA_INT_REV03),
 		  felica_int_irq_handler,
@@ -2181,11 +2258,24 @@ static void felica_int_poll_init(void)
 		cdev_del(&cdev_felica_int_poll);
 		unregister_chrdev_region(devid_felica_int_poll,
 					 FELICA_MINOR_COUNT);
-		FELICA_LOG_ERR("[MFDD] %s ERROR(request_irq), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(request_irq), ret=[%d]",
+			       __func__,ret);
+		return;
+	}
+#if defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
+#if defined(CONFIG_MACH_KLTE_KDI) || defined(CONFIG_MACH_KLTE_DCM) || defined(CONFIG_MACH_KLTE_SBM)
+	ret = enable_irq_wake(gpio_to_irq(GPIO_PINID_FELICA_INT));
+	if (ret < 0) {
+		free_irq(gpio_to_irq(GPIO_PINID_FELICA_INT), (void *)pgint_irq);
+		device_destroy(felica_class, devid_felica_int_poll);
+		cdev_del(&cdev_felica_int_poll);
+		unregister_chrdev_region(devid_felica_int_poll,
+					 FELICA_MINOR_COUNT);
+		FELICA_PR_ERR(" %s ERROR(enable_irq_wake), ret=[%d]",
 			       __func__, ret);
 		return;
 	}
-#ifdef CONFIG_ARCH_MSM8974
+#else
 	ret = enable_irq_wake(gpio_to_irq(gfelica_irq_int_pin));
 	if (ret < 0) {
 		free_irq(gpio_to_irq(gfelica_irq_int_pin), (void *)pgint_irq);
@@ -2193,10 +2283,11 @@ static void felica_int_poll_init(void)
 		cdev_del(&cdev_felica_int_poll);
 		unregister_chrdev_region(devid_felica_int_poll,
 					 FELICA_MINOR_COUNT);
-		FELICA_LOG_ERR("[MFDD] %s ERROR(enable_irq_wake), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(enable_irq_wake), ret=[%d]",
 			       __func__, ret);
 		return;
 	}
+#endif	// CONFIG_MACH_KLTE
 #else
 	ret = enable_irq_wake(gpio_to_irq(GPIO_PINID_FELICA_INT_REV03));
 	if (ret < 0) {
@@ -2207,14 +2298,14 @@ static void felica_int_poll_init(void)
 		cdev_del(&cdev_felica_int_poll);
 		unregister_chrdev_region(devid_felica_int_poll,
 					 FELICA_MINOR_COUNT);
-		FELICA_LOG_ERR("[MFDD] %s ERROR(enable_irq_wake), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(enable_irq_wake), ret=[%d]",
 			       __func__, ret);
 		return;
 	}
 #endif /* CONFIG_ARCH_MSM8974 */
 	pgint_irq->irq_done = 0;
 
-	FELICA_LOG_DEBUG("[MFDD] %s END, major=[%d], minor=[%d]", __func__, \
+	FELICA_PR_DBG(" %s END, major=[%d], minor=[%d]", __func__, \
 			 MAJOR(devid_felica_int_poll),
 			 MINOR(devid_felica_int_poll));
 }
@@ -2224,14 +2315,21 @@ static void felica_int_poll_init(void)
  */
 static void felica_int_poll_exit(void)
 {
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 
-#ifdef CONFIG_ARCH_MSM8974
+#if defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
+#if defined(CONFIG_MACH_KLTE_KDI) || defined(CONFIG_MACH_KLTE_DCM) || defined(CONFIG_MACH_KLTE_SBM)
+	disable_irq(gpio_to_irq(GPIO_PINID_FELICA_INT));
+	free_irq(gpio_to_irq(
+		GPIO_PINID_FELICA_INT),
+		(void *)pgint_irq);
+#else		
 	disable_irq(gpio_to_irq(gfelica_irq_int_pin));
 	free_irq(gpio_to_irq(
 		gfelica_irq_int_pin),
 		(void *)pgint_irq);
+#endif	// CONFIG_MACH_KLTE
 #else
 	disable_irq(gpio_to_irq(GPIO_PINID_FELICA_INT_REV03));
 	free_irq(gpio_to_irq(
@@ -2244,7 +2342,7 @@ static void felica_int_poll_exit(void)
 		devid_felica_int_poll,
 		FELICA_MINOR_COUNT);
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 }
 
 /*
@@ -2253,7 +2351,7 @@ static void felica_int_poll_exit(void)
 static int felica_int_poll_open(struct inode *inode, struct file *file)
 {
 	/* no operation */
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 	return 0;
 }
 
@@ -2263,7 +2361,7 @@ static int felica_int_poll_open(struct inode *inode, struct file *file)
 static int felica_int_poll_close(struct inode *inode, struct file *file)
 {
 	/* no operation */
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 	return 0;
 }
 
@@ -2275,40 +2373,44 @@ static ssize_t felica_int_poll_read(struct file *file, char __user *buf,
 {
 	int ret;
 	char retparam;
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	if (!pgint_irq->irq_done) {
 		ret =
 		    wait_event_interruptible(pgint_irq->read_wait,
 					     pgint_irq->irq_done == 1);
 		if (ret < 0) {
-			FELICA_LOG_ERR
-			("[MFDD] %s ERROR(wait_event_interruptible),ret=[%d]",\
+			FELICA_PR_ERR
+			(" %s ERROR(wait_event_interruptible),ret=[%d]",\
 			__func__, ret);
 			return -EINTR;
 		}
 	}
 
-#ifdef CONFIG_ARCH_MSM8974
+#if defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
+#if defined(CONFIG_MACH_KLTE_KDI) || defined(CONFIG_MACH_KLTE_DCM) || defined(CONFIG_MACH_KLTE_SBM)
+	ret = gpio_get_value(GPIO_PINID_FELICA_INT);
+#else	
 	ret = gpio_get_value(gfelica_irq_int_pin);
+#endif	// CONFIG_MACH_KLTE
 #else
 	ret = gpio_get_value(GPIO_PINID_FELICA_INT_REV03);
 #endif
 	if (ret == GPIO_VALUE_HIGH) {
 		retparam = FELICA_INT_HIGH;
-		FELICA_LOG_DEBUG("[MFDD] INT-PIN value is [%d][HIGH]", retparam);
+		FELICA_PR_INFO(" INT-PIN value is [%d][HIGH]", retparam);
 	} else if (ret == GPIO_VALUE_LOW) {
 		retparam = FELICA_INT_LOW;
-		FELICA_LOG_DEBUG("[MFDD] INT-PIN value is [%d][LOW]", retparam);
+		FELICA_PR_INFO(" INT-PIN value is [%d][LOW]", retparam);
 	} else {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(gpio_get_value), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(gpio_get_value), ret=[%d]",
 			       __func__, ret);
 		return -EIO;
 	}
 
 	ret = copy_to_user(buf, &retparam, FELICA_INT_DATA_LEN);
 	if (ret != 0) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(copy_to_user), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(copy_to_user), ret=[%d]",
 			       __func__, ret);
 		return -EFAULT;
 	}
@@ -2316,7 +2418,7 @@ static ssize_t felica_int_poll_read(struct file *file, char __user *buf,
 
 	pgint_irq->irq_done = 0;
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 	return FELICA_INT_DATA_LEN;
 }
 
@@ -2326,13 +2428,13 @@ static ssize_t felica_int_poll_read(struct file *file, char __user *buf,
 static unsigned int felica_int_poll_poll(struct file *file, poll_table *wait)
 {
 	unsigned int mask = 0;
-	//FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	poll_wait(file, &pgint_irq->read_wait, wait);
 	if (pgint_irq->irq_done)
 		mask = POLLIN | POLLRDNORM;
 
-	//FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 	return mask;
 }
 /******************************************************************************
@@ -2356,14 +2458,14 @@ static void felica_uid_init(void)
 {
 	int ret;
 	struct device *device_felica_uid;
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	devid_felica_uid = MKDEV(FELICA_MAJOR, FELICA_MINOR);
 	ret =
 	    alloc_chrdev_region(&devid_felica_uid, FELICA_BASEMINOR,
 				FELICA_MINOR_COUNT, FELICA_UID_NAME);
 	if (ret < 0) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(alloc_chrdev_region), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(alloc_chrdev_region), ret=[%d]",
 			       __func__, ret);
 		return;
 	}
@@ -2372,7 +2474,7 @@ static void felica_uid_init(void)
 	ret = cdev_add(&cdev_felica_uid, devid_felica_uid, FELICA_MINOR_COUNT);
 	if (ret < 0) {
 		unregister_chrdev_region(devid_felica_uid, FELICA_MINOR_COUNT);
-		FELICA_LOG_ERR("[MFDD] %s ERROR(cdev_add), ret=[%d]", __func__,
+		FELICA_PR_ERR(" %s ERROR(cdev_add), ret=[%d]", __func__,
 			       ret);
 		return;
 	}
@@ -2383,10 +2485,10 @@ static void felica_uid_init(void)
 	if (IS_ERR(device_felica_uid)) {
 		cdev_del(&cdev_felica_uid);
 		unregister_chrdev_region(devid_felica_uid, FELICA_MINOR_COUNT);
-		FELICA_LOG_ERR("[MFDD] %s ERROR(device_create)", __func__);
+		FELICA_PR_ERR(" %s ERROR(device_create)", __func__);
 		return;
 	}
-	FELICA_LOG_DEBUG("[MFDD] %s END, major=[%d], minor=[%d]", __func__,
+	FELICA_PR_DBG(" %s END, major=[%d], minor=[%d]", __func__,
 			 MAJOR(devid_felica_uid), MINOR(devid_felica_uid));
 }
 
@@ -2395,14 +2497,13 @@ static void felica_uid_init(void)
  */
 static void felica_uid_exit(void)
 {
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 	if (gdiag_name[0] != 0x00) {
 		device_destroy(felica_class, devid_felica_uid);
 		cdev_del(&cdev_felica_uid);
 		unregister_chrdev_region(devid_felica_uid, \
 			FELICA_MINOR_COUNT);
 	}
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
 }
 
 /*
@@ -2410,10 +2511,11 @@ static void felica_uid_exit(void)
  */
 static int felica_uid_open(struct inode *inode, struct file *file)
 {
+	int ret = 0;
 	char *cmdpos;
 	static char cmdline[1025];
 	static unsigned long start_adr, end_adr, leng;
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	start_adr = current->mm->arg_start;
 	end_adr = current->mm->arg_end;
@@ -2423,16 +2525,25 @@ static int felica_uid_open(struct inode *inode, struct file *file)
 		leng = 1024;
 
 	cmdpos = (char *)(current->mm->arg_start);
-	memcpy(cmdline, cmdpos, leng);
+	ret = copy_from_user(cmdline, cmdpos, leng);
 	cmdline[leng] = '\0';
-
-	if (strncmp(cmdline, gdiag_name, leng) != 0) {
-		FELICA_LOG_DEBUG("[MFDD] %s ERROR, %s gdiag %s", \
-			__func__, cmdline, gdiag_name);
-		return -EACCES;
+	if(ret != 0)
+	{
+		FELICA_PR_ERR(" %s cmdline[%s] ret[%d]", __func__, cmdline, ret);
+		return -EFAULT;
 	}
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	if (strncmp(cmdline, gdiag_name, leng) != 0) {
+		FELICA_PR_INFO(" %s ERROR, %s gdiag %s", \
+			__func__, cmdline, gdiag_name);
+#ifdef SRIB_DIAG_ENABLED
+		FELICA_PR_ERR(" SRIB-Diag enabled just for test\n");
+#else
+		return -EACCES;
+#endif
+	}
+
+	FELICA_PR_DBG(" %s END", __func__);
 	return 0;
 }
 
@@ -2442,7 +2553,7 @@ static int felica_uid_open(struct inode *inode, struct file *file)
 static int felica_uid_close(struct inode *inode, struct file *file)
 {
 	/* no operation */
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 	return 0;
 }
 
@@ -2452,19 +2563,19 @@ static int felica_uid_close(struct inode *inode, struct file *file)
 static long felica_uid_ioctl(struct file *file, unsigned int cmd,
 			     unsigned long arg)
 {
-	FELICA_LOG_DEBUG("[MFDD] %s START, cmd=[%d]", __func__, cmd);
+	FELICA_PR_DBG(" %s START, cmd=[%d]", __func__, cmd);
 
 	switch (cmd) {
 	case SET_FELICA_UID_DIAG:
 		gdiag_uid = *((int *)arg);
-		FELICA_LOG_DEBUG("Set gdiag_uid to [%d]", gdiag_uid);
+		FELICA_PR_INFO("Set gdiag_uid to [%d]", gdiag_uid);
 		break;
 	default:
-		FELICA_LOG_ERR("[MFDD] %s ERROR(unknown command)", __func__);
+		FELICA_PR_ERR(" %s ERROR(unknown command)", __func__);
 		break;
 	}
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 	return 0;
 }
 
@@ -2490,14 +2601,14 @@ static void felica_ant_init(void)
 {
 	int ret;
 	struct device *device_felica_ant;
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	devid_felica_ant = MKDEV(FELICA_MAJOR, FELICA_MINOR);
 	ret =
 	    alloc_chrdev_region(&devid_felica_ant, FELICA_BASEMINOR,
 				FELICA_MINOR_COUNT, FELICA_ANT_NAME);
 	if (ret < 0) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(alloc_chrdev_region), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(alloc_chrdev_region), ret=[%d]",
 			       __func__, ret);
 		return;
 	}
@@ -2506,7 +2617,7 @@ static void felica_ant_init(void)
 	ret = cdev_add(&cdev_felica_ant, devid_felica_ant, FELICA_MINOR_COUNT);
 	if (ret < 0) {
 		unregister_chrdev_region(devid_felica_ant, FELICA_MINOR_COUNT);
-		FELICA_LOG_ERR("[MFDD] %s ERROR(cdev_add), ret=[%d]", __func__,
+		FELICA_PR_ERR(" %s ERROR(cdev_add), ret=[%d]", __func__,
 			       ret);
 		return;
 	}
@@ -2517,11 +2628,11 @@ static void felica_ant_init(void)
 	if (IS_ERR(device_felica_ant)) {
 		cdev_del(&cdev_felica_ant);
 		unregister_chrdev_region(devid_felica_ant, FELICA_MINOR_COUNT);
-		FELICA_LOG_ERR("[MFDD] %s ERROR(device_create)", __func__);
+		FELICA_PR_ERR(" %s ERROR(device_create)", __func__);
 		return;
 	}
 
-	FELICA_LOG_DEBUG("[MFDD] %s END, major=[%d], minor=[%d]", __func__,
+	FELICA_PR_DBG(" %s END, major=[%d], minor=[%d]", __func__,
 			 MAJOR(devid_felica_ant), MINOR(devid_felica_ant));
 }
 
@@ -2530,13 +2641,13 @@ static void felica_ant_init(void)
  */
 static void felica_ant_exit(void)
 {
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	device_destroy(felica_class, devid_felica_ant);
 	cdev_del(&cdev_felica_ant);
 	unregister_chrdev_region(devid_felica_ant, FELICA_MINOR_COUNT);
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 }
 
 /*
@@ -2545,35 +2656,39 @@ static void felica_ant_exit(void)
 static int felica_ant_open(struct inode *inode, struct file *file)
 {
 	uid_t uid;
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	#if defined(CONFIG_MACH_HLTEDCM)
 	//high
 	if (system_rev == HW_REV09_OR_10)
 	{
-		FELICA_LOG_DEBUG("[MFDD] %s Making MHL_EN HIGH", __func__);
+		FELICA_PR_INFO(" %s Making MHL_EN HIGH", __func__);
 		of_sii8240_hw_poweron(FELICA_CEN_UNLOCK);
 	}
 	#endif
 	
 	uid = __task_cred(current)->uid;
 	if ((uid != gant_uid) && (uid != gdiag_uid)) {
-		FELICA_LOG_ERR(\
-		"[MFDD] %s END -EACCES, uid=[%d], gant_uid=[%d]\n", __func__, uid, gant_uid);
+		FELICA_PR_ERR(\
+		" %s END -EACCES, uid=[%d], gant_uid=[%d]\n", __func__, uid, gant_uid);
 		
 		#if defined(CONFIG_MACH_HLTEDCM)
 		//low
 		if (system_rev == HW_REV09_OR_10)
 		{
-			FELICA_LOG_DEBUG("[MFDD] %s Making MHL_EN LOW", __func__);
+			FELICA_PR_INFO(" %s Making MHL_EN LOW", __func__);
 	//		of_sii8240_hw_poweron(FELICA_CEN_LOCK);
 		}
 		#endif
 		
+#ifdef SRIB_DIAG_ENABLED
+		FELICA_PR_ERR(" SRIB-Diag enabled just for test\n");
+#else
 		return -EACCES;
+#endif
 	}
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 	return 0;
 }
 
@@ -2587,12 +2702,12 @@ static int felica_ant_close(struct inode *inode, struct file *file)
 	//low
 	if (system_rev == HW_REV09_OR_10)
 	{
-		FELICA_LOG_DEBUG("[MFDD] %s Making MHL_EN LOW", __func__);
+		FELICA_PR_INFO(" %s Making MHL_EN LOW", __func__);
 	//	of_sii8240_hw_poweron(FELICA_CEN_LOCK);
 	}	
 	#endif
 	
-	FELICA_LOG_DEBUG("[MFDD] %s END system_rev=[%d]", __func__,system_rev);
+	FELICA_PR_DBG(" %s END system_rev=[%d]", __func__,system_rev);
 	return 0;
 }
 
@@ -2617,36 +2732,36 @@ static ssize_t felica_ant_read(struct file *file, char __user *buf, \
 	read_msgs[1].addr = gi2c_address;
 	read_msgs[1].buf = &read_buff;
 
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 	if (felica_i2c_client == NULL) {
-		FELICA_LOG_ERR("[MFDD] %s -EIO felica_i2c_client is NULL", \
+		FELICA_PR_ERR(" %s -EIO felica_i2c_client is NULL", \
 			__func__);
 		return -EIO;
 	}
 
 	ret = i2c_transfer(felica_i2c_client->adapter, &read_msgs[0], 1);
 	if (ret < 0) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(i2c_transfer[0]), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(i2c_transfer[0]), ret=[%d]",
 			       __func__, ret);
 		return -EIO;
 	}
 	ret = i2c_transfer(felica_i2c_client->adapter, &read_msgs[1], 1);
 	if (ret < 0) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(i2c_transfer[1]), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(i2c_transfer[1]), ret=[%d]",
 			       __func__, ret);
 		return -EIO;
 	}
-	FELICA_LOG_DEBUG("[MFDD] %s read_buff=[%d]", __func__, read_buff);
+	FELICA_PR_INFO(" %s read_buff=[%d]", __func__, read_buff);
 
 	ret = copy_to_user(buf, &read_buff, FELICA_ANT_DATA_LEN);
 	if (ret != 0) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(copy_to_user), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(copy_to_user), ret=[%d]",
 			       __func__, ret);
 		return -EFAULT;
 	}
 	*ppos += 1;
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 	return FELICA_ANT_DATA_LEN;
 }
 
@@ -2659,35 +2774,33 @@ static ssize_t felica_ant_write(struct file *file, const char __user *data,
 	char ant;
 	int ret;
 	unsigned char write_buff[2];
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	if (felica_i2c_client == NULL) {
-		FELICA_LOG_ERR("[MFDD] %s -EIO felica_i2c_client is NULL", \
+		FELICA_PR_ERR(" %s -EIO felica_i2c_client is NULL", \
 			__func__);
 		return -EIO;
 	}
 
-	gwrite_msgs[0].buf = &write_buff[0];
-	gwrite_msgs[0].addr = gi2c_address;
-	write_buff[0] = gi2c_antaddress;
-
-
 	ret = copy_from_user(&ant, data, FELICA_ANT_DATA_LEN);
 	if (ret != 0) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(copy_from_user), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(copy_from_user), ret=[%d]",
 			       __func__, ret);
 		return -EFAULT;
 	}
+	write_buff[0] = gi2c_antaddress;
 	write_buff[1] = ant;
-
+	gwrite_msgs[0].buf = &write_buff[0];
+	gwrite_msgs[0].addr = gi2c_address;
+	
 	ret = i2c_transfer(felica_i2c_client->adapter, gwrite_msgs, 1);
 	if (ret < 0) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(i2c_transfer), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(i2c_transfer), ret=[%d]",
 			       __func__, ret);
 		return -EIO;
 	}
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 	return FELICA_ANT_DATA_LEN;
 }
 
@@ -2700,17 +2813,19 @@ static ssize_t felica_ant_write(struct file *file, const char __user *data,
  */
 static void felica_initialize_pin(void)
 {
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 #if defined(CONFIG_ARCH_EXYNOS)
 	gpio_set_value(GPIO_PINID_FELICA_PON, GPIO_VALUE_LOW);
 #elif defined(CONFIG_ARCH_APQ8064)
 	ice_gpiox_set(GPIO_PINID_FELICA_PON, GPIO_VALUE_LOW);
-#elif defined(CONFIG_ARCH_MSM8974)
+#elif defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
+#if !defined(CONFIG_MACH_KLTE_KDI) && !defined(CONFIG_MACH_KLTE_DCM) && !defined(CONFIG_MACH_KLTE_SBM)	// We are not doing the initialization here. felica_register_device() does it and sets up the initial pin value to LOW.
 	gpio_set_value(GPIO_PINID_FELICA_PON, GPIO_VALUE_LOW);
 #endif
+#endif
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 }
 
 /*
@@ -2718,17 +2833,19 @@ static void felica_initialize_pin(void)
  */
 static void felica_finalize_pin(void)
 {
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 #if defined(CONFIG_ARCH_EXYNOS)
 	gpio_set_value(GPIO_PINID_FELICA_PON, GPIO_VALUE_LOW);
 #elif defined(CONFIG_ARCH_APQ8064)
 	ice_gpiox_set(GPIO_PINID_FELICA_PON, GPIO_VALUE_LOW);
-#elif defined(CONFIG_ARCH_MSM8974)
+#elif defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
+#if !defined (CONFIG_MACH_KLTE_KDI) && !defined (CONFIG_MACH_KLTE_DCM) && !defined(CONFIG_MACH_KLTE_SBM)	// We are not doing the initialization here. felica_register_device() does it and sets up the initial pin value to LOW.
 	gpio_set_value(GPIO_PINID_FELICA_PON, GPIO_VALUE_LOW);
 #endif
+#endif
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 }
 
 /*
@@ -2736,11 +2853,81 @@ static void felica_finalize_pin(void)
  */
 static void felica_register_device(void)
 {
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+#if defined(CONFIG_MACH_KLTE_KDI) || defined(CONFIG_MACH_KLTE_DCM) || defined(CONFIG_MACH_KLTE_SBM)
+	struct device *dev = &felica_gpio_pdev->dev;
+	struct device_node *np;	
+#endif 	
 
+	FELICA_PR_DBG(" %s START", __func__);
+
+#if defined(CONFIG_MACH_KLTE_KDI) || defined(CONFIG_MACH_KLTE_DCM) || defined(CONFIG_MACH_KLTE_SBM)
+	if (!dev) 
+	{
+		FELICA_PR_ERR(" %s ERROR NULL", __func__);
+		return;
+	}
+	
+	np  = dev->of_node;
+	
+	if(system_rev <=8)
+	{
+	gfelica_pon_pin = of_get_named_gpio(np, "felica,pon-gpio", 0);
+	if(gfelica_pon_pin < 0)
+	{
+		FELICA_PR_ERR(" %s ERROR(), gfelica_pon_pin=[%d]",__func__, gfelica_pon_pin);
+		return;
+	}
+
+	gpio_tlmm_config(GPIO_CFG(gfelica_pon_pin, GPIOMUX_FUNC_GPIO,
+					GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_2MA),
+					GPIO_CFG_ENABLE);
+	FELICA_PR_INFO(" %s gfelica_pon_pin [%d]",__func__, gpio_get_value(gfelica_pon_pin));
+	}
+	
+	gpio_set_value(gfelica_pon_pin, GPIO_VALUE_LOW);
+	
+	gfelica_hsel_pin = of_get_named_gpio (np, "felica,hsel-gpio", 0);
+	if(gfelica_hsel_pin < 0)
+	{
+		FELICA_PR_ERR(" %s ERROR(), ret=[%d]",__func__, gfelica_hsel_pin);
+		return;
+	}
+	FELICA_PR_INFO(" %s gfelica_hsel_pin [%d]",__func__, gfelica_hsel_pin);
+			
+	if (system_rev >= g_uicc_initrev) 
+	{
+		gpio_tlmm_config(GPIO_CFG(gfelica_hsel_pin, GPIOMUX_FUNC_GPIO,
+				 GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_2MA),
+				 GPIO_CFG_ENABLE);
+		FELICA_PR_INFO(" %s gfelica_hsel_pin [%d]",__func__, gpio_get_value(gfelica_hsel_pin));
+	}
+
+	gpio_set_value(gfelica_hsel_pin, GPIO_VALUE_LOW);
+	
+#if defined(CONFIG_MACH_KLTE_DCM) || defined(CONFIG_MACH_KLTE_SBM)
+	
+	gfelica_sps_pin = of_get_named_gpio(np, "felica,sps-gpio", 0);
+	if(gfelica_sps_pin < 0)
+	{
+		FELICA_PR_ERR(" %s ERROR(), ret=[%d]",__func__, gfelica_sps_pin);
+		return;
+	}
+	FELICA_PR_INFO(" %s gfelica_sps_pin [%d]",__func__, gfelica_sps_pin);
+			
+	if (system_rev >= g_uicc_initrev) 
+	{
+		gpio_tlmm_config(GPIO_CFG(gfelica_sps_pin, GPIOMUX_FUNC_GPIO,
+				 GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL, GPIO_CFG_2MA),
+				 GPIO_CFG_ENABLE);
+		FELICA_PR_INFO(" %s gfelica_sps_pin [%d]",__func__, gpio_get_value(gfelica_sps_pin));
+	}
+
+#endif	
+#else
 	felica_int_poll_init();
+#endif	//CONFIG_MACH_KLTE
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 }
 
 /*
@@ -2748,11 +2935,12 @@ static void felica_register_device(void)
  */
 static void felica_deregister_device(void)
 {
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 	felica_uid_exit();
-#ifndef CONFIG_ARCH_MSM8974
+#if !defined(CONFIG_ARCH_MSM8974) && !defined(CONFIG_ARCH_MSM8974PRO)
 	felica_int_poll_exit();
 #endif
+
 	felica_ant_exit();
 	felica_rws_exit();
 	felica_rfs_exit();
@@ -2760,12 +2948,13 @@ static void felica_deregister_device(void)
 	felica_pon_exit();
 	felica_uart_exit();
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 }
 
 
-#ifdef CONFIG_ARCH_MSM8974
-static struct of_device_id felica_of_match[] = {
+#if defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
+static struct of_device_id felica_of_match[] = 
+{
 	{	.compatible = "felica,gpio-table",
 	},
 	{}
@@ -2775,20 +2964,22 @@ static int __devexit felica_gpio_remove(struct platform_device *pdev)
 	felica_int_poll_exit();
 	return 0;
 }
-static struct platform_driver felica_of_driver = {
+static struct platform_driver felica_of_driver = 
+{
 	.remove = __devexit_p(felica_gpio_remove),
-	.driver = {
+	.driver = 
+		{
 		.name = FELICA_GPIO_DRIVER_NAME,
 		.owner = THIS_MODULE,
 		.of_match_table = felica_of_match,
-	},
+		},
 };
 
 static int __init felica_gpio_probe(struct platform_device *pdev)
 {
 	felica_gpio_pdev = pdev;
 	if (felica_gpio_pdev == NULL) {
-		FELICA_LOG_ERR("[MFDD] %s -EIO felica_i2c_client is NULL", \
+		FELICA_PR_ERR(" %s -EIO felica_gpio_pdev is NULL", \
 			__func__);
 		return -EIO;
 	}
@@ -2803,7 +2994,7 @@ static int __init felica_gpio_probe(struct platform_device *pdev)
  */
 static int __init felica_init(void)
 {
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 #ifdef F_WAKE_LOCK
 	wake_lock_init(&felica_wake_1, WAKE_LOCK_SUSPEND, "felica-int-1");
@@ -2811,26 +3002,26 @@ static int __init felica_init(void)
 #endif
 	felica_class = class_create(THIS_MODULE, "felica");
 	if (IS_ERR(felica_class)) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(class_create)", __func__);
+		FELICA_PR_ERR(" %s ERROR(class_create)", __func__);
 		return PTR_ERR(felica_class);
 	}
 
 	felica_initialize_pin();
-#ifndef CONFIG_ARCH_MSM8974
+#if !defined(CONFIG_ARCH_MSM8974) && !defined(CONFIG_ARCH_MSM8974PRO)
 	felica_register_device();
 #endif
 	felica_nl_init();
 	felica_i2c_init();
 	uicc_init();
 	/* MFC UID registration */
-#ifndef CONFIG_ARCH_MSM8974
+#if !defined(CONFIG_ARCH_MSM8974) && !defined(CONFIG_ARCH_MSM8974PRO)
 	schedule_delayed_work(&pgint_irq->work, msecs_to_jiffies(10));
 #endif
 
 #ifdef CONFIG_NFC_FELICA
 
 	/* FELICA_INTU GPIO is changed Start*/
-#ifdef CONFIG_ARCH_MSM8974
+#if defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
 	felica_varying_gpio_intu = GPIO_PINID_NFC_INTU;
 #else
 	if (system_rev > 0 && system_rev < 15)
@@ -2838,16 +3029,18 @@ static int __init felica_init(void)
 	else
 		felica_varying_gpio_intu = GPIO_PINID_NFC_INTU_REV06;
 #endif
-	FELICA_LOG_DEBUG("[MFDD] %s , system_rev=[%d]", __func__, system_rev);
+	FELICA_PR_INFO(" %s , system_rev=[%d]", __func__, system_rev);
 	/* FELICA_INTU GPIO is changed End */
-
+#if defined(CONFIG_MACH_KLTE_KDI) || defined(CONFIG_MACH_KLTE_DCM) || defined(CONFIG_MACH_KLTE_SBM)
+	felica_int_poll_init();
+#endif // CONFIG_MACH_KLTE
 	snfc_register_device();
 	uartcc_init();
 
 #endif /* CONFIG_NFC_FELICA */
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
-#ifdef CONFIG_ARCH_MSM8974
+	FELICA_PR_DBG(" %s END", __func__);
+#if defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
 	return platform_driver_probe(&felica_of_driver, felica_gpio_probe);
 #else
 	return 0;
@@ -2859,7 +3052,7 @@ static int __init felica_init(void)
  */
 static void __exit felica_exit(void)
 {
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 #ifdef F_WAKE_LOCK
 	wake_lock_destroy(&felica_wake_1);
@@ -2878,7 +3071,7 @@ static void __exit felica_exit(void)
 	felica_finalize_pin();
 	class_destroy(felica_class);
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 }
 
 
@@ -2917,13 +3110,13 @@ static int hsel_init(void)
 	struct device *class_dev;
 	devid_snfc_hsel = MKDEV(MISC_MAJOR, 0);
 
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	ret = alloc_chrdev_region(&devid_snfc_hsel, 0, HSEL_DEV_COUNT,
 					HSEL_DEV_NAME);
 
 	if (0 != ret) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(alloc_chrdev_region), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(alloc_chrdev_region), ret=[%d]",
 					__func__, ret);
 		return ret;
 	}
@@ -2934,7 +3127,7 @@ static int hsel_init(void)
 	ret = cdev_add(&hsel_cdev, devid_snfc_hsel, HSEL_DEV_COUNT);
 	if (0 != ret) {
 		unregister_chrdev_region(devid_snfc_hsel, HSEL_DEV_COUNT);
-		FELICA_LOG_ERR("[MFDD] %s ERROR(cdev_add), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(cdev_add), ret=[%d]",
 					__func__, ret);
 		return ret;
 	}
@@ -2945,12 +3138,12 @@ static int hsel_init(void)
 		cdev_del(&hsel_cdev);
 		unregister_chrdev_region(devid_snfc_hsel, HSEL_DEV_COUNT);
 		ret = PTR_ERR(class_dev);
-		FELICA_LOG_ERR("[MFDD] %s ERROR(device_create), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(device_create), ret=[%d]",
 					__func__, ret);
 		return ret;
 	}
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 
 	return ret;
 }
@@ -2960,14 +3153,14 @@ static int hsel_init(void)
  */
 static void hsel_exit(void)
 {
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	device_destroy(felica_class, devid_snfc_hsel);
 
 	cdev_del(&hsel_cdev);
 	unregister_chrdev_region(devid_snfc_hsel, HSEL_DEV_COUNT);
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 }
 
 /*
@@ -2975,8 +3168,8 @@ static void hsel_exit(void)
  */
 static int hsel_open(struct inode *inode, struct file *file)
 {
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 	return 0;
 }
 
@@ -2985,8 +3178,8 @@ static int hsel_open(struct inode *inode, struct file *file)
  */
 static int hsel_release(struct inode *inode, struct file *file)
 {
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 	return 0;
 }
 /*
@@ -2996,18 +3189,18 @@ static ssize_t hsel_read(struct file *file, char __user *buf, size_t len,
 					loff_t *ppos)
 {
 	char	hsel_val;
-	int		ret;
+	int		ret = -EINVAL;
 
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	if (NULL == buf) {
-		FELICA_LOG_ERR("[MFDD] %s hsel_read param err", __func__);
+		FELICA_PR_ERR(" %s hsel_read param err", __func__);
 		return -EIO;
 	}
 
 	if (1 > len) {
-		FELICA_LOG_ERR(
-			"[MFDD] %s length check len = %d", __func__, len);
+		FELICA_PR_ERR(
+			" %s length check len = %d", __func__, len);
 		return -EIO;
 	}
 
@@ -3015,11 +3208,11 @@ static ssize_t hsel_read(struct file *file, char __user *buf, size_t len,
 	ret = gpio_get_value(GPIO_PINID_NFC_HSEL);
 #elif defined(CONFIG_ARCH_APQ8064)
 	ret = ice_gpiox_get(GPIO_PINID_NFC_HSEL);
-#elif defined(CONFIG_ARCH_MSM8974)
-	ret = gpio_get_value(GPIO_PINID_NFC_HSEL);
-#endif
+#elif defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
+	ret = gpio_get_value(gfelica_hsel_pin);
+	#endif
 	if (0 > ret) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(gpio_get_value), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(gpio_get_value), ret=[%d]",
 					__func__, ret);
 		return ret;
 	}
@@ -3029,11 +3222,11 @@ static ssize_t hsel_read(struct file *file, char __user *buf, size_t len,
 		hsel_val = 1;
 
 	if (copy_to_user(buf, &hsel_val, 1)) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(copy_to_user)", __func__);
+		FELICA_PR_ERR(" %s ERROR(copy_to_user)", __func__);
 		return -EFAULT;
 	}
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 
 	return 1;
 }
@@ -3046,30 +3239,30 @@ static ssize_t hsel_write(struct file *file, const char __user *data,\
 {
 	char	hsel_val;
 
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	if (NULL == data) {
-		FELICA_LOG_ERR("[MFDD] %s hsel_write param err", __func__);
+		FELICA_PR_ERR(" %s hsel_write param err", __func__);
 		return -EIO;
 	}
 
 	if (1 > len) {
-		FELICA_LOG_ERR(
-			"[MFDD] %s length check len = %d",
+		FELICA_PR_ERR(
+			" %s length check len = %d",
 			__func__, len);
 		return -EIO;
 	}
 
 	if (copy_from_user(&hsel_val, data, 1)) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(copy_from_user)", __func__);
+		FELICA_PR_ERR(" %s ERROR(copy_from_user)", __func__);
 		return -EFAULT;
 	}
 	if (0 == hsel_val) {
-		FELICA_LOG_DEBUG("[MFDD] %s HSEL = Low", __func__);
+		FELICA_PR_INFO(" %s HSEL = Low", __func__);
 	} else if (1 == hsel_val) {
-		FELICA_LOG_DEBUG("[MFDD] %s HSEL = High", __func__);
+		FELICA_PR_INFO(" %s HSEL = High", __func__);
 	} else {
-		FELICA_LOG_ERR("[MFDD] param err = %d", hsel_val);
+		FELICA_PR_ERR(" param err = %d", hsel_val);
 		return -EIO;
 	}
 
@@ -3077,11 +3270,11 @@ static ssize_t hsel_write(struct file *file, const char __user *data,\
 	gpio_set_value(GPIO_PINID_NFC_HSEL , hsel_val);
 #elif defined(CONFIG_ARCH_APQ8064)
 	ice_gpiox_set(GPIO_PINID_NFC_HSEL , hsel_val);
-#elif defined(CONFIG_ARCH_MSM8974)
-	gpio_set_value(GPIO_PINID_NFC_HSEL , hsel_val);
-#endif
+#elif defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
+	gpio_set_value(gfelica_hsel_pin , hsel_val);
+    #endif
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 	return 1;
 }
 
@@ -3110,13 +3303,13 @@ static irqreturn_t intu_poll_irq_handler(int irq, void *dev_id)
 {
 	struct poll_data *intu_d = g_intu_d;
 
-	FELICA_LOG_DEBUG("[MFDD] %s START irq = %d", __func__, irq);
+	FELICA_PR_DBG(" %s START irq = %d", __func__, irq);
 
 	disable_irq_nosync(gpio_to_irq(felica_varying_gpio_intu));
 
 	schedule_delayed_work(&intu_d->work, 0);
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 
 	return IRQ_HANDLED;
 }
@@ -3131,13 +3324,13 @@ static void intu_poll_work_func(struct work_struct *work)
 	int old_value			= 0;
 	unsigned long irqflag	= 0;
 
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	old_value = intu_d->device_status;
 
 	read_value = gpio_get_value(felica_varying_gpio_intu);
 
-	FELICA_LOG_DEBUG("[MFDD] %s read_value = %d old_value = %d",
+	FELICA_PR_INFO(" %s read_value = %d old_value = %d",
 					__func__, read_value, old_value);
 
 	if (read_value < 0) {
@@ -3153,8 +3346,8 @@ static void intu_poll_work_func(struct work_struct *work)
 
 		if (irq_set_irq_type(gpio_to_irq(felica_varying_gpio_intu),
 				irqflag)) {
-			FELICA_LOG_ERR(
-				"[MFDD] %s ERROR(set_irq_type), irqflag=[%ld]",
+			FELICA_PR_ERR(
+				" %s ERROR(set_irq_type), irqflag=[%ld]",
 				__func__, irqflag);
 		}
 	}
@@ -3165,8 +3358,8 @@ static void intu_poll_work_func(struct work_struct *work)
 		intu_d->irq_handler_done = 1;
 		wake_up_interruptible(&intu_d->read_wait);
 	}
-	FELICA_LOG_DEBUG(
-		"[MFDD] %s END read_value = %d, old_value = %d,	intu_d->read_error = %d",
+	FELICA_PR_DBG(
+		" %s END read_value = %d, old_value = %d,	intu_d->read_error = %d",
 		__func__, read_value, old_value, intu_d->read_error);
 }
 
@@ -3181,12 +3374,12 @@ static int intu_poll_init(void)
 
 	devid_snfc_intu_poll = MKDEV(MISC_MAJOR, 0);
 
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	ret = alloc_chrdev_region(&devid_snfc_intu_poll,
 		0, INTU_POLL_DEV_COUNT, INTU_POLL_DEV_NAME);
 	if (ret) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(alloc_chrdev_region), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(alloc_chrdev_region), ret=[%d]",
 						__func__, ret);
 		return ret;
 	}
@@ -3201,7 +3394,7 @@ static int intu_poll_init(void)
 		unregister_chrdev_region(
 			devid_snfc_intu_poll,
 			INTU_POLL_DEV_COUNT);
-		FELICA_LOG_ERR("[MFDD] %s ERROR(cdev_add), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(cdev_add), ret=[%d]",
 						__func__, ret);
 		return ret;
 	}
@@ -3214,7 +3407,7 @@ static int intu_poll_init(void)
 		unregister_chrdev_region(
 			devid_snfc_intu_poll, INTU_POLL_DEV_COUNT);
 		ret = PTR_ERR(class_dev);
-		FELICA_LOG_ERR("[MFDD] %s ERROR(device_create), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(device_create), ret=[%d]",
 						__func__, ret);
 		return ret;
 	}
@@ -3228,7 +3421,7 @@ static int intu_poll_init(void)
 	g_intu_d->open_flag = 0;
 
 	if (g_intu_d->open_flag) {
-		FELICA_LOG_ERR("[MFDD] %s only one time", __func__);
+		FELICA_PR_ERR(" %s only one time", __func__);
 		return 0;
 	}
 	g_intu_d->open_flag = 1;
@@ -3236,7 +3429,7 @@ static int intu_poll_init(void)
 	ret = gpio_get_value(felica_varying_gpio_intu);
 	if (ret < 0) {
 		g_intu_d->open_flag = 0;
-		FELICA_LOG_ERR("[MFDD] %s ERROR(gpio_get_value), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(gpio_get_value), ret=[%d]",
 						__func__, ret);
 		return -EIO;
 	}
@@ -3251,13 +3444,13 @@ static int intu_poll_init(void)
 			intu_poll_irq_handler, irqflag, INTU_POLL_DEV_NAME,
 			(void *)g_intu_d)) {
 		g_intu_d->open_flag = 0;
-		FELICA_LOG_ERR("[MFDD] %s ERROR(request_irq), irqflag=[%ld]",
+		FELICA_PR_ERR(" %s ERROR(request_irq), irqflag=[%ld]",
 						__func__, irqflag);
 		return -EIO;
 	}
 	g_intu_d->irq_handler_done = 0;
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 
 	return ret;
 }
@@ -3269,7 +3462,7 @@ static void intu_poll_exit(void)
 {
 	struct poll_data *intu_d = g_intu_d;
 
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	cancel_delayed_work(&intu_d->work);
 	free_irq(gpio_to_irq(felica_varying_gpio_intu), (void *)intu_d);
@@ -3278,7 +3471,7 @@ static void intu_poll_exit(void)
 
 	cdev_del(&intu_poll_cdev);
 	unregister_chrdev_region(devid_snfc_intu_poll, INTU_POLL_DEV_COUNT);
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 }
 
 /*
@@ -3287,7 +3480,7 @@ static void intu_poll_exit(void)
 static int intu_poll_open(struct inode *inode, struct file *file)
 {
 	/* no operation */
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 
 	return 0;
 }
@@ -3298,7 +3491,7 @@ static int intu_poll_open(struct inode *inode, struct file *file)
 static int intu_poll_release(struct inode *inode, struct file *file)
 {
 	/* no operation */
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 
 	return 0;
 }
@@ -3313,25 +3506,25 @@ static ssize_t intu_poll_read(struct file *file, char __user *buf,
 	int ret;
 	char cret;
 
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	if (len < 1) {
-		FELICA_LOG_ERR(
-			"[MFDD] %s length check len = %d", __func__, len);
+		FELICA_PR_ERR(
+			" %s length check len = %d", __func__, len);
 		return -EIO;
 	}
 
 	if (!intu_d->irq_handler_done) {
 		if (file->f_flags & O_NONBLOCK) {
-			FELICA_LOG_ERR("[MFDD] NONBLOCK");
+			FELICA_PR_ERR(" NONBLOCK");
 			return -EAGAIN;
 		}
-		FELICA_LOG_DEBUG("[MFDD] NFC intu_poll wait irq");
+		FELICA_PR_INFO(" NFC intu_poll wait irq");
 		ret = wait_event_interruptible(intu_d->read_wait,
 						intu_d->irq_handler_done == 1);
 		if (-ERESTARTSYS == ret) {
-			FELICA_LOG_ERR(
-				"[MFDD] %s -EINTR wait_event_interruptible ret = %d",
+			FELICA_PR_ERR(
+				" %s -EINTR wait_event_interruptible ret = %d",
 				__func__, ret);
 			return -EINTR;
 		}
@@ -3340,7 +3533,7 @@ static ssize_t intu_poll_read(struct file *file, char __user *buf,
 	if (intu_d->read_error) {
 		intu_d->irq_handler_done = 0;
 		intu_d->read_error = 0;
-		FELICA_LOG_ERR("[MFDD] %s intu_d->read_error = %d",
+		FELICA_PR_ERR(" %s intu_d->read_error = %d",
 						__func__, intu_d->read_error);
 		return -EIO;
 	}
@@ -3353,13 +3546,13 @@ static ssize_t intu_poll_read(struct file *file, char __user *buf,
 	len = 1;
 
 	if (copy_to_user(buf, &cret, len)) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(copy_to_user)", __func__);
+		FELICA_PR_ERR(" %s ERROR(copy_to_user)", __func__);
 		return -EFAULT;
 	}
 	intu_d->irq_handler_done = 0;
 
-	FELICA_LOG_DEBUG(
-		"[MFDD] %s END len = %d, cret = %d", __func__, len, cret);
+	FELICA_PR_DBG(
+		" %s END len = %d, cret = %d", __func__, len, cret);
 
 	return len;
 }
@@ -3390,12 +3583,12 @@ static int available_poll_init(void)
 
 	devid_snfc_abailable_poll = MKDEV(MISC_MAJOR, 0);
 
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	ret = alloc_chrdev_region(&devid_snfc_abailable_poll, 0,
 		 AVAILABLE_POLL_DEV_COUNT, AVAILABLE_POLL_DEV_NAME);
 	if (ret) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(alloc_chrdev_region), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(alloc_chrdev_region), ret=[%d]",
 						__func__, ret);
 		return ret;
 	}
@@ -3408,7 +3601,7 @@ static int available_poll_init(void)
 	if (ret) {
 		unregister_chrdev_region(devid_snfc_abailable_poll,
 					AVAILABLE_POLL_DEV_COUNT);
-		FELICA_LOG_ERR("[MFDD] %s ERROR(cdev_add), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(cdev_add), ret=[%d]",
 						__func__, ret);
 		return ret;
 	}
@@ -3421,7 +3614,7 @@ static int available_poll_init(void)
 		unregister_chrdev_region(devid_snfc_abailable_poll,
 						AVAILABLE_POLL_DEV_COUNT);
 		ret = PTR_ERR(class_dev);
-		FELICA_LOG_ERR("[MFDD] %s ERROR(device_create), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(device_create), ret=[%d]",
 						__func__, ret);
 		return ret;
 	}
@@ -3430,7 +3623,7 @@ static int available_poll_init(void)
 
 	init_waitqueue_head(&g_available_data.read_wait);
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 
 	return ret;
 }
@@ -3440,7 +3633,7 @@ static int available_poll_init(void)
  */
 static void available_poll_exit(void)
 {
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	device_destroy(felica_class, devid_snfc_abailable_poll);
 
@@ -3448,7 +3641,7 @@ static void available_poll_exit(void)
 	unregister_chrdev_region(devid_snfc_abailable_poll,
 					AVAILABLE_POLL_DEV_COUNT);
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 }
 
 /*
@@ -3457,7 +3650,7 @@ static void available_poll_exit(void)
 static int available_poll_open(struct inode *inode, struct file *file)
 {
 	/* no operation */
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 	return 0;
 }
 
@@ -3466,14 +3659,14 @@ static int available_poll_open(struct inode *inode, struct file *file)
  */
 static int available_poll_release(struct inode *inode, struct file *file)
 {
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 	if (g_available_data.available_flag == 1) {
 		g_available_data.rsp_done = 1;
 		wake_up_interruptible(&g_available_data.read_wait);
 	}
 	g_available_data.rsp_done = 0;
 	g_available_data.available_flag = 0;
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 	return 0;
 }
 
@@ -3487,7 +3680,7 @@ static ssize_t available_poll_read(struct file *file, char __user *buf,
 	int		nRet = -1;
 	struct icc_poll_data *available_d = &g_available_data;
 
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	if ((!uartcc_is_idle_status()) ||
 		(0 == g_cen_sts) ||
@@ -3497,8 +3690,8 @@ static ssize_t available_poll_read(struct file *file, char __user *buf,
 		nRet = wait_event_interruptible(available_d->read_wait,
 					available_d->rsp_done == 1);
 		if (nRet < 0) {
-			FELICA_LOG_ERR(
-				"[MFDD] %s ERROR(wait_event_interruptible), ret=[%d]"
+			FELICA_PR_ERR(
+				" %s ERROR(wait_event_interruptible), ret=[%d]"
 				, __func__, nRet);
 			return -EIO;
 		}
@@ -3510,11 +3703,11 @@ static ssize_t available_poll_read(struct file *file, char __user *buf,
 	}
 
 	if (copy_to_user(buf, &type, len)) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(copy_to_user)", __func__);
+		FELICA_PR_ERR(" %s ERROR(copy_to_user)", __func__);
 		return -EFAULT;
 	}
 
-	FELICA_LOG_DEBUG("[MFDD] %s END read size = %d ", __func__, len);
+	FELICA_PR_DBG(" %s END read size = %d ", __func__, len);
 
 	return len;
 }
@@ -3527,7 +3720,7 @@ static long available_poll_ioctl(struct file *file, unsigned int cmd,
 {
 	long			nRet	= -EIO;
 
-	FELICA_LOG_DEBUG("[MFDD] %s  START cmd = %x", __func__, cmd);
+	FELICA_PR_DBG(" %s  START cmd = %x", __func__, cmd);
 	switch (cmd) {
 	case AVAILABLE_POLL_DEV_SET_PRE_LOCK:
 		g_cen_sts = 0;
@@ -3536,7 +3729,7 @@ static long available_poll_ioctl(struct file *file, unsigned int cmd,
 	default:
 		break;
 	}
-	FELICA_LOG_DEBUG("[MFDD] %s  END cmd = %x", __func__, cmd);
+	FELICA_PR_DBG(" %s  END cmd = %x", __func__, cmd);
 	return nRet;
 }
 
@@ -3565,13 +3758,13 @@ static irqreturn_t rfs_poll_irq_handler(int irq, void *dev_id)
 {
 	struct poll_data *rfs_d = g_rfs_d;
 
-	FELICA_LOG_DEBUG("[MFDD] %s START irq = %d", __func__, irq);
+	FELICA_PR_DBG(" %s START irq = %d", __func__, irq);
 
 	disable_irq_nosync(gpio_to_irq(GPIO_PINID_NFC_RFS_POLL));
 
 	schedule_delayed_work(&rfs_d->work, msecs_to_jiffies(RFS_POLL_DELAY));
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 
 	return IRQ_HANDLED;
 }
@@ -3587,13 +3780,13 @@ static void rfs_poll_work_func(struct work_struct *work)
 	unsigned long irqflag = 0;
 	struct icc_poll_data *available_d = &g_available_data;
 
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	old_value = rfs_d->device_status;
 
 	read_value = gpio_get_value(GPIO_PINID_NFC_RFS_POLL);
 
-	FELICA_LOG_DEBUG("[MFDD] %s read_value = %d old_value = %d",
+	FELICA_PR_INFO(" %s read_value = %d old_value = %d",
 					__func__ , read_value, old_value);
 
 	if (read_value < 0) {
@@ -3604,8 +3797,8 @@ static void rfs_poll_work_func(struct work_struct *work)
 			if (0 != g_cen_sts) {
 				if (GPIO_VALUE_LOW != g_rfs_sts) {
 					if (uartcc_is_idle_status()) {
-						FELICA_LOG_DEBUG(
-						"[MFDD] %s wake up available",
+						FELICA_PR_INFO(
+						" %s wake up available",
 						__func__);
 						available_d->rsp_done = 1;
 						wake_up_interruptible(
@@ -3625,8 +3818,8 @@ static void rfs_poll_work_func(struct work_struct *work)
 
 		if (irq_set_irq_type(
 			gpio_to_irq(GPIO_PINID_NFC_RFS_POLL), irqflag)) {
-			FELICA_LOG_ERR(
-				"[MFDD] %s ERROR(set_irq_type), irqflag=[%ld]",
+			FELICA_PR_ERR(
+				" %s ERROR(set_irq_type), irqflag=[%ld]",
 				__func__, irqflag);
 		}
 	}
@@ -3638,8 +3831,8 @@ static void rfs_poll_work_func(struct work_struct *work)
 		wake_up_interruptible(&rfs_d->read_wait);
 	}
 
-	FELICA_LOG_DEBUG(
-		"[MFDD] %s END read_value = %d,old_value = %d,rfs_d->read_error = %d",
+	FELICA_PR_INFO(
+		" %s END read_value = %d,old_value = %d,rfs_d->read_error = %d",
 		__func__, read_value, old_value, rfs_d->read_error);
 }
 
@@ -3654,12 +3847,12 @@ static int rfs_poll_init(void)
 
 	devid_snfc_rfs_poll = MKDEV(MISC_MAJOR, 0);
 
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	ret = alloc_chrdev_region(&devid_snfc_rfs_poll , 0 , RFS_POLL_DEV_COUNT,
 					RFS_POLL_DEV_NAME);
 	if (ret) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(alloc_chrdev_region) ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(alloc_chrdev_region) ret=[%d]",
 						__func__, ret);
 		return ret;
 	}
@@ -3671,7 +3864,7 @@ static int rfs_poll_init(void)
 	if (ret) {
 		unregister_chrdev_region(
 			devid_snfc_rfs_poll, RFS_POLL_DEV_COUNT);
-		FELICA_LOG_ERR("[MFDD] %s ERROR(cdev_add), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(cdev_add), ret=[%d]",
 						__func__, ret);
 		return ret;
 	}
@@ -3684,7 +3877,7 @@ static int rfs_poll_init(void)
 		unregister_chrdev_region(
 			devid_snfc_rfs_poll, RFS_POLL_DEV_COUNT);
 		ret = PTR_ERR(class_dev);
-		FELICA_LOG_ERR("[MFDD] %s ERROR(device_create), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(device_create), ret=[%d]",
 						__func__, ret);
 		return ret;
 	}
@@ -3698,7 +3891,7 @@ static int rfs_poll_init(void)
 	g_rfs_d->open_flag = 0;
 
 	if (g_rfs_d->open_flag) {
-		FELICA_LOG_ERR("[MFDD] %s only one time", __func__);
+		FELICA_PR_ERR(" %s only one time", __func__);
 		return -EBUSY;
 	}
 	g_rfs_d->open_flag = 1;
@@ -3706,7 +3899,7 @@ static int rfs_poll_init(void)
 	ret = gpio_get_value(GPIO_PINID_NFC_RFS_POLL);
 	if (ret < 0) {
 		g_rfs_d->open_flag = 0;
-		FELICA_LOG_ERR("[MFDD] %s ERROR(gpio_get_value), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(gpio_get_value), ret=[%d]",
 						__func__, ret);
 		return -EIO;
 	}
@@ -3722,13 +3915,13 @@ static int rfs_poll_init(void)
 		GPIO_PINID_NFC_RFS_POLL), rfs_poll_irq_handler,
 		irqflag, RFS_POLL_DEV_NAME, (void *)g_rfs_d)) {
 		g_rfs_d->open_flag = 0;
-		FELICA_LOG_ERR("[MFDD] %s ERROR(request_irq), irqflag=[%ld]",
+		FELICA_PR_ERR(" %s ERROR(request_irq), irqflag=[%ld]",
 						__func__, irqflag);
 		return -EIO;
 	}
 	g_rfs_d->irq_handler_done = 0;
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 
 	return ret;
 }
@@ -3740,7 +3933,7 @@ static void rfs_poll_exit(void)
 {
 	struct poll_data *rfs_d = g_rfs_d;
 
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	cancel_delayed_work(&rfs_d->work);
 	free_irq(gpio_to_irq(GPIO_PINID_NFC_RFS_POLL), (void *)rfs_d);
@@ -3751,7 +3944,7 @@ static void rfs_poll_exit(void)
 	unregister_chrdev_region(
 		devid_snfc_rfs_poll, RFS_POLL_DEV_COUNT);
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 }
 
 /*
@@ -3761,16 +3954,20 @@ static int rfs_poll_open(struct inode *inode, struct file *file)
 {
 	int uid_ret = 0;
 
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	uid_ret = snfc_uid_check();
 	if (uid_ret < 0) {
-		FELICA_LOG_ERR
-		    ("[MFDD] %s open fail=[%d]", __func__, uid_ret);
+		FELICA_PR_ERR
+		    (" %s open fail=[%d]", __func__, uid_ret);
+#ifdef SRIB_DIAG_ENABLED
+		FELICA_PR_ERR(" SRIB-Diag enabled just for test\n");
+#else
 		return -EACCES;
+#endif
 	}
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 
 	return 0;
 }
@@ -3781,7 +3978,7 @@ static int rfs_poll_open(struct inode *inode, struct file *file)
 static int rfs_poll_release(struct inode *inode, struct file *file)
 {
 	/* no operation */
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 
 	return 0;
 }
@@ -3794,13 +3991,13 @@ static unsigned int rfs_poll_poll(struct file *file, poll_table *wait)
 	struct poll_data *rfs_d = g_rfs_d;
 	unsigned int mask = 0;
 
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	poll_wait(file, &rfs_d->read_wait, wait);
 	if (rfs_d->irq_handler_done)
 		mask = POLLIN | POLLRDNORM;
 
-	FELICA_LOG_DEBUG("[MFDD] %s END mask = %d", __func__, mask);
+	FELICA_PR_DBG(" %s END mask = %d", __func__, mask);
 
 	return mask;
 }
@@ -3815,26 +4012,26 @@ static ssize_t rfs_poll_read(struct file *file, char __user *buf, size_t len,
 	int ret;
 	char cret;
 
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	if (len < 1) {
-		FELICA_LOG_ERR(
-			"[MFDD] %s length check len = %d", __func__, len);
+		FELICA_PR_ERR(
+			" %s length check len = %d", __func__, len);
 		return -EIO;
 	}
 
 	if (!rfs_d->irq_handler_done) {
 		if (file->f_flags & O_NONBLOCK) {
-			FELICA_LOG_ERR("[MFDD] %s NONBLOCK", __func__);
+			FELICA_PR_ERR(" %s NONBLOCK", __func__);
 			return -EAGAIN;
 		}
-		FELICA_LOG_DEBUG(
-			"[MFDD] %s FeliCa rfs_poll wait irq", __func__);
+		FELICA_PR_INFO(
+			" %s FeliCa rfs_poll wait irq", __func__);
 		ret = wait_event_interruptible(rfs_d->read_wait,
 						rfs_d->irq_handler_done == 1);
 		if (-ERESTARTSYS == ret) {
-			FELICA_LOG_ERR(
-			"[MFDD] %s -EINTR wait_event_interruptible ret=[%d]",
+			FELICA_PR_ERR(
+			" %s -EINTR wait_event_interruptible ret=[%d]",
 			__func__, ret);
 			return -EINTR;
 		}
@@ -3843,7 +4040,7 @@ static ssize_t rfs_poll_read(struct file *file, char __user *buf, size_t len,
 	if (rfs_d->read_error) {
 		rfs_d->irq_handler_done = 0;
 		rfs_d->read_error = 0;
-		FELICA_LOG_ERR("[MFDD] %s rfs_d->read_error = %d",
+		FELICA_PR_ERR(" %s rfs_d->read_error = %d",
 						__func__, rfs_d->read_error);
 		return -EIO;
 	}
@@ -3856,13 +4053,13 @@ static ssize_t rfs_poll_read(struct file *file, char __user *buf, size_t len,
 	len = 1;
 
 	if (copy_to_user(buf, &cret, len)) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(copy_to_user)", __func__);
+		FELICA_PR_ERR(" %s ERROR(copy_to_user)", __func__);
 		return -EFAULT;
 	}
 	rfs_d->irq_handler_done = 0;
 
-	FELICA_LOG_DEBUG(
-		"[MFDD] %s END len = %d, cret = %d",
+	FELICA_PR_DBG(
+		" %s END len = %d, cret = %d",
 		__func__, len, cret);
 
 	return len;
@@ -3893,12 +4090,12 @@ static int cxd2235power_init(void)
 
 	devid_snfc_pon = MKDEV(MISC_MAJOR, 0);
 
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	ret = alloc_chrdev_region(&devid_snfc_pon , 0 , CXD2235_POWER_DEV_COUNT,
 					CXD2235_POWER_DEV_NAME);
 	if (ret) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(alloc_chrdev_region), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(alloc_chrdev_region), ret=[%d]",
 						__func__, ret);
 		return ret;
 	}
@@ -3911,7 +4108,7 @@ static int cxd2235power_init(void)
 	if (ret) {
 		unregister_chrdev_region(
 			devid_snfc_pon, CXD2235_POWER_DEV_COUNT);
-		FELICA_LOG_ERR("[MFDD] %s ERROR(cdev_add), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(cdev_add), ret=[%d]",
 						__func__, ret);
 		return ret;
 	}
@@ -3923,12 +4120,12 @@ static int cxd2235power_init(void)
 		unregister_chrdev_region(
 			devid_snfc_pon, CXD2235_POWER_DEV_COUNT);
 		ret = PTR_ERR(class_dev);
-		FELICA_LOG_ERR("[MFDD] %s ERROR(device_create), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(device_create), ret=[%d]",
 						__func__, ret);
 		return ret;
 	}
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 
 	return ret;
 }
@@ -3938,13 +4135,13 @@ static int cxd2235power_init(void)
  */
 static void cxd2235power_exit(void)
 {
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	device_destroy(felica_class, devid_snfc_pon);
 	cdev_del(&cxd2235power_cdev);
 	unregister_chrdev_region(devid_snfc_pon, CXD2235_POWER_DEV_COUNT);
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 }
 
 /*
@@ -3954,16 +4151,20 @@ static int cxd2235power_open(struct inode *inode, struct file *file)
 {
 	int uid_ret = 0;
 
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	uid_ret = snfc_uid_check();
 	if (uid_ret < 0) {
-		FELICA_LOG_ERR
-		    ("[MFDD] %s open fail=[%d]", __func__, uid_ret);
+		FELICA_PR_ERR
+		    (" %s open fail=[%d]", __func__, uid_ret);
+#ifdef SRIB_DIAG_ENABLED
+		FELICA_PR_ERR(" SRIB-Diag enabled just for test\n");
+#else
 		return -EACCES;
+#endif
 	}
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 	return 0;
 }
 
@@ -3973,7 +4174,7 @@ static int cxd2235power_open(struct inode *inode, struct file *file)
 static int cxd2235power_release(struct inode *inode, struct file *file)
 {
 	/* no operation */
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 
 	return 0;
 }
@@ -3986,16 +4187,16 @@ static ssize_t cxd2235power_write(struct file *file, const char __user *data,
 {
 	char on;
 
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	if (len < 1) {
-		FELICA_LOG_ERR(
-			"[MFDD] %s length check len = %d", __func__, len);
+		FELICA_PR_ERR(
+			" %s length check len = %d", __func__, len);
 		return -EIO;
 	}
 	len = 1;
 	if (copy_from_user(&on, data, len)) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(copy_from_user)", __func__);
+		FELICA_PR_ERR(" %s ERROR(copy_from_user)", __func__);
 		return -EFAULT;
 	}
 
@@ -4003,11 +4204,15 @@ static ssize_t cxd2235power_write(struct file *file, const char __user *data,
 	gpio_set_value(GPIO_PINID_NFC_PON , on);
 #elif defined(CONFIG_ARCH_APQ8064)
 	ice_gpiox_set(GPIO_PINID_NFC_PON, on);
-#elif defined(CONFIG_ARCH_MSM8974)
+#elif defined(CONFIG_ARCH_MSM8974) || defined(CONFIG_ARCH_MSM8974PRO)
+#if defined(CONFIG_MACH_KLTE_KDI) || defined(CONFIG_MACH_KLTE_DCM) || defined(CONFIG_MACH_KLTE_SBM)
+	gpio_set_value(gfelica_pon_pin , on);	// PON is same for FELICA and NFC.
+#else
 	gpio_set_value(GPIO_PINID_NFC_PON , on);
+#endif	// CONFIG_MACH_KLTE
 #endif
 
-	FELICA_LOG_DEBUG("[MFDD] %s END on = %d", __func__, on);
+	FELICA_PR_DBG(" %s END on = %d", __func__, on);
 
 	return len;
 }
@@ -4034,14 +4239,14 @@ static void snfc_rfs_init(void)
 {
 	int ret;
 	struct device *device_snfc_rfs;
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	devid_snfc_rfs = MKDEV(FELICA_MAJOR, FELICA_MINOR);
 	ret =
 	    alloc_chrdev_region(&devid_snfc_rfs, FELICA_BASEMINOR,
 				FELICA_MINOR_COUNT, SNFC_RFS_NAME);
 	if (ret < 0) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(alloc_chrdev_region), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(alloc_chrdev_region), ret=[%d]",
 			       __func__, ret);
 		return;
 	}
@@ -4050,7 +4255,7 @@ static void snfc_rfs_init(void)
 	ret = cdev_add(&cdev_snfc_rfs, devid_snfc_rfs, FELICA_MINOR_COUNT);
 	if (ret < 0) {
 		unregister_chrdev_region(devid_snfc_rfs, FELICA_MINOR_COUNT);
-		FELICA_LOG_ERR("[MFDD] %s ERROR(cdev_add), ret=[%d]", __func__,
+		FELICA_PR_ERR(" %s ERROR(cdev_add), ret=[%d]", __func__,
 			       ret);
 		return;
 	}
@@ -4061,11 +4266,11 @@ static void snfc_rfs_init(void)
 	if (IS_ERR(device_snfc_rfs)) {
 		cdev_del(&cdev_snfc_rfs);
 		unregister_chrdev_region(devid_snfc_rfs, FELICA_MINOR_COUNT);
-		FELICA_LOG_ERR("[MFDD] %s ERROR(device_create)", __func__);
+		FELICA_PR_ERR(" %s ERROR(device_create)", __func__);
 		return;
 	}
 
-	FELICA_LOG_DEBUG("[MFDD] %s END, major=[%d], minor=[%d]", __func__,
+	FELICA_PR_DBG(" %s END, major=[%d], minor=[%d]", __func__,
 			 MAJOR(devid_snfc_rfs), MINOR(devid_snfc_rfs));
 }
 
@@ -4074,13 +4279,11 @@ static void snfc_rfs_init(void)
  */
 static void snfc_rfs_exit(void)
 {
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	device_destroy(felica_class, devid_snfc_rfs);
 	cdev_del(&cdev_snfc_rfs);
 	unregister_chrdev_region(devid_snfc_rfs, FELICA_MINOR_COUNT);
-
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
 }
 
 /*
@@ -4090,16 +4293,20 @@ static int snfc_rfs_open(struct inode *inode, struct file *file)
 {
 	int uid_ret = 0;
 
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	uid_ret = snfc_uid_check();
 	if (uid_ret < 0) {
-		FELICA_LOG_ERR
-		    ("[MFDD] %s open fail=[%d]", __func__, uid_ret);
+		FELICA_PR_ERR
+		    (" %s open fail=[%d]", __func__, uid_ret);
+#ifdef SRIB_DIAG_ENABLED
+		FELICA_PR_ERR(" SRIB-Diag enabled just for test\n");
+#else
 		return -EACCES;
+#endif
 	}
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 	return 0;
 }
 
@@ -4109,7 +4316,7 @@ static int snfc_rfs_open(struct inode *inode, struct file *file)
 static int snfc_rfs_close(struct inode *inode, struct file *file)
 {
 	/* no operation */
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 	return 0;
 }
 
@@ -4121,33 +4328,33 @@ static ssize_t snfc_rfs_read(struct file *file, char __user *buf, \
 {
 	int ret;
 	char retparam;
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	ret = gpio_get_value(GPIO_PINID_SNFC_RFS);
 
 	if (ret == GPIO_VALUE_HIGH) {
 		retparam = SNFC_RFS_STANDBY;
-		FELICA_LOG_DEBUG("[MFDD] Carrier-Wave Status is [%d][standby]",
+		FELICA_PR_INFO(" Carrier-Wave Status is [%d][standby]",
 				 retparam);
 	} else if (ret == GPIO_VALUE_LOW) {
 		retparam = SNFC_RFS_DETECTED;
-		FELICA_LOG_DEBUG("[MFDD] Carrier-Wave Status is [%d][detected]",
+		FELICA_PR_INFO(" Carrier-Wave Status is [%d][detected]",
 				 retparam);
 	} else {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(gpio_get_value), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(gpio_get_value), ret=[%d]",
 			       __func__, ret);
 		return -EIO;
 	}
 
 	ret = copy_to_user(buf, &retparam, SNFC_RFS_DATA_LEN);
 	if (ret != 0) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(copy_to_user), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(copy_to_user), ret=[%d]",
 			       __func__, ret);
 		return -EFAULT;
 	}
 	*ppos += 1;
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 	return SNFC_RFS_DATA_LEN;
 }
 
@@ -4174,13 +4381,13 @@ static void snfc_uart_init(void)
 {
 	int ret;
 	struct device *device_snfc;
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	devid_snfc = MKDEV(FELICA_MAJOR, FELICA_MINOR);
 	ret = alloc_chrdev_region(&devid_snfc, FELICA_BASEMINOR,
 				FELICA_MINOR_COUNT, SNFC_UART_NAME);
 	if (ret < 0) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(alloc_chrdev_region), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(alloc_chrdev_region), ret=[%d]",
 			       __func__, ret);
 		return;
 	}
@@ -4189,7 +4396,7 @@ static void snfc_uart_init(void)
 	ret = cdev_add(&cdev_snfc, devid_snfc, FELICA_MINOR_COUNT);
 	if (ret < 0) {
 		unregister_chrdev_region(devid_snfc, FELICA_MINOR_COUNT);
-		FELICA_LOG_ERR("[MFDD] %s ERROR(cdev_add), ret=[%d]", __func__,
+		FELICA_PR_ERR(" %s ERROR(cdev_add), ret=[%d]", __func__,
 			       ret);
 		return;
 	}
@@ -4199,11 +4406,11 @@ static void snfc_uart_init(void)
 	if (IS_ERR(device_snfc)) {
 		cdev_del(&cdev_snfc);
 		unregister_chrdev_region(devid_snfc, FELICA_MINOR_COUNT);
-		FELICA_LOG_ERR("[MFDD] %s ERROR(device_create)", __func__);
+		FELICA_PR_ERR(" %s ERROR(device_create)", __func__);
 		return;
 	}
 
-	FELICA_LOG_DEBUG("[MFDD] %s END, major=[%d], minor=[%d]", __func__,
+	FELICA_PR_DBG(" %s END, major=[%d], minor=[%d]", __func__,
 			 MAJOR(devid_snfc), MINOR(devid_snfc));
 }
 
@@ -4212,13 +4419,11 @@ static void snfc_uart_init(void)
  */
 static void snfc_uart_exit(void)
 {
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	device_destroy(felica_class, devid_snfc);
 	cdev_del(&cdev_snfc);
 	unregister_chrdev_region(devid_snfc, FELICA_MINOR_COUNT);
-
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
 }
 
 /*
@@ -4231,26 +4436,30 @@ static int snfc_uart_open(struct inode *inode, struct file *file)
 	struct file *tty;
 	int ret = 0;
 
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	/* check NFC uid */
 	uid = __task_cred(current)->uid;
 	if (uid != gnfc_uid) {
-		FELICA_LOG_ERR(\
-		"[MFDD] %s END -EACCES, uid=[%d], gnfc_uid=[%d]\n", __func__, uid,gnfc_uid);
+		FELICA_PR_ERR(\
+		" %s END -EACCES, uid=[%d], gnfc_uid=[%d]\n", __func__, uid,gnfc_uid);
+#ifdef SRIB_DIAG_ENABLED
+		FELICA_PR_ERR(" SRIB-Diag enabled just for test\n");
+#else
 		return -EACCES;
+#endif
 	}
 
 	file->private_data = dev_sem;
 	if (down_interruptible(&dev_sem->felica_sem)) {
-		FELICA_LOG_ERR(\
-		"[MFDD] %s END, ERR[ERESTARTSYS]\n", __func__);
+		FELICA_PR_ERR(\
+		" %s END, ERR[ERESTARTSYS]\n", __func__);
 		return -ERESTARTSYS;
 	}
 
 	if (pg_tty != NULL) {
-		FELICA_LOG_ERR(
-			"[MFDD] %s multi open result=%d", __func__, ret);
+		FELICA_PR_ERR(
+			" %s multi open result=%d", __func__, ret);
 		gnfc_open_cnt++;
 		up(&dev_sem->felica_sem);
 		return ret;
@@ -4262,8 +4471,8 @@ static int snfc_uart_open(struct inode *inode, struct file *file)
 		pg_tty = NULL;
 		ret = PTR_ERR(tty);
 		up(&dev_sem->felica_sem);
-		FELICA_LOG_ERR(
-			"[MFDD] %s filp_open result = %d", __func__, ret);
+		FELICA_PR_ERR(
+			" %s filp_open result = %d", __func__, ret);
 		return ret;
 	}
 
@@ -4271,7 +4480,7 @@ static int snfc_uart_open(struct inode *inode, struct file *file)
 	gnfc_open_cnt++;
 	ret = 0;
 	up(&dev_sem->felica_sem);
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 
 	return ret;
 }
@@ -4283,11 +4492,11 @@ static int snfc_uart_close(struct inode *inode, struct file *file)
 {
 	struct file *tty;
 
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	if (down_interruptible(&dev_sem->felica_sem)) {
-		FELICA_LOG_ERR(\
-		"[MFDD] %s END, ERR[ERESTARTSYS]\n", __func__);
+		FELICA_PR_ERR(\
+		" %s END, ERR[ERESTARTSYS]\n", __func__);
 		return -ERESTARTSYS;
 	}
 
@@ -4302,7 +4511,7 @@ static int snfc_uart_close(struct inode *inode, struct file *file)
 	}
 
 	up(&dev_sem->felica_sem);
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 
 	return 0;
 }
@@ -4316,11 +4525,11 @@ static ssize_t snfc_uart_read(struct file *file, char __user *buf,\
 	struct file *tty;
 	ssize_t ret = -ENOSYS;
 
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	if (down_interruptible(&dev_sem->felica_sem)) {
-		FELICA_LOG_ERR(\
-		"[MFDD] %s END, ERR[ERESTARTSYS]\n", __func__);
+		FELICA_PR_ERR(\
+		" %s END, ERR[ERESTARTSYS]\n", __func__);
 		return -ERESTARTSYS;
 	}
 
@@ -4330,7 +4539,7 @@ static ssize_t snfc_uart_read(struct file *file, char __user *buf,\
 
 	up(&dev_sem->felica_sem);
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 
 	return ret;
 }
@@ -4344,11 +4553,11 @@ static ssize_t snfc_uart_write(struct file *file, const char __user *data, \
 	struct file *tty;
 	ssize_t ret = -ENOSYS;
 
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	if (down_interruptible(&dev_sem->felica_sem)) {
-		FELICA_LOG_ERR(\
-		"[MFDD] %s END, ERR[ERESTARTSYS]\n", __func__);
+		FELICA_PR_ERR(\
+		" %s END, ERR[ERESTARTSYS]\n", __func__);
 		return -ERESTARTSYS;
 	}
 
@@ -4358,7 +4567,7 @@ static ssize_t snfc_uart_write(struct file *file, const char __user *data, \
 
 	up(&dev_sem->felica_sem);
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 
 	return ret;
 }
@@ -4372,11 +4581,11 @@ static long snfc_uart_ioctl(struct file *file, unsigned int cmd, \
 	struct file *tty;
 	ssize_t ret = -ENOSYS;
 
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	if (down_interruptible(&dev_sem->felica_sem)) {
-		FELICA_LOG_ERR(\
-		"[MFDD] %s END, ERR[ERESTARTSYS]\n", __func__);
+		FELICA_PR_ERR(\
+		" %s END, ERR[ERESTARTSYS]\n", __func__);
 		return -ERESTARTSYS;
 	}
 
@@ -4386,7 +4595,7 @@ static long snfc_uart_ioctl(struct file *file, unsigned int cmd, \
 
 	up(&dev_sem->felica_sem);
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 
 	return ret;
 }
@@ -4400,7 +4609,7 @@ static unsigned int snfc_uart_poll(struct file *file,
 	struct file *tty;
 	unsigned int ret = 0;
 
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	if (down_interruptible(&dev_sem->felica_sem))
 		return 0;
@@ -4412,7 +4621,7 @@ static unsigned int snfc_uart_poll(struct file *file,
 
 	up(&dev_sem->felica_sem);
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 
 	return ret;
 }
@@ -4440,7 +4649,7 @@ static void uartcc_init(void)
 	int ret;
 	struct device *device_uartcc;
 
-	FELICA_LOG_DEBUG("[MFDD] %s START\n", __func__);
+	FELICA_PR_DBG(" %s START\n", __func__);
 
 	devid_uartcc = MKDEV(UARTCC_MAJOR, UARTCC_MINOR);
 
@@ -4449,8 +4658,8 @@ static void uartcc_init(void)
 				UARTCC_MINOR_COUNT, UARTCC_NAME);
 
 	if (ret < 0) {
-		FELICA_LOG_ERR(
-			"[MFDD] %s ERROR(alloc_chrdev_region), ret=[%d]\n",
+		FELICA_PR_ERR(
+			" %s ERROR(alloc_chrdev_region), ret=[%d]\n",
 			__func__, ret);
 		return;
 	}
@@ -4459,8 +4668,8 @@ static void uartcc_init(void)
 	ret = cdev_add(&cdev_uartcc, devid_uartcc, UARTCC_MINOR_COUNT);
 	if (ret < 0) {
 		unregister_chrdev_region(devid_uartcc, UARTCC_MINOR_COUNT);
-		FELICA_LOG_ERR(
-			"[MFDD] %s ERROR(cdev_add), ret=[%d]\n", __func__,
+		FELICA_PR_ERR(
+			" %s ERROR(cdev_add), ret=[%d]\n", __func__,
 			ret);
 		return;
 	}
@@ -4471,7 +4680,7 @@ static void uartcc_init(void)
 	if (IS_ERR(device_uartcc)) {
 		cdev_del(&cdev_uartcc);
 		unregister_chrdev_region(devid_uartcc, UARTCC_MINOR_COUNT);
-		FELICA_LOG_ERR("[MFDD] %s ERROR(device_create)\n", __func__);
+		FELICA_PR_ERR(" %s ERROR(device_create)\n", __func__);
 		return;
 	}
 
@@ -4479,13 +4688,13 @@ static void uartcc_init(void)
 	if (!guartcc_sem) {
 		cdev_del(&cdev_uartcc);
 		unregister_chrdev_region(devid_uartcc, UARTCC_MINOR_COUNT);
-		FELICA_LOG_ERR(
-			"[MFDD] %s ERROR(guartcc_sem malloc)\n", __func__);
+		FELICA_PR_ERR(
+			" %s ERROR(guartcc_sem malloc)\n", __func__);
 		return;
 	}
 	sema_init(&guartcc_sem->felica_sem, 1);
 
-	FELICA_LOG_DEBUG("[MFDD] %s END, major=[%d], minor=[%d]\n", __func__, \
+	FELICA_PR_DBG(" %s END, major=[%d], minor=[%d]\n", __func__, \
 			 MAJOR(devid_uartcc), MINOR(devid_uartcc));
 }
 
@@ -4494,14 +4703,14 @@ static void uartcc_init(void)
  */
 static void uartcc_exit(void)
 {
-	FELICA_LOG_DEBUG("[MFDD] %s START\n", __func__);
+	FELICA_PR_DBG(" %s START\n", __func__);
 
 	kfree(guartcc_sem);
 	device_destroy(felica_class, devid_uartcc);
 	cdev_del(&cdev_uartcc);
 	unregister_chrdev_region(devid_uartcc, UARTCC_MINOR_COUNT);
 
-	FELICA_LOG_DEBUG("[MFDD] %s END\n", __func__);
+	FELICA_PR_DBG(" %s END\n", __func__);
 }
 
 /*
@@ -4510,7 +4719,7 @@ static void uartcc_exit(void)
 static int uartcc_open(struct inode *inode, struct file *file)
 {
 	/* no operation */
-	FELICA_LOG_DEBUG("[MFDD] %s END\n", __func__);
+	FELICA_PR_DBG(" %s END\n", __func__);
 	return 0;
 }
 
@@ -4520,7 +4729,7 @@ static int uartcc_open(struct inode *inode, struct file *file)
 static int uartcc_close(struct inode *inode, struct file *file)
 {
 	/* no operation */
-	FELICA_LOG_DEBUG("[MFDD] %s END\n", __func__);
+	FELICA_PR_DBG(" %s END\n", __func__);
 	return 0;
 }
 
@@ -4532,13 +4741,13 @@ static long uartcc_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	int ret = 0;
 	int user_buf = 0;
 
-	FELICA_LOG_DEBUG("[MFDD] %s START, cmd=[%d]\n", __func__, cmd);
+	FELICA_PR_DBG(" %s START, cmd=[%d]\n", __func__, cmd);
 
 	switch (cmd) {
 	case UARTCC_SET_NFC_START_REQ:
 		if (down_interruptible(&guartcc_sem->felica_sem)) {
-			FELICA_LOG_ERR(
-				"[MFDD] %s ERROR(down_interruptible)\n",
+			FELICA_PR_ERR(
+				" %s ERROR(down_interruptible)\n",
 				__func__);
 			return -ERESTARTSYS;
 		}
@@ -4546,8 +4755,8 @@ static long uartcc_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		ret = copy_from_user(
 			&user_buf, (void __user *)arg, sizeof(user_buf));
 		if (ret != 0) {
-			FELICA_LOG_ERR
-			    ("[MFDD] %s ERROR(copy_from_user), ret=[%d]\n",
+			FELICA_PR_ERR
+			    (" %s ERROR(copy_from_user), ret=[%d]\n",
 			     __func__, ret);
 			up(&guartcc_sem->felica_sem);
 			return -EFAULT;
@@ -4556,7 +4765,7 @@ static long uartcc_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		guartcc_start_req = user_buf;
 		/* felica start request */
 		uartcc_felica_start_request();
-		FELICA_LOG_DEBUG("[MFDD] %s Set nfc start request=[%d]\n",
+		FELICA_PR_INFO(" %s Set nfc start request=[%d]\n",
 			__func__, guartcc_start_req);
 
 #ifdef P2P_FPGA_ALWAYS_ON
@@ -4571,15 +4780,15 @@ static long uartcc_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 			set_fpga_felica_flag(0);
 			break;
 		}
-		FELICA_LOG_DEBUG("[MFDD] %s [fpga]felica_status=[%d]\n",
+		FELICA_PR_INFO(" %s [fpga]felica_status=[%d]\n",
 			__func__, felica_status);
 #endif /* P2P_FPGA_ALWAYS_ON */
 		up(&guartcc_sem->felica_sem);
 		break;
 	case UARTCC_GET_FELICA_STATUS:
 		if (down_interruptible(&guartcc_sem->felica_sem)) {
-			FELICA_LOG_ERR(
-				"[MFDD] %s ERROR(down_interruptible)\n", \
+			FELICA_PR_ERR(
+				" %s ERROR(down_interruptible)\n", \
 				__func__);
 			return -ERESTARTSYS;
 		}
@@ -4588,27 +4797,27 @@ static long uartcc_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		ret = copy_to_user(
 			(int __user *)arg, &user_buf, sizeof(user_buf));
 		if (ret != 0) {
-			FELICA_LOG_ERR
-			    ("[MFDD] %s ERROR(copy_to_user), ret=[%d]\n", \
+			FELICA_PR_ERR
+			    (" %s ERROR(copy_to_user), ret=[%d]\n", \
 			     __func__, ret);
 			up(&guartcc_sem->felica_sem);
 			return -EFAULT;
 		}
-		FELICA_LOG_DEBUG("[MFDD] %s Get felica status=[%d]\n", \
+		FELICA_PR_INFO(" %s Get felica status=[%d]\n", \
 			__func__, guartcc_felica_status);
 		up(&guartcc_sem->felica_sem);
 		break;
 	case UARTCC_SET_FELICA_STATUS:
 	case UARTCC_GET_NFC_START_REQ:
-		FELICA_LOG_DEBUG("[MFDD] %s No operation cmd\n", __func__);
+		FELICA_PR_INFO(" %s No operation cmd\n", __func__);
 		break;
 	default:
-		FELICA_LOG_ERR("[MFDD] %s ERROR(unknown command)\n", __func__);
+		FELICA_PR_ERR(" %s ERROR(unknown command)\n", __func__);
 		ret = -EIO;
 		break;
 	}
 
-	FELICA_LOG_DEBUG("[MFDD] %s END\n", __func__);
+	FELICA_PR_DBG(" %s END\n", __func__);
 	return ret;
 }
 
@@ -4619,8 +4828,8 @@ static void uartcc_felica_start_request(void)
 {
 	struct icc_poll_data *felica_poll = &gfelica_poll_data;
 
-	FELICA_LOG_DEBUG("[MFDD] %s START\n", __func__);
-	FELICA_LOG_DEBUG("[MFDD] %s start_req=[%d], felica_status=[%d]\n", \
+	FELICA_PR_DBG(" %s START\n", __func__);
+	FELICA_PR_INFO(" %s start_req=[%d], felica_status=[%d]\n", \
 		__func__, guartcc_start_req, guartcc_felica_status);
 
 	/* wake up condition
@@ -4632,11 +4841,11 @@ static void uartcc_felica_start_request(void)
 		UARTCC_FELICA_STATAUS_WAIT_POLLING)) {
 		felica_poll->rsp_done = 1;
 		wake_up_interruptible(&felica_poll->rsp_wait);
-		FELICA_LOG_DEBUG(
-			"[MFDD] %s wake up felica start event\n", __func__);
+		FELICA_PR_INFO(
+			" %s wake up felica start event\n", __func__);
 	}
 
-	FELICA_LOG_DEBUG("[MFDD] %s END\n", __func__);
+	FELICA_PR_DBG(" %s END\n", __func__);
 }
 
 /*
@@ -4644,13 +4853,13 @@ static void uartcc_felica_start_request(void)
  */
 static void uartcc_set_felica_status(int status)
 {
-	FELICA_LOG_DEBUG("[MFDD] %s START, status=[%d]\n", __func__, status);
+	FELICA_PR_DBG(" %s START, status=[%d]\n", __func__, status);
 
 	guartcc_felica_status = status;
 
-	FELICA_LOG_DEBUG("[MFDD] %s guartcc_felica_status=[%d]\n",
+	FELICA_PR_INFO(" %s guartcc_felica_status=[%d]\n",
 			__func__, guartcc_felica_status);
-	FELICA_LOG_DEBUG("[MFDD] %s END\n", __func__);
+	FELICA_PR_DBG(" %s END\n", __func__);
 }
 
 /*
@@ -4658,10 +4867,18 @@ static void uartcc_set_felica_status(int status)
  */
 static int uartcc_get_felica_status(void)
 {
-	FELICA_LOG_DEBUG("[MFDD] %s START, guartcc_felica_status=[%d]\n", \
+	FELICA_PR_DBG(" %s START, guartcc_felica_status=[%d]\n", \
 			__func__, guartcc_felica_status);
-	FELICA_LOG_DEBUG("[MFDD] %s END\n", __func__);
+	FELICA_PR_DBG(" %s END\n", __func__);
+#if defined(CONFIG_MACH_KLTE_KDI)
+	if(gfelica_uim_mon == 1) {
+		FELICA_PR_ERR(" %s gfelica_uim_mon=%d\n", __func__, gfelica_uim_mon);
+		return UARTCC_FELICA_STATAUS_IN_INIT;
+	}
 	return guartcc_felica_status;
+#else
+	return guartcc_felica_status;
+#endif
 }
 
 /*
@@ -4672,19 +4889,19 @@ static unsigned int uartcc_is_idle_status(void)
 	int ret = 0;
 	int flc_cts = 0;
 
-	FELICA_LOG_DEBUG("[MFDD] %s START\n", __func__);
+	FELICA_PR_DBG(" %s START\n", __func__);
 
 	flc_cts = uartcc_get_felica_status();
 
 	if (!flc_cts) {	/* idle */
-		FELICA_LOG_DEBUG("[MFDD] %s felica status is idle\n", __func__);
+		FELICA_PR_INFO(" %s felica status is idle\n", __func__);
 		ret = 1;
 	} else {			/* else state */
-		FELICA_LOG_DEBUG("[MFDD] %s felica status isn't idle=[%d]\n", \
+		FELICA_PR_INFO(" %s felica status isn't idle=[%d]\n", \
 				__func__, flc_cts);
 	}
 
-	FELICA_LOG_DEBUG("[MFDD] %s END\n", __func__);
+	FELICA_PR_DBG(" %s END\n", __func__);
 	return ret;
 }
 /******************************************************************************
@@ -4710,7 +4927,7 @@ static void uicc_init(void)
 	int ret;
 	struct device *device_uicc;
 
-	FELICA_LOG_DEBUG("[MFDD] %s START\n", __func__);
+	FELICA_PR_DBG(" %s START\n", __func__);
 
 	devid_uicc = MKDEV(UICC_MAJOR, UICC_MINOR);
 
@@ -4719,8 +4936,8 @@ static void uicc_init(void)
 				UICC_MINOR_COUNT, UICC_NAME);
 
 	if (ret < 0) {
-		FELICA_LOG_ERR(
-			"[MFDD] %s ERROR(alloc_chrdev_region), ret=[%d]\n",
+		FELICA_PR_ERR(
+			" %s ERROR(alloc_chrdev_region), ret=[%d]\n",
 			__func__, ret);
 		return;
 	}
@@ -4729,8 +4946,8 @@ static void uicc_init(void)
 	ret = cdev_add(&cdev_uicc, devid_uicc, UICC_MINOR_COUNT);
 	if (ret < 0) {
 		unregister_chrdev_region(devid_uicc, UICC_MINOR_COUNT);
-		FELICA_LOG_ERR(
-			"[MFDD] %s ERROR(cdev_add), ret=[%d]\n", __func__,
+		FELICA_PR_ERR(
+			" %s ERROR(cdev_add), ret=[%d]\n", __func__,
 			ret);
 		return;
 	}
@@ -4741,12 +4958,12 @@ static void uicc_init(void)
 	if (IS_ERR(device_uicc)) {
 		cdev_del(&cdev_uicc);
 		unregister_chrdev_region(devid_uicc, UICC_MINOR_COUNT);
-		FELICA_LOG_ERR("[MFDD] %s ERROR(device_create)\n", __func__);
+		FELICA_PR_ERR(" %s ERROR(device_create)\n", __func__);
 		return;
 	}
 
 
-	FELICA_LOG_DEBUG("[MFDD] %s END, major=[%d], minor=[%d]\n", __func__, \
+	FELICA_PR_DBG(" %s END, major=[%d], minor=[%d]\n", __func__, \
 			 MAJOR(devid_uicc), MINOR(devid_uicc));
 }
 
@@ -4755,13 +4972,13 @@ static void uicc_init(void)
  */
 static void uicc_exit(void)
 {
-	FELICA_LOG_DEBUG("[MFDD] %s START\n", __func__);
+	FELICA_PR_DBG(" %s START\n", __func__);
 
 	device_destroy(felica_class, devid_uicc);
 	cdev_del(&cdev_uicc);
 	unregister_chrdev_region(devid_uicc, UICC_MINOR_COUNT);
 
-	FELICA_LOG_DEBUG("[MFDD] %s END\n", __func__);
+	FELICA_PR_DBG(" %s END\n", __func__);
 }
 
 /*
@@ -4770,7 +4987,7 @@ static void uicc_exit(void)
 static int uicc_open(struct inode *inode, struct file *file)
 {
 	/* no operation */
-	FELICA_LOG_DEBUG("[MFDD] %s END\n", __func__);
+	FELICA_PR_DBG(" %s END\n", __func__);
 	return 0;
 }
 
@@ -4780,7 +4997,7 @@ static int uicc_open(struct inode *inode, struct file *file)
 static int uicc_close(struct inode *inode, struct file *file)
 {
 	/* no operation */
-	FELICA_LOG_DEBUG("[MFDD] %s END\n", __func__);
+	FELICA_PR_DBG(" %s END\n", __func__);
 	return 0;
 }
 
@@ -4797,13 +5014,13 @@ static ssize_t uicc_read(struct file *file, char __user *buf, \
 
 	ret = copy_to_user(buf, &read_buff, FELICA_UICC_DATA_LEN);
 	if (ret != 0) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(copy_to_user), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(copy_to_user), ret=[%d]",
 			       __func__, ret);
 		return -EFAULT;
 	}
 	*ppos += 1;
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 	return FELICA_UICC_DATA_LEN;
 }
 
@@ -4816,8 +5033,8 @@ static long uicc_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 
 	struct regulator *reg_l9;
 
-	FELICA_LOG_DEBUG("[MFDD] %s START, cmd=[%d]\n", __func__, cmd);
-	FELICA_LOG_DEBUG("[MFDD] %s START, system_rev=[%d] UICC_rev[%d]\n",
+	FELICA_PR_DBG(" %s START, cmd=[%d]\n", __func__, cmd);
+	FELICA_PR_INFO(" %s START, system_rev=[%d] UICC_rev[%d]\n",
 		__func__, system_rev,g_uicc_initrev);
 
 	switch (cmd) {
@@ -4826,38 +5043,38 @@ static long uicc_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		{
 			reg_l9 = regulator_get(NULL, "8941_l9");
 			if (IS_ERR(reg_l9)) {
-				FELICA_LOG_ERR("[MFDD] %s 2 could not get 8917_l9, rc = %ld\n",
+				FELICA_PR_ERR(" %s 2 could not get 8917_l9, rc = %ld\n",
 				__func__, PTR_ERR(reg_l9));
 				return UICC_ERROR;
 			}
-			FELICA_LOG_DEBUG("[MFDD] %s regulator_get, reg_l9 OK]", __func__);
+			FELICA_PR_INFO(" %s regulator_get, reg_l9 OK]", __func__);
 
 			ret = regulator_set_voltage(reg_l9, 1800000, 1800000);
 			if (ret) { 
-				FELICA_LOG_ERR(
-				"[MFDD] %s ERROR(regulator_set_voltage 1.8V~1.8V), ret=[%d]"
+				FELICA_PR_ERR(
+				" %s ERROR(regulator_set_voltage 1.8V~1.8V), ret=[%d]"
 				, __func__, ret);
 				return UICC_ERROR;
 			}
-			FELICA_LOG_DEBUG(
-				"[MFDD] %s regulator_set_voltage(1.8v~1.8v), ret=[%d]"
+			FELICA_PR_INFO(
+				" %s regulator_set_voltage(1.8v~1.8v), ret=[%d]"
 				, __func__, ret);
 
 			if (regulator_is_enabled(reg_l9)) {
-				FELICA_LOG_DEBUG(
-					"[MFDD] %s L9(0V) is enabled. No need to do anything\n"
+				FELICA_PR_INFO(
+					" %s L9(0V) is enabled. No need to do anything\n"
 					, __func__);
 			} else {
 				ret = regulator_enable(reg_l9);
 				if (ret) {
-					FELICA_LOG_ERR(
-						"[MFDD] %s regulator_enable l9 failed, rc=%d\n"
+					FELICA_PR_ERR(
+						" %s regulator_enable l9 failed, rc=%d\n"
 						, __func__, ret);
 					return UICC_ERROR;
 				}
 			}
-			FELICA_LOG_DEBUG(
-				"[MFDD] %s regulator_enable, ret=[%d]", __func__, ret);  
+			FELICA_PR_INFO(
+				" %s regulator_enable, ret=[%d]", __func__, ret);  
 		}
 		break;
 
@@ -4866,24 +5083,24 @@ static long uicc_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		{
 			reg_l9 = regulator_get(NULL, "8941_l9");
 			if (IS_ERR(reg_l9)) {
-				FELICA_LOG_ERR("[MFDD] %s could not get 8917_l9, rc = %ld\n",
+				FELICA_PR_ERR(" %s could not get 8917_l9, rc = %ld\n",
 				__func__, PTR_ERR(reg_l9));
 				return UICC_ERROR;
 			}
 
-			FELICA_LOG_DEBUG("[MFDD] %s regulator_get, reg_l9 OK]", __func__);
+			FELICA_PR_INFO(" %s regulator_get, reg_l9 OK]", __func__);
 
 			if (regulator_is_enabled(reg_l9)) {
-					FELICA_LOG_DEBUG(
-						"[MFDD] %s L9(0V) is enabled already\n",__func__);
+					FELICA_PR_INFO(
+						" %s L9(0V) is enabled already\n",__func__);
 				if (regulator_disable(reg_l9)) {
-						FELICA_LOG_ERR
-						("[MFDD] %s disable l9 failed\n", __func__);
+						FELICA_PR_ERR
+						(" %s disable l9 failed\n", __func__);
 					return UICC_ERROR;
 				}
 			} else {
-					FELICA_LOG_ERR
-					("[MFDD] %s regulator l9 already disabled", __func__);
+					FELICA_PR_ERR
+					(" %s regulator l9 already disabled", __func__);
 				return UICC_ERROR;
 			}
 		}
@@ -4892,20 +5109,35 @@ static long uicc_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		g_uicc_sts = 0x01;	// permissive mode issue
 		if(system_rev >= g_uicc_initrev)
 		{
+#if defined(CONFIG_MACH_KLTE_KDI)
+			FELICA_PR_ERR(" %s Select Power Supply control is missing in K-KDDI! This makes kernel panic! gfelica_sps_pin=%d\n", __func__, gfelica_sps_pin);
+#else
 			gpio_set_value(gfelica_sps_pin, GPIO_VALUE_HIGH);
-			FELICA_LOG_DEBUG(
-				"[MFDD] %s Select Power Supply -> HI [%d][%d]\n", __func__,
+			FELICA_PR_INFO(
+				" %s Select Power Supply -> HI [%d][%d]\n", __func__,
 				gfelica_sps_pin, gpio_get_value(gfelica_sps_pin));
+#endif			
 		}
 
 		break;
+
+	case UICC_POWER_UIM_MON:
+#if defined(CONFIG_MACH_KLTE_KDI)
+		FELICA_PR_INFO(" %s UICC_POWER_UIM_MON! make PON always high!\n", __func__);
+		gfelica_uim_mon = 1;
+		gpio_set_value(gfelica_pon_pin, GPIO_VALUE_HIGH);
+#else
+		FELICA_PR_ERR(" %s UICC_POWER_UIM_MON! this is only for K-KDDI\n", __func__);
+#endif			
+		break;
+
 	default:
-		FELICA_LOG_ERR("[MFDD] %s Undefine Paramater [%d]", __func__, cmd);
+		FELICA_PR_ERR(" %s Undefine Paramater [%d]", __func__, cmd);
 		return UICC_ERROR;
 		break;
 	}
 
-	FELICA_LOG_DEBUG("[MFDD] %s END\n", __func__);
+	FELICA_PR_DBG(" %s END\n", __func__);
 	return UICC_SUCCESS;
 }
 
@@ -4917,14 +5149,14 @@ static long uicc_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
  */
 static void snfc_register_device(void)
 {
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	intu_poll_init();
 	schedule_delayed_work(&g_intu_d->work, msecs_to_jiffies(10));
 	rfs_poll_init();
 	schedule_delayed_work(&g_rfs_d->work, msecs_to_jiffies(10));
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 }
 
 /*
@@ -4932,7 +5164,7 @@ static void snfc_register_device(void)
  */
 static void snfc_deregister_device(void)
 {
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	available_poll_exit();
 	intu_poll_exit();
@@ -4941,7 +5173,7 @@ static void snfc_deregister_device(void)
 	hsel_exit();
 	cxd2235power_exit();
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 }
 
 /*
@@ -4964,9 +5196,9 @@ static ssize_t snfc_cen_sts_init(void)
 	read_msgs[1].addr = gi2c_address;
 	read_msgs[1].buf = &read_buff;
 
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 	if (felica_i2c_client == NULL) {
-		FELICA_LOG_ERR("[MFDD] felica_i2c_client is NULL");
+		FELICA_PR_ERR(" felica_i2c_client is NULL");
 		return -EIO;
 	}
 
@@ -4974,39 +5206,39 @@ static ssize_t snfc_cen_sts_init(void)
 	//high
 	if (system_rev == HW_REV09_OR_10)
 	{
-		FELICA_LOG_DEBUG("[MFDD] %s Making MHL_EN HIGH", __func__);
+		FELICA_PR_INFO(" %s Making MHL_EN HIGH", __func__);
 		of_sii8240_hw_poweron(FELICA_CEN_UNLOCK);
 	}	
 	#endif
 	
 	ret = i2c_transfer(felica_i2c_client->adapter, &read_msgs[0], 1);
 	if (ret < 0) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(i2c_transfer[0]), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(i2c_transfer[0]), ret=[%d]",
 			       __func__, ret);
 		return -EIO;
 	}
 	ret = i2c_transfer(felica_i2c_client->adapter, &read_msgs[1], 1);
 	if (ret < 0) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(i2c_transfer[1]), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(i2c_transfer[1]), ret=[%d]",
 			       __func__, ret);
 		return -EIO;
 	}
 
-	FELICA_LOG_DEBUG("[MFDD] %s read_buff=[%d]", __func__, read_buff);
+	FELICA_PR_INFO(" %s read_buff=[%d]", __func__, read_buff);
 	read_buff &= FELICA_CONTROL_LOCK_MASK;
-	FELICA_LOG_DEBUG("[MFDD] %s read_buff=[%d]", __func__, read_buff);
+	FELICA_PR_INFO(" %s read_buff=[%d]", __func__, read_buff);
 	g_cen_sts = read_buff;
 
 	#if defined(CONFIG_MACH_HLTEDCM)
 	//low
 	if (system_rev == HW_REV09_OR_10)
 	{
-		FELICA_LOG_DEBUG("[MFDD] %s Making MHL_EN LOW", __func__);
+		FELICA_PR_INFO(" %s Making MHL_EN LOW", __func__);
 	//	of_sii8240_hw_poweron(FELICA_CEN_LOCK);
 	}
 	#endif
 	
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 	return FELICA_CEN_DATA_LEN;
 }
 
@@ -5031,14 +5263,14 @@ static void snfc_cen_init(void)
 {
 	int ret;
 	struct device *device_snfc_cen;
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	devid_snfca_cen = MKDEV(FELICA_MAJOR, FELICA_MINOR);
 	ret =
 	    alloc_chrdev_region(&devid_snfca_cen, FELICA_BASEMINOR,
 				FELICA_MINOR_COUNT, SNFC_CEN_NAME);
 	if (ret < 0) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(alloc_chrdev_region), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(alloc_chrdev_region), ret=[%d]",
 			       __func__, ret);
 		return;
 	}
@@ -5047,7 +5279,7 @@ static void snfc_cen_init(void)
 	ret = cdev_add(&cdev_snfc_cen, devid_snfca_cen, FELICA_MINOR_COUNT);
 	if (ret < 0) {
 		unregister_chrdev_region(devid_snfca_cen, FELICA_MINOR_COUNT);
-		FELICA_LOG_ERR("[MFDD] %s ERROR(cdev_add), ret=[%d]", __func__,
+		FELICA_PR_ERR(" %s ERROR(cdev_add), ret=[%d]", __func__,
 			       ret);
 		return;
 	}
@@ -5058,11 +5290,11 @@ static void snfc_cen_init(void)
 	if (IS_ERR(device_snfc_cen)) {
 		cdev_del(&cdev_snfc_cen);
 		unregister_chrdev_region(devid_snfca_cen, FELICA_MINOR_COUNT);
-		FELICA_LOG_ERR("[MFDD] %s ERROR(device_create)", __func__);
+		FELICA_PR_ERR(" %s ERROR(device_create)", __func__);
 		return;
 	}
 
-	FELICA_LOG_DEBUG("[MFDD] %s END, major=[%d], minor=[%d]", __func__,
+	FELICA_PR_DBG(" %s END, major=[%d], minor=[%d]", __func__,
 			 MAJOR(devid_snfca_cen), MINOR(devid_snfca_cen));
 }
 
@@ -5071,13 +5303,13 @@ static void snfc_cen_init(void)
  */
 static void snfc_cen_exit(void)
 {
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
+	FELICA_PR_DBG(" %s START", __func__);
 
 	device_destroy(felica_class, devid_snfca_cen);
 	cdev_del(&cdev_snfc_cen);
 	unregister_chrdev_region(devid_snfca_cen, FELICA_MINOR_COUNT);
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 }
 
 /*
@@ -5087,18 +5319,19 @@ static int snfc_cen_open(struct inode *inode, struct file *file)
 {
 	uid_t uid;
 #ifdef FELICA_UICC_FUNCTION
+	int ret = 0;
 	char *cmdpos;
 	static char cmdline[1025];
 	static unsigned long start_adr, end_adr, leng;
 #endif
 
-	FELICA_LOG_DEBUG("[MFDD] %s START . system_rev=[%d]", __func__,system_rev);
+	FELICA_PR_DBG(" %s START . system_rev=[%d]", __func__,system_rev);
 
 	#if defined(CONFIG_MACH_HLTEDCM)
 	//high
 	if (system_rev == HW_REV09_OR_10)
 	{
-		FELICA_LOG_DEBUG("[MFDD] %s Making MHL_EN HIGH", __func__);
+		FELICA_PR_INFO(" %s Making MHL_EN HIGH", __func__);
 		of_sii8240_hw_poweron(SNFC_CEN_UNLOCK);
 	}
 	#endif
@@ -5111,10 +5344,13 @@ static int snfc_cen_open(struct inode *inode, struct file *file)
 	if (1024 < leng)
 		leng = 1024;
 	cmdpos = (char *)(current->mm->arg_start);
-	memcpy(cmdline, cmdpos, leng);
+	ret = copy_from_user(cmdline, cmdpos, leng);
 	cmdline[leng] = '\0';
-	FELICA_LOG_DEBUG("[MFDD] %s cmdline[%s]", __func__, cmdline);
-
+	if(ret != 0)
+	{
+		FELICA_PR_ERR(" %s cmdline[%s] ret[%d]", __func__, cmdline, ret);
+		return -EFAULT;
+	}
 #endif
 
 	uid = __task_cred(current)->uid;
@@ -5125,21 +5361,25 @@ static int snfc_cen_open(struct inode *inode, struct file *file)
 #else
 		if ((uid != gdiag_uid) && (uid != gmfl_uid)) {
 #endif
-	FELICA_LOG_ERR("[MFDD] %s END -EACCES, uid=[%d], gmfc_uid=[%d], gdiag_uid=[%d], gmfl_uid=[%d]\n", __func__, uid,gmfc_uid,gdiag_uid,gmfl_uid);
+	FELICA_PR_ERR(" %s END -EACCES, uid=[%d], gmfc_uid=[%d], gdiag_uid=[%d], gmfl_uid=[%d]\n", __func__, uid,gmfc_uid,gdiag_uid,gmfl_uid);
 
 			#if defined(CONFIG_MACH_HLTEDCM)
 			//low
 			if (system_rev == HW_REV09_OR_10)
 			{
-				FELICA_LOG_DEBUG("[MFDD] %s Making MHL_EN LOW", __func__);
+				FELICA_PR_INFO(" %s Making MHL_EN LOW", __func__);
 		//		of_sii8240_hw_poweron(SNFC_CEN_LOCK);
 			}
 			#endif
 
+#ifdef SRIB_DIAG_ENABLED
+		FELICA_PR_ERR(" SRIB-Diag enabled just for test\n");
+#else
 			return -EACCES;
+#endif
 		}
 	}
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 	return 0;
 }
 
@@ -5153,12 +5393,12 @@ static int snfc_cen_close(struct inode *inode, struct file *file)
 	//low
 	if (system_rev == HW_REV09_OR_10)
 	{
-		FELICA_LOG_DEBUG("[MFDD] %s Making MHL_EN LOW", __func__);
+		FELICA_PR_INFO(" %s Making MHL_EN LOW", __func__);
 	//	of_sii8240_hw_poweron(SNFC_CEN_LOCK);
 	}
 	#endif
 	
-	FELICA_LOG_DEBUG("[MFDD] %s END system_rev=[%d]", __func__,system_rev);
+	FELICA_PR_DBG(" %s END system_rev=[%d]", __func__,system_rev);
 	return 0;
 }
 
@@ -5184,19 +5424,19 @@ static ssize_t snfc_cen_read(struct file *file, char __user *buf, \
 	read_msgs[1].buf = &read_buff;
 
 	if (felica_i2c_client == NULL) {
-		FELICA_LOG_ERR("[MFDD] felica_i2c_client is NULL %s -EIO",__func__);
+		FELICA_PR_ERR(" felica_i2c_client is NULL %s -EIO",__func__);
 		return -EIO;
 	}
 
 	ret = i2c_transfer(felica_i2c_client->adapter, &read_msgs[0], 1);
 	if (ret < 0) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(i2c_transfer[0]), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(i2c_transfer[0]), ret=[%d]",
 			       __func__, ret);
 		return -EIO;
 	}
 	ret = i2c_transfer(felica_i2c_client->adapter, &read_msgs[1], 1);
 	if (ret < 0) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(i2c_transfer[1]), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(i2c_transfer[1]), ret=[%d]",
 			       __func__, ret);
 		return -EIO;
 	}
@@ -5207,11 +5447,11 @@ static ssize_t snfc_cen_read(struct file *file, char __user *buf, \
 	g_cen_sts = read_buff;
 #endif
 
-	FELICA_LOG_DEBUG("[MFDD] %s g_cen_sts=[%d]", __func__, g_cen_sts);
+	FELICA_PR_DBG(" %s g_cen_sts=[%d]", __func__, g_cen_sts);
 
 	ret = copy_to_user(buf, &read_buff, SNFC_CEN_DATA_LEN);
 	if (ret != 0) {
-		FELICA_LOG_ERR("[MFDD] %s ERROR(copy_to_user), ret=[%d]",
+		FELICA_PR_ERR(" %s ERROR(copy_to_user), ret=[%d]",
 			       __func__, ret);
 		return -EFAULT;
 	}
@@ -5228,17 +5468,21 @@ static int snfc_uid_check(void)
 	uid_t uid;
 	uid = __task_cred(current)->uid;
 
-	FELICA_LOG_DEBUG("[MFDD] %s START", __func__);
-	FELICA_LOG_DEBUG("[MFDD] %s gnfc_uid=[%d]", __func__, (int)gnfc_uid);
+	FELICA_PR_DBG(" %s START", __func__);
+	FELICA_PR_INFO(" %s gnfc_uid=[%d]", __func__, (int)gnfc_uid);
 
 	if ((uid != gnfc_uid) && (uid != gdiag_uid)) {
-		FELICA_LOG_ERR
-		    ("[MFDD] %s END, uid=[%d], gnfc_uid=[%d], gdiag_uid=[%d]", \
+		FELICA_PR_ERR
+		    (" %s END, uid=[%d], gnfc_uid=[%d], gdiag_uid=[%d]", \
 		     __func__, uid, gnfc_uid, gdiag_uid);
+#ifdef SRIB_DIAG_ENABLED
+		FELICA_PR_ERR(" SRIB-Diag enabled just for test\n");
+#else
 		return -1;
+#endif
 	}
 
-	FELICA_LOG_DEBUG("[MFDD] %s END", __func__);
+	FELICA_PR_DBG(" %s END", __func__);
 	return 0;
 }
 

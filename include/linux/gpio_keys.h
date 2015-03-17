@@ -34,12 +34,24 @@ struct gpio_keys_platform_data {
 	int (*enable)(struct device *dev);
 	void (*disable)(struct device *dev);
 	const char *name;		/* input device name */
+#ifdef CONFIG_SENSORS_HALL
+	int gpio_flip_cover;
+	int flip_code;
+
+#endif
+#ifdef CONFIG_SENSORS_HALL_IRQ_CTRL
+	bool workaround_set;
+#endif
 #ifdef CONFIG_SENSORS_HALL_DEBOUNCE
 	bool debounce_set;
 #endif
-#ifdef CONFIG_SENSORS_HALL
-	int gpio_flip_cover;
-#endif
 };
+#ifdef CONFIG_SENSORS_HALL_IRQ_CTRL
+extern void gpio_hall_irq_set(int state, bool auth_changed);
+enum state {
+	disable = 0,
+	enable
+};
+#endif
 
 #endif

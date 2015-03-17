@@ -216,18 +216,6 @@ static int mpu6500_recover_register(struct inv_mpu_state *st)
 	int result = 0;
 
 	result =
-	    inv_i2c_single_write(st, MPUREG_PWR_MGMT_1,
-					 mpu6500_selftest.pwm_mgmt[0]);
-	if (result)
-		return result;
-
-	result =
-	    inv_i2c_single_write(st, MPUREG_PWR_MGMT_2,
-					 mpu6500_selftest.pwm_mgmt[1]);
-	if (result)
-		return result;
-
-	result =
 	    inv_i2c_single_write(st, MPUREG_CONFIG,
 					 mpu6500_selftest.config);
 	if (result)
@@ -256,6 +244,19 @@ static int mpu6500_recover_register(struct inv_mpu_state *st)
 					 mpu6500_selftest.int_enable);
 	if (result)
 		return result;
+
+	result =
+	    inv_i2c_single_write(st, MPUREG_PWR_MGMT_2,
+					 mpu6500_selftest.pwm_mgmt[1]);
+	if (result)
+		return result;
+
+	result =
+	    inv_i2c_single_write(st, MPUREG_PWR_MGMT_1,
+					 mpu6500_selftest.pwm_mgmt[0]);
+	if (result)
+		return result;
+
 
 	return result;
 }

@@ -50,6 +50,7 @@
 #include <linux/slab.h>
 #include <linux/delay.h>
 #include <linux/input.h>
+#include <linux/sensors.h>
 #include <linux/workqueue.h>
 #include <linux/module.h>
 #ifdef CONFIG_HAS_EARLYSUSPEND
@@ -74,33 +75,22 @@
 #define ABS_MAX_PRESSURE	120000
 #define BMP_DELAY_DEFAULT   200
 
-struct bmp18x_calibration_data {
-	s16 AC1, AC2, AC3;
-	u16 AC4, AC5, AC6;
-	s16 B1, B2;
-	s16 MB, MC, MD;
-};
-
-/* Each client has this additional data */
-struct bmp18x_data {
-	struct	bmp18x_data_bus data_bus;
-	struct	device *dev;
-	struct	mutex lock;
-	struct	bmp18x_calibration_data calibration;
-	u8	oversampling_setting;
-	u8	sw_oversampling_setting;
-	u32	raw_temperature;
-	u32	raw_pressure;
-	u32	temp_measurement_period;
-	u32	last_temp_measurement;
-	s32	b6; /* calculated temperature correction coefficient */
-#ifdef CONFIG_HAS_EARLYSUSPEND
-	struct early_suspend early_suspend;
-#endif
-	struct input_dev	*input;
-	struct delayed_work work;
-	u32					delay;
-	u32					enable;
+static struct sensors_classdev sensors_cdev = {
+	.name = "bmp18x-pressure",
+	.vendor = "Bosch",
+	.version = 1,
+	.handle = SENSORS_PRESSURE_HANDLE,
+	.type = SENSOR_TYPE_PRESSURE,
+	.max_range = "1100.0",
+	.resolution = "0.01",
+	.sensor_power = "0.67",
+	.min_delay = 20000,	/* microsecond */
+	.fifo_reserved_event_count = 0,
+	.fifo_max_event_count = 0,
+	.enabled = 0,
+	.delay_msec = 200,	/* millisecond */
+	.sensors_enable = NULL,
+	.sensors_poll_delay = NULL,
 };
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
@@ -388,6 +378,19 @@ static ssize_t show_sw_oversampling(struct device *dev,
 static DEVICE_ATTR(sw_oversampling, S_IWUSR | S_IRUGO,
 				show_sw_oversampling, set_sw_oversampling);
 
+static ssize_t bmp18x_poll_delay_set(struct sensors_classdev *sensors_cdev,
+						unsigned int delay_msec)
+{
+	struct bmp18x_data *data = container_of(sensors_cdev,
+					struct bmp18x_data, cdev);
+	mutex_lock(&data->lock);
+	data->delay = delay_msec;
+	mutex_unlock(&data->lock);
+
+	return 0;
+}
+
+
 static ssize_t show_delay(struct device *dev,
 				 struct device_attribute *attr, char *buf)
 {
@@ -401,16 +404,50 @@ static ssize_t set_delay(struct device *dev,
 {
 	struct bmp18x_data *data = dev_get_drvdata(dev);
 	unsigned long delay;
-	int success = kstrtoul(buf, 10, &delay);
-	if (success == 0) {
-		mutex_lock(&data->lock);
-		data->delay = delay;
-		mutex_unlock(&data->lock);
-	}
-	return success;
+	int err = kstrtoul(buf, 10, &delay);
+	if (err < 0)
+		return err;
+
+	err = bmp18x_poll_delay_set(&data->cdev, delay);
+	if (err < 0)
+		return err;
+
+	return count;
 }
-static DEVICE_ATTR(delay, S_IWUSR | S_IRUGO,
+
+static DEVICE_ATTR(poll_delay, S_IWUSR | S_IRUGO,
 				show_delay, set_delay);
+
+static ssize_t bmp18x_enable_set(struct sensors_classdev *sensors_cdev,
+						unsigned int enabled)
+{
+	struct bmp18x_data *data = container_of(sensors_cdev,
+					struct bmp18x_data, cdev);
+	struct device *dev = data->dev;
+
+	enabled = enabled ? 1 : 0;
+	mutex_lock(&data->lock);
+
+	if (data->enable == enabled) {
+		dev_warn(dev, "already %s\n", enabled ? "enabled" : "disabled");
+		goto out;
+	}
+
+	data->enable = enabled;
+
+	if (data->enable) {
+		bmp18x_enable(dev);
+		schedule_delayed_work(&data->work,
+					msecs_to_jiffies(data->delay));
+	} else {
+		cancel_delayed_work_sync(&data->work);
+		bmp18x_disable(dev);
+	}
+
+out:
+	mutex_unlock(&data->lock);
+	return 0;
+}
 
 static ssize_t show_enable(struct device *dev,
 				 struct device_attribute *attr, char *buf)
@@ -425,24 +462,17 @@ static ssize_t set_enable(struct device *dev,
 {
 	struct bmp18x_data *data = dev_get_drvdata(dev);
 	unsigned long enable;
-	int success = kstrtoul(buf, 10, &enable);
-	if (success == 0) {
-		mutex_lock(&data->lock);
-		data->enable = enable ? 1 : 0;
+	int err = kstrtoul(buf, 10, &enable);
+	if (err < 0)
+		return err;
 
-		if (data->enable) {
-			bmp18x_enable(dev);
-			schedule_delayed_work(&data->work,
-						msecs_to_jiffies(data->delay));
-		} else {
-			cancel_delayed_work_sync(&data->work);
-			bmp18x_disable(dev);
-		}
-		mutex_unlock(&data->lock);
+	err = bmp18x_enable_set(&data->cdev, enable);
+	if (err < 0)
+		return err;
 
-	}
 	return count;
 }
+
 static DEVICE_ATTR(enable, S_IWUSR | S_IRUGO,
 				show_enable, set_enable);
 
@@ -484,7 +514,7 @@ static struct attribute *bmp18x_attributes[] = {
 	&dev_attr_pressure0_input.attr,
 	&dev_attr_oversampling.attr,
 	&dev_attr_sw_oversampling.attr,
-	&dev_attr_delay.attr,
+	&dev_attr_poll_delay.attr,
 	&dev_attr_enable.attr,
 	NULL
 };
@@ -612,6 +642,16 @@ __devinit int bmp18x_probe(struct device *dev, struct bmp18x_data_bus *data_bus)
 	err = sysfs_create_group(&data->input->dev.kobj, &bmp18x_attr_group);
 	if (err)
 		goto error_sysfs;
+
+	data->cdev = sensors_cdev;
+	data->cdev.sensors_enable = bmp18x_enable_set;
+	data->cdev.sensors_poll_delay = bmp18x_poll_delay_set;
+	err = sensors_classdev_register(&data->input->dev, &data->cdev);
+	if (err) {
+		pr_err("class device create failed: %d\n", err);
+		goto error_class_sysfs;
+	}
+
 	/* workqueue init */
 	INIT_DELAYED_WORK(&data->work, bmp18x_work_func);
 	data->delay  = BMP_DELAY_DEFAULT;
@@ -624,9 +664,13 @@ __devinit int bmp18x_probe(struct device *dev, struct bmp18x_data_bus *data_bus)
 	register_early_suspend(&data->early_suspend);
 #endif
 
+	pdata->set_power(data, 0);
+	data->power_enabled = 0;
 	dev_info(dev, "Succesfully initialized bmp18x!\n");
 	return 0;
 
+error_class_sysfs:
+	sysfs_remove_group(&data->input->dev.kobj, &bmp18x_attr_group);
 error_sysfs:
 	bmp18x_input_delete(data);
 exit_free:
@@ -656,10 +700,12 @@ int bmp18x_disable(struct device *dev)
 {
 	struct bmp18x_platform_data *pdata = dev->platform_data;
 	struct bmp18x_data *data = dev_get_drvdata(dev);
-	if (pdata && pdata->deinit_hw)
-		pdata->deinit_hw(&data->data_bus);
+	int ret = 0;
 
-	return 0;
+	if (pdata && pdata->set_power)
+		ret = pdata->set_power(data, 0);
+
+	return ret;
 }
 EXPORT_SYMBOL(bmp18x_disable);
 
@@ -667,10 +713,12 @@ int bmp18x_enable(struct device *dev)
 {
 	struct bmp18x_platform_data *pdata = dev->platform_data;
 	struct bmp18x_data *data = dev_get_drvdata(dev);
-	if (pdata && pdata->init_hw)
-		return pdata->init_hw(&data->data_bus);
+	int ret = 0;
 
-	return 0;
+	if (pdata && pdata->set_power)
+		ret = pdata->set_power(data, 1);
+
+	return ret;
 }
 EXPORT_SYMBOL(bmp18x_enable);
 #endif

@@ -27,6 +27,9 @@
 	20130710 v1.3.1
 	20130716 v1.4.1
 	20130806 v1.5.1
+	20130926 v1.6.1
+	20131125 v1.7.1
+	20131202 v1.8.1
 *******************************************************************************/
 
 #ifndef __BBM_H__
@@ -38,7 +41,7 @@ extern "C" {
 
 #include "fci_types.h"
 
-#define DRIVER_VER 	"VER 1.5.1"
+#define DRIVER_VER	"VER 1.8.1"
 
 extern s32 bbm_com_reset(HANDLE handle);
 extern s32 bbm_com_probe(HANDLE handle);

@@ -35,15 +35,44 @@
 
 #include <linux/sensors_core.h>
 
+#ifdef CONFIG_BMA254_SMART_ALERT
+#include <linux/wakelock.h>
+#include <linux/gpio.h>
+#include <linux/interrupt.h>
+#include <linux/mutex.h>
+#endif
+
 #define CHIP_DEV_NAME	"BMA254"
 #define CHIP_DEV_VENDOR	"BOSCH"
 #define CAL_PATH		"/efs/calibration_data"
+#define CALIBRATION_DATA_AMOUNT         20
+#define MAX_ACCEL_1G			1024
+
+#ifdef CONFIG_BMA254_SMART_ALERT
+extern unsigned int system_rev;
+
+struct bma254_platform_data {
+	int p_out;				/* acc-sensor-irq gpio */
+};
+#endif
 
 struct bma254_data {
 	struct i2c_client *client;
 	struct input_dev *input;
 	struct device *dev;
 	struct delayed_work work;
+#ifdef CONFIG_BMA254_SMART_ALERT
+	struct bma254_platform_data *pdata;
+	struct mutex data_mutex;
+	struct work_struct alert_work;
+	struct wake_lock reactive_wake_lock;
+	atomic_t reactive_state;
+	atomic_t reactive_enable;
+	bool factory_mode;
+	int accsns_activate_flag;
+	int pin_check_fail;
+	int IRQ;
+#endif
 	int cal_data[3];
 	int position;
 	int delay;
@@ -122,16 +151,76 @@ static void bma254_activate(struct bma254_data *bma254, bool enable)
 {
 	pr_err("%s,acitve(%s)\n", __func__, enable ? "true" : "false");
 	if (enable == true) {
+#ifdef CONFIG_BMA254_SMART_ALERT
+		if (!bma254->accsns_activate_flag)
+		{
+			bma254_i2c_write(bma254, BMA254_REG14, SOFT_RESEET);
+			msleep(5);
+		}
+#else
 		bma254_i2c_write(bma254, BMA254_REG14, SOFT_RESEET);
 		msleep(5);
+#endif
 
 		bma254_i2c_write(bma254, BMA254_REG0F, BMA2X2_RANGE_SET);
 		bma254_i2c_write(bma254, BMA254_REG10, BANDWIDTH_31_25);
-		bma254_i2c_write(bma254, BMA254_REG11, BMA2X2_MODE_NORMAL);
+		bma254_i2c_write(bma254, BMA254_REG11, BMA254_MODE_NORMAL);
+	}
+#ifndef CONFIG_BMA254_SMART_ALERT
+	else {
+		bma254_i2c_write(bma254, BMA254_REG11, BMA254_MODE_SUSPEND);
+	}
+#else
+	if(bma254->accsns_activate_flag && enable != true){
+		pr_info("%s: low power mode\n", __func__);
+		bma254_i2c_write(bma254, BMA254_REG0F, BMA2X2_RANGE_SET);
+		bma254_i2c_write(bma254, BMA254_REG10, BANDWIDTH_07_81);
+		bma254_i2c_write(bma254, BMA254_REG11, BMA254_MODE_LOWPOWER1);
+	}else if(enable != true){
+		bma254_i2c_write(bma254, BMA254_REG11, BMA254_MODE_SUSPEND);
+	}
+#endif
+}
+
+#ifdef CONFIG_BMA254_SMART_ALERT
+static int bma254_get_motion_interrupt(struct bma254_data *bma254)
+{
+	int result = 0;
+	unsigned char data;
+	u8 buf[2];
+	data = bma254_i2c_read(bma254, BMA254_SLOPE_INT_S__REG, buf, 2);
+	pr_info("%s: call : return %d\n", __func__, data);
+	result = 1;
+	return result;
+}
+
+static void bma254_set_motion_interrupt(struct bma254_data *bma254,  bool enable,
+	bool factorytest)
+{
+	if (enable) {
+		bma254_activate(bma254, false);
+		usleep_range(5000, 6000);
+		pr_info("%s : enable\n", __func__);
+		bma254_i2c_write(bma254, BMA254_EN_INT1_PAD_SLOPE__REG, 0x04);
+		if (factorytest) {
+			bma254_i2c_write(bma254, BMA254_SLOPE_DUR__REG, 0x00);
+			bma254_i2c_write(bma254, BMA254_SLOPE_THRES__REG, 0x00);
+		} else {
+			bma254_i2c_write(bma254, BMA254_SLOPE_DUR__REG, 0x02);
+			bma254_i2c_write(bma254, BMA254_SLOPE_THRES__REG, 0x10);
+		}
+
+		bma254_i2c_write(bma254, BMA254_INT_ENABLE1_REG, 0x07);
 	} else {
-		bma254_i2c_write(bma254, BMA254_REG11, BMA2X2_MODE_SUSPEND);
+		pr_info("%s : disable\n", __func__);
+		bma254_i2c_write(bma254, BMA254_EN_INT1_PAD_SLOPE__REG, 0x00);
+		bma254_i2c_write(bma254, BMA254_SLOPE_DUR__REG, 0x03);
+		bma254_i2c_write(bma254, BMA254_INT_ENABLE1_REG, 0x00);
+		bma254_i2c_write(bma254, BMA254_SLOPE_THRES__REG, 0xff);
+		usleep_range(5000, 6000);
 	}
 }
+#endif
 
 static int bma254_get_data(struct bma254_data *bma254, int *xyz, bool cal)
 {
@@ -346,7 +435,7 @@ static int bma254_do_calibrate(struct bma254_data *bma254, int enable)
 	if (enable) {
                 int data[3] = { 0, };
                 int i;
-		for (i= 0; i < 100; i++) {
+		for (i = 0; i < CALIBRATION_DATA_AMOUNT; i++) {
 			err = bma254_get_data(bma254, data, false);
 			if (err < 0) {
 				pr_err("%s : failed in the %dth loop\n", __func__, i);
@@ -358,9 +447,15 @@ static int bma254_do_calibrate(struct bma254_data *bma254, int enable)
 			sum[2] += data[2];
 		}
 
-		bma254->cal_data[0] = (sum[0] / 100);
-		bma254->cal_data[1] = (sum[1] / 100);
-		bma254->cal_data[2] = ((sum[2] / 100) - 1024);
+		bma254->cal_data[0] = (sum[0] / CALIBRATION_DATA_AMOUNT);
+		bma254->cal_data[1] = (sum[1] / CALIBRATION_DATA_AMOUNT);
+		bma254->cal_data[2] = (sum[2] / CALIBRATION_DATA_AMOUNT);
+
+		if(bma254->cal_data[2] > 0)
+			bma254->cal_data[2] -= MAX_ACCEL_1G;
+		else if(bma254->cal_data[2] < 0)
+			bma254->cal_data[2] += MAX_ACCEL_1G;
+
 	} else {
 		bma254->cal_data[0] = 0;
 		bma254->cal_data[1] = 0;
@@ -418,6 +513,11 @@ static ssize_t bma254_raw_data_show(struct device *dev,
 
 	if (!bma254->enable) {
 		bma254_activate(bma254, true);
+#if defined(CONFIG_MACH_KANAS3G_CTC)||defined(CONFIG_MACH_KANAS3G_CMCC)
+		msleep(300);
+#elif defined (CONFIG_MACH_VICTORLTE_CTC)
+		msleep(50);
+#endif
 		schedule_delayed_work(&bma254->work, msecs_to_jiffies(bma254->delay));
 	}
 
@@ -425,7 +525,6 @@ static ssize_t bma254_raw_data_show(struct device *dev,
 	if (ret < 0) {
 		pr_err("%s, data error(%d)\n", __func__, ret);
 	}
-	pr_info("bma254_raw_data_show %d %d %d\n", xyz[0], xyz[1], xyz[2]);
 	if (!bma254->enable) {
 		cancel_delayed_work_sync(&bma254->work);
 		bma254_activate(bma254, false);
@@ -478,19 +577,187 @@ static ssize_t bma254_calibartion_store(struct device *dev,
 	return count;
 }
 
+#ifdef CONFIG_BMA254_SMART_ALERT
+static ssize_t bma254_reactive_enable_show(struct device *dev,
+					struct device_attribute
+						*attr, char *buf)
+{
+	struct bma254_data *bma254 = dev_get_drvdata(dev);
+	pr_info("%s: %d\n", __func__, atomic_read(&bma254->reactive_state));
+	return snprintf(buf, PAGE_SIZE, "%d\n",
+		atomic_read(&bma254->reactive_state));
+}
+
+static ssize_t bma254_reactive_enable_store(struct device *dev,
+					struct device_attribute
+						*attr, const char *buf,
+							size_t count)
+{
+	struct bma254_data *bma254 = dev_get_drvdata(dev);
+	bool onoff = false;
+	bool factory_test = false;
+	unsigned long value = 0;
+	int err = count;
+
+	if (strict_strtoul(buf, 10, &value)) {
+		err = -EINVAL;
+		return err;
+	}
+
+	pr_info("%s: %lu\n", __func__, value);
+
+	if(bma254->accsns_activate_flag == value)
+	{
+		pr_err("%s: duplicate value. Discard\n", __func__);
+	       return count;
+	}
+
+	switch (value) {
+	case 0:
+		bma254->accsns_activate_flag = 0;
+		break;
+	case 1:
+		bma254->accsns_activate_flag = 1;
+		onoff = true;
+		break;
+	case 2:
+		bma254->accsns_activate_flag = 1;
+		onoff = true;
+		factory_test = true;
+		break;
+	default:
+		//err = -EINVAL;
+		pr_err("%s: invalid value %d\n", __func__, *buf);
+		return count;
+	}
+
+	if (!bma254->pin_check_fail) {
+		if (bma254->IRQ) {
+			if (!value) {
+				disable_irq_wake(bma254->IRQ);
+				disable_irq(bma254->IRQ);
+			} else {
+				enable_irq(bma254->IRQ);
+				enable_irq_wake(bma254->IRQ);
+			}
+		}
+		mutex_lock(&bma254->data_mutex);
+		atomic_set(&bma254->reactive_enable, onoff);
+
+		if (bma254->IRQ) {
+			bma254_set_motion_interrupt(bma254,
+				onoff, factory_test);
+		}
+		atomic_set(&bma254->reactive_state, false);
+		mutex_unlock(&bma254->data_mutex);
+		pr_info("%s: value = %lu, onoff = %d, state =%d\n",
+			__func__, value,
+			atomic_read(&bma254->reactive_enable),
+			atomic_read(&bma254->reactive_state));
+	}
+	return count;
+}
+#endif
+
 static DEVICE_ATTR(name, 0440, bma254_name_show, NULL);
 static DEVICE_ATTR(vendor, 0440, bma254_vendor_show, NULL);
 static DEVICE_ATTR(raw_data, 0440, bma254_raw_data_show, NULL);
 static DEVICE_ATTR(calibration, S_IRUGO | S_IWUSR | S_IWGRP,
 	bma254_calibartion_show, bma254_calibartion_store);
+#ifdef CONFIG_BMA254_SMART_ALERT
+static DEVICE_ATTR(reactive_alert, S_IRUGO|S_IWUSR|S_IWGRP,
+		bma254_reactive_enable_show, bma254_reactive_enable_store);
+#endif
 
 static struct device_attribute *bma254_attrs[] = {
 	&dev_attr_name,
 	&dev_attr_vendor,
 	&dev_attr_raw_data,
 	&dev_attr_calibration,
+#ifdef CONFIG_BMA254_SMART_ALERT
+	&dev_attr_reactive_alert,
+#endif
 	NULL,
 };
+
+#ifdef CONFIG_BMA254_SMART_ALERT
+static void bma254_work_func_alert(struct work_struct *work)
+{
+	int result;
+
+	struct bma254_data *bma254 = container_of(work,
+		struct bma254_data, alert_work);
+	result = bma254_get_motion_interrupt(bma254);
+	if (result || bma254->factory_mode) {
+		/*handle motion recognition*/
+		atomic_set(&bma254->reactive_state, true);
+		bma254->factory_mode = false;
+
+		pr_info("%s: motion interrupt happened\n",
+			__func__);
+		wake_lock_timeout(&bma254->reactive_wake_lock,
+			msecs_to_jiffies(2000));
+		bma254_i2c_write(bma254, BMA254_INT_ENABLE1_REG, 0x00);
+	}
+}
+
+irqreturn_t bma254_acc_irq_thread(int irq, void *dev)
+{
+	struct bma254_data *data = dev;
+	pr_info("%s\n", __func__);
+	schedule_work(&data->alert_work);
+	return IRQ_HANDLED;
+}
+
+static int bma254_setup_irq(struct bma254_data *bma254)
+{
+	int irq = -1;
+	struct bma254_platform_data *pdata = bma254->pdata;
+	int rc;
+	pr_info("%s\n", __func__);
+
+	rc = gpio_request(pdata->p_out, "gpio_bma254_int");
+	if (rc < 0) {
+		pr_err("%s: gpio %d request failed (%d)\n",
+			__func__, pdata->p_out, rc);
+		return rc;
+	}
+
+	rc = gpio_direction_input(pdata->p_out);
+	if (rc < 0) {
+		pr_err("%s: failed to set gpio %d as input (%d)\n",
+			__func__, pdata->p_out, rc);
+		goto err_gpio_direction_input;
+	}
+
+	irq = gpio_to_irq(pdata->p_out);
+
+	if (irq > 0) {
+		rc = request_threaded_irq(irq,
+			NULL, bma254_acc_irq_thread,
+			IRQF_TRIGGER_RISING,
+			"accelerometer", bma254);
+
+		pr_info("%s: irq = %d\n", __func__, irq);
+
+		if (rc < 0) {
+			pr_err("%s request_threaded_irq fail err=%d\n",
+				__func__, rc);
+			return rc;
+		}
+		/* start with interrupts disabled */
+		disable_irq(irq);
+	}
+	bma254->IRQ = irq;
+	goto done;
+
+err_gpio_direction_input:
+	gpio_free(pdata->p_out);
+done:
+	return rc;
+}
+#endif
+
 #ifdef CONFIG_SENSORS_POWERCONTROL
 static int bma254_regulator_onoff(struct device *dev, bool onoff)
 {
@@ -519,12 +786,27 @@ static int bma254_regulator_onoff(struct device *dev, bool onoff)
 static int bma254_parse_dt(struct bma254_data *data, struct device *dev)
 {
 	struct device_node *this_node= dev->of_node;
+#ifdef CONFIG_BMA254_SMART_ALERT
+	struct bma254_platform_data *pdata = data->pdata;
+	enum of_gpio_flags flags;
+#endif
 	u32 temp;
 
 	if (this_node == NULL) {
 		pr_err("%s,this_node is empty\n", __func__);
 		return -ENODEV;
 	}
+
+#ifdef CONFIG_BMA254_SMART_ALERT
+	pdata->p_out = of_get_named_gpio_flags(this_node, "bma254,irq-gpio",
+				0, &flags);
+	if (pdata->p_out < 0) {
+		pr_err("%s : get irq_gpio(%d) error\n", __func__, pdata->p_out);
+		return -ENODEV;
+	}else {
+		pr_info("%s, get irq_gpio(%d)\n", __func__, pdata->p_out);
+	}
+#endif
 
 	if (of_property_read_u32(this_node, "bma254,position", &temp) < 0) {
 		pr_err("%s,get position(%d) error\n", __func__, temp);
@@ -542,6 +824,10 @@ static int bma254_probe(struct i2c_client *client,
 	int ret = 0;
 	struct bma254_data *bma254;
 	struct input_dev *dev;
+#ifdef CONFIG_BMA254_SMART_ALERT
+	int err = 0;
+	struct bma254_platform_data *pdata;
+#endif
 
 	pr_info("%s, is called\n", __func__);
 
@@ -578,6 +864,24 @@ static int bma254_probe(struct i2c_client *client,
 		return ret;
 	}
 
+#ifdef CONFIG_BMA254_SMART_ALERT
+	if(client->dev.of_node) {
+		pdata = devm_kzalloc(&client->dev,
+			sizeof(struct bma254_platform_data), GFP_KERNEL);
+		if (!pdata) {
+			dev_err(&client->dev, "Failed to allocate memory \n");
+			kfree(bma254);
+
+			return -ENOMEM;
+		}
+	}else{
+		pr_err("%s,this_node is empty\n", __func__);
+		kfree(bma254);
+		return -ENODEV;
+	}
+
+	bma254->pdata = pdata;
+#endif
 	ret = bma254_parse_dt(bma254, &client->dev);
 	if (ret) {
 		pr_err("%s, get gpio is failed\n", __func__);
@@ -595,6 +899,9 @@ static int bma254_probe(struct i2c_client *client,
 	}
 	dev->name = "accelerometer";
 	dev->id.bustype = BUS_I2C;
+#if !defined(CONFIG_MACH_VICTORLTE) && !defined(CONFIG_MACH_VICTOR3GDSDTV_LTN)
+	dev->dev.parent = &client->dev;
+#endif
 #ifdef REPORT_ABS
 	input_set_capability(dev, EV_ABS, ABS_MISC);
 	input_set_abs_params(dev, ABS_X, ABSMIN, ABSMAX, 0, 0);
@@ -614,10 +921,31 @@ static int bma254_probe(struct i2c_client *client,
 	}
 	bma254->input = dev;
 
+#ifdef CONFIG_BMA254_SMART_ALERT
+	pr_info("%s:  HW_rev success %d\n", __func__, system_rev);
+	INIT_WORK(&bma254->alert_work, bma254_work_func_alert);
+	wake_lock_init(&bma254->reactive_wake_lock, WAKE_LOCK_SUSPEND,
+		"reactive_wake_lock");
+	err = bma254_setup_irq(bma254);
+	if (err) {
+		bma254->pin_check_fail = true;
+		pr_err("%s: could not setup irq\n", __func__);
+		goto err_setup_irq;
+	}
+	mutex_init(&bma254->data_mutex);
+#endif
+
+	ret = sensors_create_symlink(&dev->dev.kobj, dev->name);
+	if (ret < 0) {
+		input_unregister_device(dev);
+		return ret;
+	}
 	ret = sysfs_create_group(&bma254->input->dev.kobj,
 			&bma254_attribute_group);
 	if (ret < 0) {
 		pr_err("%s,sysfs_create_group failed\n", __func__);
+		sensors_remove_symlink(&bma254->input->dev.kobj,
+			bma254->input->name);
 		goto sysfs_create_group_err;
 	}
 
@@ -632,21 +960,33 @@ static int bma254_probe(struct i2c_client *client,
 		goto sensors_register_err;
 	}
 
-	goto exit;
+#ifdef CONFIG_SENSORS_POWERCONTROL
+	bma254_regulator_onoff(&client->dev, false);
+#endif
+	pr_info("[SENSOR]: %s - Probe done!(chip pos : %d)\n",
+		__func__, bma254->position);
+
+	return 0;
+
 sensors_register_err:
 	sysfs_remove_group(&bma254->input->dev.kobj,
 			&bma254_attribute_group);
+	sensors_remove_symlink(&bma254->input->dev.kobj, bma254->input->name);
 sysfs_create_group_err:
 	input_unregister_device(bma254->input);
+#ifdef CONFIG_BMA254_SMART_ALERT
+err_setup_irq:
+	wake_lock_destroy(&bma254->reactive_wake_lock);
+#endif
 input_register_device_err:
 	input_free_device(dev);
 input_allocate_device_err:
 parse_dt_err:
 	kfree(bma254);
+	pr_err("[SENSOR]: %s - Probe fail!\n", __func__);
 #ifdef CONFIG_SENSORS_POWERCONTROL
 	bma254_regulator_onoff(&client->dev, false);
 #endif
-exit:
 	return ret;
 }
 

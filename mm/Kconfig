@@ -207,6 +207,10 @@ config MIGRATION
 	  pages as migration can relocate pages to satisfy a huge page
 	  allocation instead of reclaiming.
 
+config SEC_SLOWPATH
+	bool "slowpath allocation"
+	def_bool n
+
 config PHYS_ADDR_T_64BIT
 	def_bool 64BIT || ARCH_PHYS_ADDR_T_64BIT
 
@@ -437,6 +441,16 @@ config ZSWAP
 	  swap devices resulting in reduced I/O and faster performance
 	  for many workloads.
 
+config SWAP_ENABLE_READAHEAD
+	bool "Enable readahead on page swap in"
+	depends on SWAP
+	default y
+	help
+	  When a page fault occurs, adjacent pages of SWAP_CLUSTER_MAX are
+	  also paged in expecting those pages will be used in near future.
+	  This behaviour is good at disk-based system, but not on in-memory
+	  compression (e.g. zram).
+
 config ZSWAP_ENABLE_WRITEBACK
 	bool "Enable writeback"
 	depends on ZSWAP
@@ -482,3 +496,18 @@ config USE_USER_ACCESSIBLE_TIMERS
 	  interface code in the main kernel.  However, there are
 	  architecture-specific code that will need to be enabled
 	  separately.
+
+config MIN_DIRTY_THRESH_PAGES
+	int "The lower bound of VM dirty_thresh value in number of pages"
+	default 2560
+	help
+	  Setting this to certain positive number guaranttees
+	  the VM Dirty-Thresh valus is always larger than that value.
+	  It is only effective when dirty_ratio is used. (Setting dirty_bytes
+	  disables this option.)
+	  Do not use it if you unsure.
+
+config SDP_CACHE_CLEANUP
+	bool "SDP requirement. cache cleanup"
+	depends on SDP
+	default n

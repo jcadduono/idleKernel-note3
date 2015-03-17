@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -20,11 +20,8 @@
 #define GC_LUT_SEGMENTS	16
 #define ENHIST_LUT_ENTRIES 256
 #define HIST_V_SIZE	256
-#define SIX_ZONE_LUT_ENTRIES 384
 
-#define MDSS_MDP_HW_REV_100		0x10000000
-#define MDSS_MDP_HW_REV_102		0x10020000
-#define MDSS_MDP_HW_REV_103		0x10030000
+#define MDSS_MDP_FETCH_CONFIG_RESET_VALUE	0x00000087
 
 #define MDSS_REG_HW_VERSION				0x0
 #define MDSS_REG_HW_INTR_STATUS				0x10
@@ -44,6 +41,7 @@
 #define MDSS_MDP_REG_HIST_INTR_STATUS			0x00120
 #define MDSS_MDP_REG_HIST_INTR_CLEAR			0x00124
 
+#define MDSS_MDP_REG_VIDEO_INTF_UNDERFLOW_CTL		0x003E0
 #define MDSS_MDP_REG_SPLIT_DISPLAY_EN			0x003F4
 #define MDSS_MDP_REG_SPLIT_DISPLAY_UPPER_PIPE_CTRL	0x003F8
 #define MDSS_MDP_REG_SPLIT_DISPLAY_LOWER_PIPE_CTRL	0x004F0
@@ -107,9 +105,12 @@ enum mdss_mdp_ctl_index {
 	MDSS_MDP_MAX_CTL
 };
 
-#define MDSS_MDP_REG_CTL_OFFSET(ctl) (0x00600 + ((ctl) * 0x100))
+#define MDSS_MDP_CTL_ADDRESS_OFFSET			0x100
+#define MDSS_MDP_REG_CTL_OFFSET(ctl) (0x00600 + ((ctl) * \
+					 MDSS_MDP_CTL_ADDRESS_OFFSET))
 
-#define MDSS_MDP_REG_CTL_LAYER(lm)			((lm) * 0x004)
+#define MDSS_MDP_REG_CTL_LAYER(lm)	\
+			((lm == 5) ? (0x024) : ((lm) * 0x004))
 #define MDSS_MDP_REG_CTL_TOP				0x014
 #define MDSS_MDP_REG_CTL_FLUSH				0x018
 #define MDSS_MDP_REG_CTL_START				0x01C
@@ -158,7 +159,10 @@ enum mdss_mdp_sspp_chroma_samp_type {
 	MDSS_MDP_CHROMA_420
 };
 
-#define MDSS_MDP_REG_SSPP_OFFSET(pipe) (0x01200 + ((pipe) * 0x400))
+
+#define MDSS_MDP_SSPP_ADDRESS_OFFSET			0x400
+#define MDSS_MDP_REG_SSPP_OFFSET(pipe) (0x01200 + ((pipe) * \
+					MDSS_MDP_SSPP_ADDRESS_OFFSET))
 
 #define MDSS_MDP_REG_SSPP_SRC_SIZE			0x000
 #define MDSS_MDP_REG_SSPP_SRC_IMG_SIZE			0x004
@@ -174,6 +178,7 @@ enum mdss_mdp_sspp_chroma_samp_type {
 #define MDSS_MDP_REG_SSPP_STILE_FRAME_SIZE		0x02C
 #define MDSS_MDP_REG_SSPP_SRC_FORMAT			0x030
 #define MDSS_MDP_REG_SSPP_SRC_UNPACK_PATTERN		0x034
+#define MDSS_MDP_REG_SSPP_SRC_CONSTANT_COLOR		0x03C
 #define MDSS_MDP_REG_SSPP_REQPRIO_FIFO_WM_0		0x050
 #define MDSS_MDP_REG_SSPP_REQPRIO_FIFO_WM_1		0x054
 #define MDSS_MDP_REG_SSPP_REQPRIO_FIFO_WM_2		0x058
@@ -201,6 +206,9 @@ enum mdss_mdp_sspp_chroma_samp_type {
 #define MDSS_MDP_REG_SSPP_CURRENT_SRC2_ADDR		0x0AC
 #define MDSS_MDP_REG_SSPP_CURRENT_SRC3_ADDR		0x0B0
 #define MDSS_MDP_REG_SSPP_DECIMATION_CONFIG		0x0B4
+#define MDSS_MDP_REG_SSPP_SW_PIX_EXT_C0_LR		0x100
+#define MDSS_MDP_REG_SSPP_SW_PIX_EXT_C0_TB		0x104
+#define MDSS_MDP_REG_SSPP_SW_PIX_EXT_C0_REQ_PIXELS	0x108
 
 #define MDSS_MDP_REG_VIG_OP_MODE			0x200
 #define MDSS_MDP_REG_VIG_QSEED2_CONFIG			0x204
@@ -276,8 +284,9 @@ enum mdss_mdp_stage_index {
 	MDSS_MDP_MAX_STAGE
 };
 
-#define MDSS_MDP_REG_LM_OFFSET(lm) (0x03200 + ((lm) * 0x400))
-
+#define MDSS_MDP_LM_ADDRESS_OFFSET			0x400
+#define MDSS_MDP_REG_LM_OFFSET(lm) (0x03200 + ((lm) * \
+					MDSS_MDP_LM_ADDRESS_OFFSET))
 #define MDSS_MDP_REG_LM_OP_MODE				0x000
 #define MDSS_MDP_REG_LM_OUT_SIZE			0x004
 #define MDSS_MDP_REG_LM_BORDER_COLOR_0			0x008
@@ -370,6 +379,7 @@ enum mdss_mdp_writeback_index {
 
 #define MDSS_MDP_MAX_AD_AL	65535
 #define MDSS_MDP_MAX_AD_STR	255
+#define MDSS_MDP_AD_BL_SCALE	4095
 
 #define MDSS_MDP_REG_AD_BYPASS				0x000
 #define MDSS_MDP_REG_AD_CTRL_0				0x004
@@ -419,13 +429,16 @@ enum mdss_mdp_dspp_index {
 	MDSS_MDP_MAX_DSPP
 };
 
-#define MDSS_MDP_REG_DSPP_OFFSET(pipe)	(0x4600 + ((pipe) * 0x400))
+#define MDSS_MDP_DSPP_ADDRESS_OFFSET			0x400
+#define MDSS_MDP_REG_DSPP_OFFSET(pipe)	(0x4600 + ((pipe) * \
+					MDSS_MDP_DSPP_ADDRESS_OFFSET))
 #define MDSS_MDP_REG_DSPP_OP_MODE			0x000
 #define MDSS_MDP_REG_DSPP_PCC_BASE			0x030
 #define MDSS_MDP_REG_DSPP_DITHER_DEPTH			0x150
 #define MDSS_MDP_REG_DSPP_HIST_CTL_BASE			0x210
 #define MDSS_MDP_REG_DSPP_HIST_LUT_BASE			0x230
 #define MDSS_MDP_REG_DSPP_PA_BASE			0x238
+#define MDSS_MDP_REG_DSPP_SIX_ZONE_BASE			0x248
 #define MDSS_MDP_REG_DSPP_GAMUT_BASE			0x2DC
 #define MDSS_MDP_REG_DSPP_GC_BASE			0x2B0
 
@@ -509,6 +522,8 @@ enum mdss_mpd_intf_index {
 #define MDSS_MDP_PANEL_FORMAT_RGB888			0x213F
 #define MDSS_MDP_PANEL_FORMAT_RGB666			0x212A
 
+#define MDSS_MDP_PANEL_FORMAT_PACK_ALIGN_MSB		BIT(7)
+
 enum mdss_mdp_pingpong_index {
 	MDSS_MDP_PINGPONG0,
 	MDSS_MDP_PINGPONG1,
@@ -566,5 +581,9 @@ enum mdss_mdp_pingpong_index {
 #define MDSS_MDP_LP_MISR_SEL_LMIX3_GC		0x0F
 #define MDSS_MDP_LP_MISR_SEL_LMIX4_BLEND	0x10
 #define MDSS_MDP_LP_MISR_SEL_LMIX4_GC		0x11
+
+/* following offsets are with respect to MDP VBIF base */
+#define MMSS_VBIF_XIN_HALT_CTRL0	0x200
+#define MMSS_VBIF_XIN_HALT_CTRL1	0x204
 
 #endif

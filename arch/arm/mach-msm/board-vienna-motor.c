@@ -40,17 +40,17 @@ static u8 isa1400_init[] = {
 	ISA1400_REG_OVDRTYP, 0xca,
 	ISA1400_REG_AMPSWTCH, 0x1a,
 	ISA1400_REG_SYSCLK, 0x22,
-	ISA1400_REG_GAIN, 0x20,
+	ISA1400_REG_GAIN, 0x00,
 	ISA1400_REG_FREQ1M, 0x08,
 	ISA1400_REG_FREQ1L, 0xD3,
 	ISA1400_REG_CHMODE, 0x00,
-	ISA1400_REG_WAVESEL, 0x00,
-	ISA1400_REG_HPTEN, 0x01,
+	ISA1400_REG_WAVESEL, 0x01,
 };
 
 static u8 isa1400_start[] = {
 	ISA1400_REG_START, 0,
 	ISA1400_REG_GAIN, 0x7f,
+	ISA1400_REG_HPTEN, 0x01,
 };
 
 static u8 isa1400_stop[] = {
@@ -121,7 +121,7 @@ static int isa1400_clk_en(bool en)
 		vib_gp1_clk = NULL;
 
 		gpio_tlmm_config(GPIO_CFG(GPIO_PWM_CLK,
-				 0, GPIO_CFG_OUTPUT, GPIO_CFG_NO_PULL,
+				 0, GPIO_CFG_OUTPUT, GPIO_CFG_PULL_DOWN,
 					GPIO_CFG_2MA), GPIO_CFG_ENABLE);
 		gpio_set_value(GPIO_PWM_CLK, 0);
         }

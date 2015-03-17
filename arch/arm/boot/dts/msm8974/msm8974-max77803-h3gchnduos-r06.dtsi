@@ -41,4 +41,18 @@
 			max77803,haptic = <&haptic_pdata>;
 		};
 	};
+	
+	i2c@19 {
+		compatible = "i2c-gpio";
+		gpios = <&msmgpio 87 0 /* sda */
+		&msmgpio 88 0 /* scl */
+		>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		sec-fuelgauge@36 {
+			compatible = "sec-fuelgauge,i2c";
+			reg = <0x36>;
+			fuelgauge,fuel_int = <&pm8941_gpios 26 0x1>;
+		};
+	};
 };

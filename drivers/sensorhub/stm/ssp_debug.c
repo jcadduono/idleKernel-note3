@@ -21,10 +21,7 @@
 
 #define SSP_DEBUG_TIMER_SEC		(10 * HZ)
 
-#define LIMIT_RESET_CNT		3000000
-#define LIMIT_SSD_FAIL_CNT		3
-#define LIMIT_INSTRUCTION_FAIL_CNT	1
-#define LIMIT_IRQ_FAIL_CNT		2
+#define LIMIT_RESET_CNT		20
 #define LIMIT_TIMEOUT_CNT		3
 
 #define DUMP_FILE_PATH "/data/log/MCU_DUMP"
@@ -37,29 +34,27 @@ void ssp_dump_task(struct work_struct *work) {
 	char *buffer;
 	char strFilePath[60];
 	struct timeval cur_time;
-	int iTimeTemp;
 	mm_segment_t fs;
 	int buf_len, packet_len, residue, iRet = 0, index = 0 ,iRetTrans=0 ,iRetWrite=0;
 
 
 	big = container_of(work, struct ssp_big, work);
-	pr_err("[SSP]: %s - start ssp dumping (%d)(%d)\n",
-		__func__,big->data->bMcuDumpMode,big->data->uDumpCnt);
+	pr_err("[SSP]: %s - start ssp dumping (%d)(%d)\n", __func__, big->data->bMcuDumpMode, big->data->uDumpCnt);
 	big->data->uDumpCnt++;
 	wake_lock(&big->data->ssp_wake_lock);
 
-
 	fs = get_fs();
 	set_fs(get_ds());
+	
 	if(big->data->bMcuDumpMode == true)
 	{
 		do_gettimeofday(&cur_time);
-		iTimeTemp = (int) cur_time.tv_sec;
 
-		sprintf(strFilePath, "%s%d.txt", DUMP_FILE_PATH, iTimeTemp);
-
+		sprintf(strFilePath, "%s%d.dump", DUMP_FILE_PATH, (int)cur_time.tv_sec);
 		dump_file = filp_open(strFilePath, O_RDWR | O_CREAT | O_APPEND, 0666);
-		if (IS_ERR(dump_file)) {
+
+		if (IS_ERR(dump_file))
+		{
 			pr_err("[SSP]: %s - Can't open dump file\n", __func__);
 			set_fs(fs);
 			iRet = PTR_ERR(dump_file);
@@ -76,7 +71,8 @@ void ssp_dump_task(struct work_struct *work) {
 	buffer = kzalloc(buf_len, GFP_KERNEL);
 	residue = big->length;
 
-	while (residue > 0) {
+	while (residue > 0)
+	{
 		packet_len = residue > DATA_PACKET_SIZE ? DATA_PACKET_SIZE : residue;
 
 		msg = kzalloc(sizeof(*msg), GFP_KERNEL);
@@ -87,16 +83,20 @@ void ssp_dump_task(struct work_struct *work) {
 		msg->buffer = buffer;
 		msg->free_buffer = 0;
 
-		iRetTrans = ssp_spi_sync(big->data, msg, 1000);
-		if (iRetTrans != SUCCESS) {
+		iRetTrans = ssp_spi_sync(big->data, msg, 5000);
+		
+		if (iRetTrans != SUCCESS)
+		{
 			pr_err("[SSP]: %s - Fail to receive data %d (%d)\n", __func__, iRetTrans,residue);
 			break;
 		}
 
-		if(big->data->bMcuDumpMode == true) {
-			iRetWrite = vfs_write(dump_file, (char __user *) buffer, packet_len,
-				&dump_file->f_pos);
-			if (iRetWrite < 0) {
+		if(big->data->bMcuDumpMode == true)
+		{
+			iRetWrite = vfs_write(dump_file, (char __user *) buffer, packet_len, &dump_file->f_pos);
+			
+			if (iRetWrite < 0)
+			{
 				pr_err("[SSP]: %s - Can't write dump to file\n", __func__);
 				break;
 			}
@@ -104,21 +104,20 @@ void ssp_dump_task(struct work_struct *work) {
 		residue -= packet_len;
 	}
 
-	if(big->data->bMcuDumpMode == true && (iRetTrans != SUCCESS || iRetWrite < 0) )
-	{
-		char FAILSTRING[100];
-		sprintf(FAILSTRING,"FAIL OCCURED(%d)(%d)(%d)",iRetTrans,iRetWrite,big->length);
-		vfs_write(dump_file, (char __user *) FAILSTRING, strlen(FAILSTRING),&dump_file->f_pos);
-	}
-
-	ssp_send_cmd(big->data, MSG2SSP_AP_MCU_DUMP_FINISH, SUCCESS);
-
-	big->data->bDumping = false;
 
 	if(big->data->bMcuDumpMode == true)
 	{
+		if(iRetTrans != SUCCESS || iRetWrite < 0)	// error case
+		{
+			char FAILSTRING[100];
+			sprintf(FAILSTRING,"FAIL OCCURED(%d)(%d)(%d)",iRetTrans,iRetWrite,big->length);
+			vfs_write(dump_file, (char __user *) FAILSTRING, strlen(FAILSTRING),&dump_file->f_pos);
+		}
+
 		filp_close(dump_file, current->files);
 	}
+
+	big->data->bDumping = false;
 
 	set_fs(fs);
 
@@ -300,10 +299,17 @@ static void print_sensordata(struct ssp_data *data, unsigned int uSensor)
 			get_msdelay(data->adDelayBuf[uSensor]));
 		break;
 	case GESTURE_SENSOR:
+#if defined (CONFIG_SENSORS_SSP_MAX88921)
+		ssp_dbg("[SSP] %u : %d %d %d %d (%ums)\n", uSensor,
+			data->buf[uSensor].data[0], data->buf[uSensor].data[1],
+			data->buf[uSensor].data[2], data->buf[uSensor].data[3],
+			get_msdelay(data->adDelayBuf[uSensor]));
+#else
 		ssp_dbg("[SSP] %u : %d %d %d %d (%ums)\n", uSensor,
 			data->buf[uSensor].data[3], data->buf[uSensor].data[4],
 			data->buf[uSensor].data[5], data->buf[uSensor].data[6],
 			get_msdelay(data->adDelayBuf[uSensor]));
+#endif
 		break;
 	case TEMPERATURE_HUMIDITY_SENSOR:
 		ssp_dbg("[SSP] %u : %d %d %d(%ums)\n", uSensor,
@@ -361,7 +367,6 @@ static void print_sensordata(struct ssp_data *data, unsigned int uSensor)
 			data->buf[uSensor].step_diff,
 			get_msdelay(data->adDelayBuf[uSensor]));
 		break;
-
 	default:
 		ssp_dbg("[SSP] Wrong sensorCnt: %u\n", uSensor);
 		break;
@@ -373,22 +378,16 @@ static void debug_work_func(struct work_struct *work)
 	unsigned int uSensorCnt;
 	struct ssp_data *data = container_of(work, struct ssp_data, work_debug);
 
-	ssp_dbg("[SSP]: %s(%u) - Sensor state: 0x%x, RC: %u, MS: %u Dump: %u\n",
+	ssp_dbg("[SSP]: %s(%u) - Sensor state: 0x%x, RC: %u, CC: %u DC: %u TC: %u\n",
 		__func__, data->uIrqCnt, data->uSensorState, data->uResetCnt,
-		data->uMissSensorCnt,data->uDumpCnt);
+		data->uComFailCnt, data->uDumpCnt, data->uTimeOutCnt);
 
-	if (data->fw_dl_state >= FW_DL_STATE_DOWNLOADING &&
-		data->fw_dl_state < FW_DL_STATE_DONE) {
-		pr_info("[SSP] : %s firmware downloading state = %d\n",
-			__func__, data->fw_dl_state);
-		return;
-	} else if (data->fw_dl_state == FW_DL_STATE_FAIL) {
-		pr_err("[SSP] : %s firmware download failed = %d\n",
-			__func__, data->fw_dl_state);
-		return;
-	}
-	if ((data->uSensorState & 0xff) == 0x0){
-		pr_err("[SSP] : %s MCU sensor probe fail\n", __func__);
+	switch (data->fw_dl_state) {
+	case FW_DL_STATE_FAIL:
+	case FW_DL_STATE_DOWNLOADING:
+	case FW_DL_STATE_SYNC:
+		pr_info("[SSP] : %s firmware downloading state = %d\n", __func__,
+				data->fw_dl_state);
 		return;
 	}
 
@@ -397,35 +396,15 @@ static void debug_work_func(struct work_struct *work)
 			|| data->batchLatencyBuf[uSensorCnt])
 			print_sensordata(data, uSensorCnt);
 
-	if ((atomic_read(&data->aSensorEnable) & SSP_BYPASS_SENSORS_EN_ALL)\
-		&& (data->uIrqCnt == 0))
-		data->uIrqFailCnt++;
-	else
-		data->uIrqFailCnt = 0;
-
-	if (((data->uSsdFailCnt >= LIMIT_SSD_FAIL_CNT)
-		|| (data->uInstFailCnt >= LIMIT_INSTRUCTION_FAIL_CNT)
-		|| (data->uIrqFailCnt >= LIMIT_IRQ_FAIL_CNT)
-		|| (data->uTimeOutCnt > LIMIT_TIMEOUT_CNT))
-		&& (data->bSspShutdown == false)
-		&& (data->uLastResumeState != MSG2SSP_AP_STATUS_SUSPEND)) {
-
-		if (data->uResetCnt < LIMIT_RESET_CNT) {
-			wake_lock(&data->ssp_wake_lock);
-			pr_info("[SSP] : %s - uSsdFailCnt(%u), uInstFailCnt(%u),"\
-				"uIrqFailCnt(%u), uTimeOutCnt(%u), pending(%u)\n",
-				__func__, data->uSsdFailCnt, data->uInstFailCnt, data->uIrqFailCnt,
-				data->uTimeOutCnt, !list_empty(&data->pending_list));
+	if (data->uTimeOutCnt > LIMIT_TIMEOUT_CNT) {
+		if (data->uComFailCnt < LIMIT_RESET_CNT) {
+			pr_info("[SSP] : %s - uTimeOutCnt(%u), pending(%u)\n",
+				__func__, data->uTimeOutCnt, !list_empty(&data->pending_list));
+			data->uComFailCnt++;
 			reset_mcu(data);
-			data->uResetCnt++;
-			wake_unlock(&data->ssp_wake_lock);
 		} else
 			ssp_enable(data, false);
-
-		data->uSsdFailCnt = 0;
-		data->uInstFailCnt = 0;
 		data->uTimeOutCnt = 0;
-		data->uIrqFailCnt = 0;
 	}
 
 	data->uIrqCnt = 0;

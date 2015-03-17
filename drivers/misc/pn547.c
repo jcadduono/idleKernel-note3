@@ -38,7 +38,6 @@
 #include <linux/pn547.h>
 #include <linux/wakelock.h>
 #include <linux/of_gpio.h>
-
 #ifdef CONFIG_NFC_PN547_CLOCK_REQUEST
 #include <mach/msm_xo.h>
 #include <linux/workqueue.h>
@@ -46,13 +45,28 @@
 #ifdef CONFIG_NFC_PN547_PMC8974_CLK_REQ
 #include <linux/clk.h>
 #endif
+#ifdef CONFIG_NFC_PN547_8226_USE_BBCLK2
+#include <linux/clk.h>
+#endif
 
 #define MAX_BUFFER_SIZE		512
+
+#undef pr_info
+#undef pr_debug
+#undef pr_err
+
+#define pr_info printk
+#define pr_debug printk
+#define pr_err printk
 
 #define NFC_DEBUG 0
 #define MAX_TRY_I2C_READ	10
 #define I2C_ADDR_READ_L		0x51
 #define I2C_ADDR_READ_H		0x57
+
+#ifdef CONFIG_MACH_VICTORLTE_CTC
+extern unsigned int system_rev;
+#endif
 
 struct pn547_dev {
 	wait_queue_head_t read_wq;
@@ -70,6 +84,10 @@ struct pn547_dev {
 	struct wake_lock nfc_wake_lock;
 #ifdef CONFIG_NFC_PN547_PMC8974_CLK_REQ
 	struct clk *nfc_clk;
+#endif
+#ifdef CONFIG_NFC_PN547_8226_USE_BBCLK2
+	struct clk *nfc_clock;
+	unsigned int clk_req_gpio;
 #endif
 #ifdef CONFIG_NFC_PN547_CLOCK_REQUEST
 	unsigned int clk_req_gpio;
@@ -268,7 +286,7 @@ static ssize_t pn547_dev_write(struct file *filp, const char __user *buf,
 	/* Write data */
 	do {
 		retry--;
-	ret = i2c_master_send(pn547_dev->client, tmp, count);
+		ret = i2c_master_send(pn547_dev->client, tmp, count);
 		if (ret == count)
 			break;
 		usleep_range(6000, 10000); /* Retry, chip was in standby */
@@ -311,6 +329,9 @@ static long pn547_dev_ioctl(struct file *filp,
 		if (arg == 2) {
 			/* power on with firmware download (requires hw reset)
 			 */
+#if defined(CONFIG_SEC_MILLETWIFI_COMMON) || defined(CONFIG_SEC_RUBENSLTE_COMMON) || defined(CONFIG_SEC_RUBENSWIFI_COMMON)
+			gpio_direction_output(pn547_dev->ven_gpio, 1);
+#endif
 			gpio_set_value_cansleep(pn547_dev->ven_gpio, 1);
 			gpio_set_value(pn547_dev->firm_gpio, 1);
 			usleep_range(10000, 10050);
@@ -330,6 +351,9 @@ static long pn547_dev_ioctl(struct file *filp,
 			if (pn547_dev->conf_gpio)
 				pn547_dev->conf_gpio();
 			gpio_set_value(pn547_dev->firm_gpio, 0);
+#if defined(CONFIG_SEC_MILLETWIFI_COMMON) || defined(CONFIG_SEC_RUBENSLTE_COMMON) || defined(CONFIG_SEC_RUBENSWIFI_COMMON)
+			gpio_direction_output(pn547_dev->ven_gpio, 1);
+#endif
 			gpio_set_value_cansleep(pn547_dev->ven_gpio, 1);
 			usleep_range(10000, 10050);
 			if (atomic_read(&pn547_dev->irq_enabled) == 0) {
@@ -349,6 +373,9 @@ static long pn547_dev_ioctl(struct file *filp,
 			pr_info("%s power off, irq=%d\n", __func__,
 				atomic_read(&pn547_dev->irq_enabled));
 			gpio_set_value(pn547_dev->firm_gpio, 0);
+#if defined(CONFIG_SEC_MILLETWIFI_COMMON) || defined(CONFIG_SEC_RUBENSLTE_COMMON) || defined(CONFIG_SEC_RUBENSWIFI_COMMON)
+			gpio_direction_output(pn547_dev->ven_gpio, 0);
+#endif
 			gpio_set_value_cansleep(pn547_dev->ven_gpio, 0);
 			usleep_range(10000, 10050);
 		} else if (arg == 3) {
@@ -383,6 +410,10 @@ static int pn547_parse_dt(struct device *dev,
 	struct pn547_i2c_platform_data *pdata)
 {
 	struct device_node *np = dev->of_node;
+#ifdef CONFIG_NFC_PN547_8226_USE_BBCLK2
+	u32 gpio_flags;
+#endif
+
 	pdata->irq_gpio = of_get_named_gpio_flags(np, "pn547,irq-gpio",
 		0, &pdata->irq_gpio_flags);
 
@@ -392,6 +423,11 @@ static int pn547_parse_dt(struct device *dev,
 	pdata->firm_gpio = of_get_named_gpio_flags(np, "pn547,firm-gpio",
 		0, &pdata->firm_gpio_flags);
 
+#ifdef CONFIG_NFC_PN547_8226_USE_BBCLK2
+	pdata->clk_req_gpio = of_get_named_gpio_flags(np, "pn547,clk_req_gpio",
+		0, &gpio_flags);
+#endif
+
 	if (pdata->firm_gpio < 0)
 		of_property_read_u32(np, "pn547,firm-expander-gpio",
 			&pdata->firm_gpio);
@@ -399,7 +435,6 @@ static int pn547_parse_dt(struct device *dev,
 	pr_info("%s: irq : %d, ven : %d, firm : %d\n",
 			__func__, pdata->irq_gpio, pdata->ven_gpio,
 			pdata->firm_gpio);
-
 	return 0;
 }
 #else
@@ -420,7 +455,14 @@ static int pn547_probe(struct i2c_client *client,
 	int addrcnt;
 	struct pn547_i2c_platform_data *platform_data;
 	struct pn547_dev *pn547_dev;
-
+#ifdef CONFIG_MACH_VICTORLTE_CTC
+	pr_info("%s : start  system_rev : %d\n", __func__,system_rev);
+	if (system_rev < 3)
+	{
+		pr_info("%s : probe fail \n", __func__);
+		return -ENODEV;
+	}
+#endif
 	if (client->dev.of_node) {
 		platform_data = devm_kzalloc(&client->dev,
 			sizeof(struct pn547_i2c_platform_data), GFP_KERNEL);
@@ -459,6 +501,11 @@ static int pn547_probe(struct i2c_client *client,
 	if (ret)
 		goto err_clk_req;
 #endif
+#ifdef CONFIG_NFC_PN547_8226_USE_BBCLK2
+	ret = gpio_request(platform_data->clk_req_gpio, "nfc_clk_req");
+	if (ret)
+		goto err_clk_req;
+#endif
 	pn547_dev = kzalloc(sizeof(*pn547_dev), GFP_KERNEL);
 	if (pn547_dev == NULL) {
 		dev_err(&client->dev,
@@ -476,6 +523,18 @@ static int pn547_probe(struct i2c_client *client,
 		goto err_get_clock;
 	}
 	pn547_dev->clock_state = false;
+#endif
+#ifdef CONFIG_NFC_PN547_8226_USE_BBCLK2
+	pn547_dev->nfc_clock = clk_get(NULL, "nfc_clock");
+	if (IS_ERR(pn547_dev->nfc_clock)) {
+		ret = PTR_ERR(pn547_dev->nfc_clock);
+		printk(KERN_ERR "%s: Couldn't get D1 (%d)\n",
+					__func__, ret);
+	} else {
+		if (clk_prepare_enable(pn547_dev->nfc_clock))
+			printk(KERN_ERR "%s: Couldn't prepare D1\n",
+					__func__);
+	}
 #endif
 #ifdef CONFIG_NFC_PN547_PMC8974_CLK_REQ
 #ifdef CONFIG_NFC_I2C_OVERWRITE
@@ -502,6 +561,9 @@ static int pn547_probe(struct i2c_client *client,
 #ifdef CONFIG_NFC_PN547_CLOCK_REQUEST
 	pn547_dev->clk_req_gpio = platform_data->clk_req_gpio;
 	pn547_dev->clk_req_irq = platform_data->clk_req_irq;
+#endif
+#ifdef CONFIG_NFC_PN547_8226_USE_BBCLK2
+	pn547_dev->clk_req_gpio = platform_data->clk_req_gpio;
 #endif
 	pn547_dev->client = client;
 
@@ -530,7 +592,7 @@ static int pn547_probe(struct i2c_client *client,
 	gpio_direction_input(pn547_dev->irq_gpio);
 	gpio_direction_output(pn547_dev->ven_gpio, 0);
 	gpio_direction_output(pn547_dev->firm_gpio, 0);
-#ifdef CONFIG_NFC_PN547_CLOCK_REQUEST
+#if defined(CONFIG_NFC_PN547_CLOCK_REQUEST) || defined(CONFIG_NFC_PN547_8226_USE_BBCLK2)
 	gpio_direction_input(pn547_dev->clk_req_gpio);
 #endif
 
@@ -546,6 +608,13 @@ static int pn547_probe(struct i2c_client *client,
 	}
 	INIT_WORK(&pn547_dev->work_nfc_clock, nfc_work_func_clock);
 #endif
+	if(client->irq <=0)	
+	{
+		pr_info("%s : [Before] requesting IRQ %d\n", __func__, client->irq);
+		client->irq = gpio_to_irq(pn547_dev->irq_gpio);
+		pr_info("%s : [After] requesting IRQ %d\n", __func__, client->irq);
+	}
+
 	ret = request_irq(client->irq, pn547_dev_irq_handler,
 			  IRQF_TRIGGER_RISING, "pn547", pn547_dev);
 	if (ret) {
@@ -568,9 +637,14 @@ static int pn547_probe(struct i2c_client *client,
 #endif
 
 	gpio_set_value(pn547_dev->ven_gpio, 1);
-	usleep_range(10000, 11000);
+	gpio_set_value(pn547_dev->firm_gpio, 1); /* add firmware pin */
+	usleep_range(4900, 5000);
+	gpio_set_value(pn547_dev->ven_gpio, 0);
+	usleep_range(4900, 5000);
+	gpio_set_value(pn547_dev->ven_gpio, 1);
+	usleep_range(4900, 5000);
 
-	for (addr = 0x28; addr < 0x2C; addr++) {
+	for (addr = 0x2B; addr > 0x27; addr--) {
 		client->addr = addr;
 		addrcnt = 2;
 
@@ -581,20 +655,23 @@ static int pn547_probe(struct i2c_client *client,
 					__func__, client->addr);
 				break;
 			}
-			msleep(20);
 		} while (addrcnt--);
 
 		if (ret > 0)
 			break;
 	}
+
+	if(ret <= 0)
+		client->addr = 0x2B;
+
 	gpio_set_value(pn547_dev->ven_gpio, 0);
+	gpio_set_value(pn547_dev->firm_gpio, 0); /* add */
 
-	if (ret < 0) {
+	if (ret < 0)
 		pr_err("%s : fail to get i2c addr\n", __func__);
-		goto err_request_irq_failed;
-	}
-
-	pr_info("%s : success\n", __func__);
+		/* goto err_request_irq_failed; */
+	else
+		pr_info("%s : success\n", __func__);
 	return 0;
 
 err_request_irq_failed:
@@ -611,7 +688,7 @@ err_get_clock:
 #endif
 	kfree(pn547_dev);
 err_exit:
-#ifdef CONFIG_NFC_PN547_CLOCK_REQUEST
+#if defined(CONFIG_NFC_PN547_CLOCK_REQUEST) || defined(CONFIG_NFC_PN547_8226_USE_BBCLK2)
 	gpio_free(platform_data->clk_req_gpio);
 err_clk_req:
 #endif
@@ -629,6 +706,10 @@ static int pn547_remove(struct i2c_client *client)
 	struct pn547_dev *pn547_dev;
 
 	pn547_dev = i2c_get_clientdata(client);
+#ifdef CONFIG_NFC_PN547_8226_USE_BBCLK2
+	if(pn547_dev->nfc_clock)
+		clk_unprepare(pn547_dev->nfc_clock);
+#endif
 #ifdef CONFIG_NFC_PN547_PMC8974_CLK_REQ
 	if (pn547_dev->nfc_clk)
 		clk_unprepare(pn547_dev->nfc_clk);
@@ -640,6 +721,9 @@ static int pn547_remove(struct i2c_client *client)
 	gpio_free(pn547_dev->irq_gpio);
 	gpio_free(pn547_dev->ven_gpio);
 	gpio_free(pn547_dev->firm_gpio);
+#ifdef CONFIG_NFC_PN547_8226_USE_BBCLK2
+	gpio_free(pn547_dev->clk_req_gpio);
+#endif
 #ifdef CONFIG_NFC_PN547_CLOCK_REQUEST
 	gpio_free(pn547_dev->clk_req_gpio);
 	msm_xo_put(pn547_dev->nfc_clock);

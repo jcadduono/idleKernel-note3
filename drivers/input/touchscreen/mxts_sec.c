@@ -383,8 +383,7 @@ static int mxt_load_fw_from_ums(struct mxt_fw_info *fw_info,
 	struct file *filp = NULL;
 	struct firmware fw;
 	mm_segment_t old_fs = {0};
-	const char *firmware_name =
-		data->pdata->firmware_name ?: MXT_DEFAULT_FIRMWARE_NAME;
+	const char *firmware_name = MXT_DEFAULT_FIRMWARE_NAME;
 	char *fw_path;
 	int ret = 0;
 
@@ -442,12 +441,14 @@ static int mxt_load_fw_from_req_fw(struct mxt_fw_info *fw_info,
 {
 	struct mxt_data *data = fw_info->data;
 	struct device *dev = &data->client->dev;
-#if defined(CONFIG_SEC_LT03_PROJECT) || defined(CONFIG_SEC_PICASSO_PROJECT)
-	const char *firmware_name = data->pdata->firmware_name ?: MXT_N_PROJECT_FIRMWARE_NAME;
-#else
-	const char *firmware_name = data->pdata->firmware_name ?: MXT_V_PROJECT_FIRMWARE_NAME;
-#endif
+	const char *firmware_name = data->pdata->firmware_name;
 	int ret = 0;
+
+	if (firmware_name == NULL) {
+		dev_err(dev, "%s: firmware name is NULL!, return\n",
+			__func__);
+		return -EINVAL;
+	}
 
 	if (MXT_FIRMWARE_UPDATE_TYPE) {
 		char fw_path[MXT_MAX_FW_PATH];
@@ -1273,22 +1274,30 @@ static void set_jitter_level(void *device_data)
 		fdata->cmd_state = CMD_STATUS_FAIL;
 	} else {
 		int retval = 0, level = 0;
+		u8 cfg_val;
 
 		level = fdata->cmd_param[0];
+		retval = mxt_read_object(data, MXT_TOUCH_MULTITOUCHSCREEN_T9, MXT_TOUCH_MOVFILTER2, &cfg_val);
 
-		/* TODO: Write config value for changing jitter value  on tsp ic */
-		retval = mxt_write_object(data, MXT_TOUCH_MULTITOUCHSCREEN_T9,
-					MXT_TOUCH_MOVFILTER2, level);
+		if (!retval) {
+			cfg_val = ((cfg_val & 0xf0 )| level);
+
+			/* TODO: Write config value for changing jitter value  on tsp ic */
+			retval = mxt_write_object(data, MXT_TOUCH_MULTITOUCHSCREEN_T9, MXT_TOUCH_MOVFILTER2, cfg_val);
+		} else {
+			dev_err(&client->dev, "%s: failed to read T9 object.\n", __func__);
+			retval = -EINVAL;
+		}
 
 		if (retval < 0) {
-			dev_err(&client->dev, "%s: failed, retval=%d,level=%d\n",
-						__func__, retval, level);
+			dev_err(&client->dev, "%s: failed, retval=%d,level=%d,cfg_val=%d\n",
+						__func__, retval, level, cfg_val);
 			snprintf(buff, sizeof(buff), "%s", "NG");
 			set_cmd_result(fdata, buff, strnlen(buff, sizeof(buff)));
 			fdata->cmd_state = CMD_STATUS_FAIL;
 		} else {
-			dev_err(&client->dev, "%s: success write config[%d]\n",
-						__func__, level);
+			dev_err(&client->dev, "%s: success write level[%d],cfg_val=[%d]\n",
+						__func__, level, cfg_val);
 			snprintf(buff, sizeof(buff), "%s", "OK");
 			set_cmd_result(fdata, buff, strnlen(buff, sizeof(buff)));
 			fdata->cmd_state = CMD_STATUS_OK;
@@ -1374,7 +1383,7 @@ static void get_tk_delta(void *device_data)
 		__func__, buff, strnlen(buff, sizeof(buff)));
 }
 
-#ifdef CONFIG_SEC_LT03_PROJECT
+#ifdef WORKAROUND_THRESHOLD
 bool set_threshold(void *device_data)
 {
 	struct mxt_data *data = (struct mxt_data *)device_data;
@@ -1449,15 +1458,18 @@ static void set_tk_threshold(void *device_data)
 	struct mxt_fac_data *fdata = data->fdata;
 	char buff[16] = {0};
 	bool command_success;
+	unsigned int revision;
 
 	set_default_result(fdata);
+	
 
-#if defined(CONFIG_MACH_LT03SKT) || defined(CONFIG_MACH_LT03LGT) || defined(CONFIG_MACH_LT03KTT)
-	if (system_rev >= 9) /* All of revision change threshlod of Touch key */
+#ifdef KOR_REVISION
+	revision = 9; /* All of revision change threshold of Touch key */
 #else
-	if (system_rev >= 11)
+	revision = 11;
 #endif
-	{
+
+	if (system_rev >= revision) {
 		dev_info(&client->dev, "%s failed, not suppport[%d] !\n",
 			__func__, system_rev);
 
@@ -1606,7 +1618,7 @@ static struct tsp_cmd tsp_cmds[] = {
 #if ENABLE_TOUCH_KEY
 	{TSP_CMD("get_tk_threshold", get_tk_threshold),},
 	{TSP_CMD("get_tk_delta", get_tk_delta),},
-#ifdef CONFIG_SEC_LT03_PROJECT
+#ifdef WORKAROUND_THRESHOLD
 	{TSP_CMD("set_tk_threshold", set_tk_threshold),},
 #endif
 #endif
@@ -1641,6 +1653,16 @@ static ssize_t store_cmd(struct device *dev, struct device_attribute
 		goto err_out;
 	}
 
+	len = (int)count;
+	if (*(buf + len - 1) == '\n')
+		len--;
+
+/* if wrong cmd is coming */
+	if (len > TSP_CMD_STR_LEN) {
+		dev_info(&client->dev, "%s: length overflow[%d]\n", __func__, len);
+		goto err_out;
+	}
+
 	/* check lock  */
 	mutex_lock(&fdata->cmd_lock);
 	fdata->cmd_is_running = true;
@@ -1651,9 +1673,6 @@ static ssize_t store_cmd(struct device *dev, struct device_attribute
 	for (i = 0; i < ARRAY_SIZE(fdata->cmd_param); i++)
 		fdata->cmd_param[i] = 0;
 
-	len = (int)count;
-	if (*(buf + len - 1) == '\n')
-		len--;
 	memset(fdata->cmd, 0x00, ARRAY_SIZE(fdata->cmd));
 	memcpy(fdata->cmd, buf, len);
 
@@ -1925,12 +1944,21 @@ static ssize_t touchkey_d_back_show(struct device *dev,
 	return sprintf(buf, "%d\n", touchkey_delta_show(data, "d_back"));
 }
 
+#ifdef USE_MENU_TOUCHKEY
 static ssize_t touchkey_menu_show(struct device *dev,
 				  struct device_attribute *attr, char *buf)
 {
 	struct mxt_data *data = dev_get_drvdata(dev);
 	return sprintf(buf, "%d\n", touchkey_delta_show(data, "menu"));
 }
+#else
+static ssize_t touchkey_recent_show(struct device *dev,
+				  struct device_attribute *attr, char *buf)
+{
+	struct mxt_data *data = dev_get_drvdata(dev);
+	return sprintf(buf, "%d\n", touchkey_delta_show(data, "recent"));
+}
+#endif
 
 static ssize_t touchkey_back_show(struct device *dev,
 				  struct device_attribute *attr, char *buf)
@@ -2079,7 +2107,11 @@ static DEVICE_ATTR(touchkey_d_menu, S_IRUGO | S_IWUSR | S_IWGRP, touchkey_d_menu
 static DEVICE_ATTR(touchkey_d_home1, S_IRUGO | S_IWUSR | S_IWGRP, touchkey_d_home1_show, NULL);
 static DEVICE_ATTR(touchkey_d_home2, S_IRUGO | S_IWUSR | S_IWGRP, touchkey_d_home2_show, NULL);
 static DEVICE_ATTR(touchkey_d_back, S_IRUGO | S_IWUSR | S_IWGRP, touchkey_d_back_show, NULL);
+#ifdef USE_MENU_TOUCHKEY
 static DEVICE_ATTR(touchkey_menu, S_IRUGO | S_IWUSR | S_IWGRP, touchkey_menu_show, NULL);
+#else
+static DEVICE_ATTR(touchkey_recent, S_IRUGO | S_IWUSR | S_IWGRP, touchkey_recent_show, NULL);
+#endif
 static DEVICE_ATTR(touchkey_back, S_IRUGO | S_IWUSR | S_IWGRP, touchkey_back_show, NULL);
 static DEVICE_ATTR(touchkey_threshold, S_IRUGO | S_IWUSR | S_IWGRP, get_touchkey_threshold, NULL);
 static DEVICE_ATTR(brightness, S_IRUGO | S_IWUSR | S_IWGRP, NULL, touchkey_led_control);
@@ -2094,7 +2126,11 @@ static struct attribute *touchkey_attributes[] = {
 	&dev_attr_touchkey_d_home1.attr,
 	&dev_attr_touchkey_d_home2.attr,
 	&dev_attr_touchkey_d_back.attr,
+#ifdef USE_MENU_TOUCHKEY
 	&dev_attr_touchkey_menu.attr,
+#else
+	&dev_attr_touchkey_recent.attr,
+#endif
 	&dev_attr_touchkey_back.attr,
 	&dev_attr_touchkey_threshold.attr,
 	&dev_attr_brightness.attr,
@@ -2752,6 +2788,16 @@ static void mxt_change_dvfs_lock(struct work_struct *work)
 				MIN_TOUCH_LIMIT_SECOND);
 		data->dvfs_freq = MIN_TOUCH_LIMIT_SECOND;
 		}
+	} else if (data->dvfs_boost_mode == DVFS_STAGE_NINTH) {
+		if (!data->mxt_enabled) {
+			dev_info(&data->client->dev,
+				"%s: mxt is disabled.\n", __func__);
+			return;
+		} else {
+			ret = set_freq_limit(DVFS_TOUCH_ID,
+					MIN_TOUCH_LIMIT);
+			data->dvfs_freq = MIN_TOUCH_LIMIT;
+		}
 	} else if (data->dvfs_boost_mode == DVFS_STAGE_SINGLE ||
 			data->dvfs_boost_mode == DVFS_STAGE_TRIPLE) {
 		ret = set_freq_limit(DVFS_TOUCH_ID, -1);
@@ -2806,6 +2852,10 @@ void mxt_set_dvfs_lock(struct mxt_data *data, int on)
 	mutex_lock(&data->dvfs_lock);
 	if (on == 0) {
 		if (data->dvfs_lock_status) {
+			if (data->dvfs_boost_mode == DVFS_STAGE_NINTH)
+			schedule_delayed_work(&data->work_dvfs_off,
+				msecs_to_jiffies(TOUCH_BOOSTER_HIGH_OFF_TIME));
+			else
 			schedule_delayed_work(&data->work_dvfs_off,
 				msecs_to_jiffies(TOUCH_BOOSTER_OFF_TIME));
 		}
@@ -2815,7 +2865,8 @@ void mxt_set_dvfs_lock(struct mxt_data *data, int on)
 		if ((!data->dvfs_lock_status) || (data->dvfs_old_stauts < on)) {
 			cancel_delayed_work(&data->work_dvfs_chg);
 
-			if (data->dvfs_freq != MIN_TOUCH_LIMIT) {
+			if ((data->dvfs_freq != MIN_TOUCH_LIMIT) &&
+				(data->dvfs_boost_mode != DVFS_STAGE_NINTH)) {
 				if (data->dvfs_boost_mode == DVFS_STAGE_TRIPLE)
 					ret = set_freq_limit(DVFS_TOUCH_ID,
 						MIN_TOUCH_LIMIT_SECOND);
@@ -2828,6 +2879,22 @@ void mxt_set_dvfs_lock(struct mxt_data *data, int on)
 						"%s: cpu first lock failed(%d)\n",
 						__func__, ret);
 			}
+			else if ((data->dvfs_freq != MIN_TOUCH_LIMIT) &&
+				(data->dvfs_boost_mode == DVFS_STAGE_NINTH)) {
+				ret = set_freq_limit(DVFS_TOUCH_ID,
+							MIN_TOUCH_HIGH_LIMIT);
+				data->dvfs_freq = MIN_TOUCH_HIGH_LIMIT;
+
+				if (ret < 0)
+					dev_err(&data->client->dev,
+						"%s: cpu first lock failed(%d)\n",
+						__func__, ret);
+			}
+
+			if (data->dvfs_boost_mode == DVFS_STAGE_NINTH)
+			schedule_delayed_work(&data->work_dvfs_chg,
+					msecs_to_jiffies(TOUCH_BOOSTER_HIGH_CHG_TIME));
+			else
 			schedule_delayed_work(&data->work_dvfs_chg,
 				msecs_to_jiffies(TOUCH_BOOSTER_CHG_TIME));
 

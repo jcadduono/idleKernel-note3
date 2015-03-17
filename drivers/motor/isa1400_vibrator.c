@@ -201,6 +201,9 @@ void isa1400_clk_config(u8 index, int duty)
 	isa1400_vibrator_i2c_write(g_drvdata->client,
 		ISA1400_REG_GAIN + g_drvdata->pdata->actuator[index],
 		duty);
+	isa1400_vibrator_i2c_write(g_drvdata->client,
+		ISA1400_REG_HPTEN,
+		(0x01 << g_drvdata->pdata->actuator[index]));
 }
 
 void isa1400_chip_enable(bool en)

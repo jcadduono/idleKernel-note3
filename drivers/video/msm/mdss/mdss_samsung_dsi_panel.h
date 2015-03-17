@@ -34,7 +34,12 @@
 #define LCD_DEBUG(X, ...) pr_info("[LCD]%s:"X, __func__, ## __VA_ARGS__);
 
 #include "smart_dimming.h"
-#include "smart_mtp_se6e3fa.h"
+#if defined(CONFIG_FB_MSM_MIPI_MAGNA_OCTA_VIDEO_720P_PT_PANEL) \
+	|| defined(CONFIG_FB_MSM_MDSS_MAGNA_OCTA_VIDEO_720P_PANEL) 
+#include "smart_mtp_ea8061v.h"
+#else
+#include "smart_mtp_ea8061.h"
+#endif
 
 enum mipi_samsung_cmd_list {
 
@@ -61,7 +66,9 @@ enum mipi_samsung_cmd_list {
 	PANEL_LDI_SET_VDDM_OFFSET, /*LDI_ADJ_VDDM_OFFSET*/
 	PANEL_PARTIAL_ON,
 	PANEL_PARTIAL_OFF,
-	PANEl_FORCE_500CD
+	PANEl_FORCE_500CD,
+	PANEL_NV_MTP_READ_REGISTER_SET_CMDS,
+	PANEL_CRACK_RECOVERY,
 };
 enum {
 	MIPI_RESUME_STATE,
@@ -138,6 +145,13 @@ enum {
 #if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_WVGA_S6E88A0_PT_PANEL)
 	PANEL_WVGA_OCTA_S6E88A0,
 #endif
+	PANEL_720P_OCTA_D53D6EA8061V,
+	PANEL_720P_OCTA_S6E8AA0,
+	PANEL_720P_OCTA_EA8061_VIDEO,
+	PANEL_720P_OCTA_S6E8AA4_VIDEO,
+	PANEL_720P_OCTA_D53D6EA8061V_VIDEO,
+	PANEL_QHD_OCTA_S6E88A0_VIDEO,
+	PANEL_HD_OCTA_D53D6EA8061_VIDEO,
 };
 
 struct panel_hrev {

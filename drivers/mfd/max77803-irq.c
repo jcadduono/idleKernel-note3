@@ -203,12 +203,20 @@ clear_retry:
 		 * chgin is unmasked chgin isr
 		 */
 		if (irq_reg[CHG_INT] & max77803_irqs[MAX77803_CHG_IRQ_CHGIN_I].mask) {
-			u8 reg_data;
-			max77803_read_reg(max77803->i2c,
-				MAX77803_CHG_REG_CHG_INT_MASK, &reg_data);
-			reg_data |= (1 << 6);
-			max77803_write_reg(max77803->i2c,
-				MAX77803_CHG_REG_CHG_INT_MASK, reg_data);
+			u8 reg_data = 0;
+			reg_data = (1 << CHGIN_SHIFT);
+			max77803_update_reg(max77803->i2c, MAX77803_CHG_REG_CHG_INT_MASK, reg_data,
+					CHGIN_MASK);
+		}
+
+		/* mask WCIN to prevent WCIN infinite interrupt
+		 * WCIN is unmasked WCIN ISR
+		 */
+		if (irq_reg[CHG_INT] & max77803_irqs[MAX77803_CHG_IRQ_WCIN_I].mask) {
+			u8 reg_data = 0;
+			reg_data = (1 << WCIN_SHIFT);
+			max77803_update_reg(max77803->i2c, MAX77803_CHG_REG_CHG_INT_MASK, reg_data,
+					WCIN_MASK);
 		}
 	}
 

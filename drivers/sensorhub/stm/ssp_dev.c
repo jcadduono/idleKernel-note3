@@ -25,6 +25,11 @@ static void ssp_early_suspend(struct early_suspend *handler);
 static void ssp_late_resume(struct early_suspend *handler);
 #endif
 
+#define NORMAL_SENSOR_STATE_K	0x3FEFF
+
+#define GES_LDO_ON  1
+#define GES_LDO_OFF 0
+
 void ssp_enable(struct ssp_data *data, bool enable)
 {
 	pr_info("[SSP] %s, enable = %d, old enable = %d\n",
@@ -39,7 +44,7 @@ void ssp_enable(struct ssp_data *data, bool enable)
 		disable_irq(data->iIrq);
 		disable_irq_wake(data->iIrq);
 	} else
-		pr_err("%s, enable error\n", __func__);
+		pr_err("[SSP] %s, enable error\n", __func__);
 }
 /************************************************************************/
 /* interrupt happened due to transition/change of SSP MCU		*/
@@ -48,6 +53,15 @@ void ssp_enable(struct ssp_data *data, bool enable)
 static irqreturn_t sensordata_irq_thread_fn(int iIrq, void *dev_id)
 {
 	struct ssp_data *data = dev_id;
+	struct timespec ts;
+
+	ts = ktime_to_timespec(alarm_get_elapsed_realtime());
+	data->timestamp = ts.tv_sec * 1000000000ULL + ts.tv_nsec;
+
+	if(gpio_get_value(data->mcu_int1)) {
+		pr_info("[SSP] MCU int HIGH");
+		return IRQ_HANDLED;
+	}
 
 	select_irq_msg(data);
 	data->uIrqCnt++;
@@ -68,21 +82,20 @@ static void initialize_variable(struct ssp_data *data)
 		data->batchLatencyBuf[iSensorIndex] = 0;
 		data->batchOptBuf[iSensorIndex] = 0;
 		data->aiCheckStatus[iSensorIndex] = INITIALIZATION_STATE;
+		data->lastTimestamp[iSensorIndex] = 0;
+		data->reportedData[iSensorIndex] = false;
 	}
 
 	atomic_set(&data->aSensorEnable, 0);
 	data->iLibraryLength = 0;
-	data->uSensorState = 0;
+	data->uSensorState = NORMAL_SENSOR_STATE_K;
 	data->uFactoryProxAvg[0] = 0;
 	data->uMagCntlRegData = 1;
 
 	data->uResetCnt = 0;
-	data->uInstFailCnt = 0;
 	data->uTimeOutCnt = 0;
-	data->uSsdFailCnt = 0;
+	data->uComFailCnt = 0;
 	data->uIrqCnt = 0;
-	data->uIrqFailCnt = 0;
-	data->uMissSensorCnt = 0;
 
 	data->bSspShutdown = true;
 	data->bProximityRawEnabled = false;
@@ -126,12 +139,15 @@ static void initialize_variable(struct ssp_data *data)
 	INIT_LIST_HEAD(&data->pending_list);
 
 	data->step_count_total = 0;
+	data->sealevelpressure = 0;
 	initialize_function_pointer(data);
 }
 
 int initialize_mcu(struct ssp_data *data)
 {
 	int iRet = 0;
+
+	clean_pending_list(data);
 
 	iRet = get_chipid(data);
 	pr_info("[SSP] MCU device ID = %d, reading ID = %d\n", DEVICE_ID, iRet);
@@ -168,7 +184,8 @@ int initialize_mcu(struct ssp_data *data)
 	data->uCurFirmRev = get_firmware_rev(data);
 	pr_info("[SSP] MCU Firm Rev : New = %8u\n",
 		data->uCurFirmRev);
-	iRet = SUCCESS;
+
+	iRet = ssp_send_cmd(data, MSG2SSP_AP_MCU_DUMP_CHECK, 0);
 out:
 	return iRet;
 }
@@ -180,7 +197,7 @@ static int initialize_irq(struct ssp_data *data)
 
 	pr_info("[SSP]: requesting IRQ %d\n", iIrq);
 	iRet = request_threaded_irq(iIrq, NULL, sensordata_irq_thread_fn,
-				    IRQF_TRIGGER_FALLING, "SSP_Int", data);
+				    IRQF_TRIGGER_FALLING|IRQF_ONESHOT, "SSP_Int", data);
 	if (iRet < 0) {
 		pr_err("[SSP]: %s - request_irq(%d) failed for gpio %d (%d)\n",
 		       __func__, iIrq, iIrq, iRet);
@@ -209,11 +226,11 @@ static void work_function_firmware_update(struct work_struct *work)
 	if (iRet < 0) {
 		ssp_dbg("[SSP]: %s - forced_to_download_binary failed!\n",
 			__func__);
+		data->uSensorState = 0;
 		return;
 	}
 
-	if (data->uCurFirmRev == SSP_INVALID_REVISION)
-		queue_refresh_task(data, SSP_SW_RESET_TIME);
+	queue_refresh_task(data, SSP_SW_RESET_TIME);
 }
 
 static int ssp_parse_dt(struct device *dev,
@@ -243,31 +260,40 @@ static int ssp_parse_dt(struct device *dev,
 		errorno = data->ap_int;
 		goto dt_exit;
 	}
+#if defined(CONFIG_SEC_PATEK_PROJECT)
+	if (of_property_read_string(np, "ssp,ges_vdd_1p8",
+		&data->ges_vdd) < 0)
+		 pr_err("%s - get ges_vdd error\n", __func__);
 
+	if (of_property_read_string(np, "ssp,ges_led_3p3",
+		&data->ges_led) < 0)
+		pr_err("%s - get ges_led error\n", __func__);
+
+	pr_err("%s - get ges_vcc pass\n", __func__);
+
+#endif
+
+#if defined(CONFIG_MACH_KLTE_JPN) || defined(CONFIG_MACH_KACTIVELTE_DCM)
+#if defined(CONFIG_MACH_KLTE_MAX77828_JPN)
 	data->rst = of_get_named_gpio_flags(np, "ssp,rst-gpio",
 		0, &flags);
+#else
+	of_property_read_u32(np, "ssp,rst-gpio", &data->rst);
+#endif
+#else
+	data->rst = of_get_named_gpio_flags(np, "ssp,rst-gpio",
+		0, &flags);
+#endif
 	if (data->rst < 0) {
 		errorno = data->rst ;
 		goto dt_exit;
 	}
 
-#if defined(CONFIG_MACH_KLTE_VZW)
-	data->vzw_prox_gpio = of_get_named_gpio_flags(np, "ssp,vzw_prox-gpio",
-		0, &flags);
-	if (data->vzw_prox_gpio < 0) {
-		errorno = data->vzw_prox_gpio ;
-		goto dt_exit;
-	}
-#endif
 	if (of_property_read_u32(np, "ssp,acc-position", &data->accel_position))
 		data->accel_position = 0;
 
 	if (of_property_read_u32(np, "ssp,mag-position", &data->mag_position))
 		data->mag_position = 0;
-
-#ifdef CONFIG_MACH_KLTE_KOR
-	data->mag_position = 2;
-#endif
 
 	if (of_property_read_u32(np, "ssp,ap-rev", &data->ap_rev))
 		data->ap_rev = 0;
@@ -305,14 +331,6 @@ static int ssp_parse_dt(struct device *dev,
 	}
 	gpio_direction_output(data->rst, 1);
 
-#if defined(CONFIG_MACH_KLTE_VZW)
-	errorno = gpio_request(data->vzw_prox_gpio, "VZW_PROX_EN_GPIO");
-	if (errorno) {
-		pr_err("[SSP] failed to request VZW_PROX_EN_GPIO for SSP\n");
-		goto dt_exit;
-	}
-	gpio_direction_output(data->vzw_prox_gpio, 0);
-#endif
 	data->reg_hub = devm_regulator_get(dev, "hub_vreg");
 	if (IS_ERR(data->reg_hub)) {
 		pr_err("[SSP] could not get hub_vreg, %ld\n",
@@ -332,17 +350,82 @@ static int ssp_parse_dt(struct device *dev,
 dt_exit:
 	return errorno;
 }
+#if defined(CONFIG_SEC_PATEK_PROJECT)
+ static int ssp_gesture_regulator_onoff(struct ssp_data *data, int onoff)
+ {
+	int rc = 0;
+	struct regulator *regulator_led_3p3;
+	struct regulator *regulator_vdd_1p8;
 
+	pr_info("[SSP] %s - start = %d\n", __func__, onoff);
 
+	regulator_vdd_1p8 = regulator_get(NULL, data->ges_vdd);
+	if (IS_ERR(regulator_vdd_1p8)) {
+	pr_err("[SSP] %s - vdd_1p8 regulator_get fail\n", __func__);
+		return -ENODEV;
+	}
+
+	regulator_led_3p3 = regulator_get(NULL, data->ges_led);
+	if (IS_ERR(regulator_led_3p3)) {
+		pr_err("[SSP] %s - vdd_3p3 regulator_get fail\n", __func__);
+		regulator_put(regulator_vdd_1p8);
+		return -ENODEV;
+	}
+	pr_info("[SSP] %s - onoff = %d\n", __func__, onoff);
+
+	if (onoff == GES_LDO_ON) {
+		regulator_set_voltage(regulator_vdd_1p8, 1800000, 1800000);
+		rc = regulator_enable(regulator_vdd_1p8);
+		if (rc) {
+			pr_err("[SSP] %s - enable vdd_1p8 failed, rc=%d\n",
+			__func__, rc);
+			goto done;
+		}
+		regulator_set_voltage(regulator_led_3p3, 3300000, 3300000);
+		rc = regulator_enable(regulator_led_3p3);
+		if (rc) {
+			pr_err("[SSP] %s - enable led_3p3 failed, rc=%d\n",
+				__func__, rc);
+			goto done;
+		}
+	}else {
+		rc = regulator_disable(regulator_vdd_1p8);
+		if (rc) {
+			pr_err("[SSP] %s - disable vdd_1p8 failed, rc=%d\n",
+				__func__, rc);
+			goto done;
+		}
+		rc = regulator_disable(regulator_led_3p3);
+		if (rc) {
+			pr_err("[SSP] %s - disable led_3p3 failed, rc=%d\n",
+				__func__, rc);
+			goto done;
+		}
+	}
+
+	data->regulator_is_enable = (u8)onoff;
+
+done:
+	regulator_put(regulator_led_3p3);
+	regulator_put(regulator_vdd_1p8);
+
+	return rc;
+}
+#endif
 static int ssp_probe(struct spi_device *spi_dev)
 {
 	int iRet = 0;
 	struct ssp_data *data;
 	struct ssp_platform_data *pdata;
+#if defined(CONFIG_SEC_PATEK_PROJECT)
+	int err =-1;
+#endif
+
 	pr_info("[SSP] %s\n", __func__);
 
-	if (poweroff_charging == 1) {
-		pr_err("[SSP] probe exit : lpm %d\n", poweroff_charging);
+	if (poweroff_charging == 1 || boot_mode_recovery == 1) {
+		pr_err("[SSP] probe exit : lpm %d, recovery %d\n",
+			poweroff_charging, boot_mode_recovery);
 		return -ENODEV;
 	}
 
@@ -395,6 +478,16 @@ static int ssp_probe(struct spi_device *spi_dev)
 		}
 
 	}
+#if defined(CONFIG_SEC_PATEK_PROJECT)
+       err = ssp_gesture_regulator_onoff(data, GES_LDO_ON);
+       if (err < 0) {
+		pr_err("[SSP] %s max88922_regulator_on fail err = %d\n",
+			__func__, err);
+		goto err_setup;
+	}
+       usleep_range(1000, 1100);
+#endif
+
 	spi_dev->mode = SPI_MODE_1;
 	if (spi_setup(spi_dev)) {
 		pr_err("failed to setup spi for ssp_spi\n");
@@ -481,7 +574,6 @@ static int ssp_probe(struct spi_device *spi_dev)
 	if (data->fw_dl_state == FW_DL_STATE_NONE) {
 		iRet = initialize_mcu(data);
 		if (iRet == ERROR) {
-			data->uResetCnt++;
 			toggle_mcu_reset(data);
 		} else if (iRet < ERROR) {
 			pr_err("[SSP]: %s - initialize_mcu failed\n", __func__);
@@ -556,14 +648,18 @@ static void ssp_shutdown(struct spi_device *spi_dev)
 		cancel_delayed_work_sync(&data->work_firmware);
 	}
 
+	disable_debug_timer(data);
+
+	if (SUCCESS != ssp_send_cmd(data, MSG2SSP_AP_STATUS_SHUTDOWN, 0))
+		pr_err("[SSP]: %s MSG2SSP_AP_STATUS_SHUTDOWN failed\n",
+			__func__);
+
 	ssp_enable(data, false);
 	clean_pending_list(data);
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	unregister_early_suspend(&data->early_suspend);
 #endif
-
-	disable_debug_timer(data);
 
 	free_irq(data->iIrq, data);
 	gpio_free(data->mcu_int1);
@@ -576,8 +672,7 @@ static void ssp_shutdown(struct spi_device *spi_dev)
 	ssp_sensorhub_remove(data);
 #endif
 
-	del_timer_sync(&data->debug_timer);
-	cancel_work_sync(&data->work_debug);
+	cancel_delayed_work_sync(&data->work_refresh);
 	destroy_workqueue(data->debug_wq);
 	wake_lock_destroy(&data->ssp_wake_lock);
 #ifdef CONFIG_SENSORS_SSP_SHTC1

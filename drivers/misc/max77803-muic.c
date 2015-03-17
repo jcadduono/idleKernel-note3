@@ -628,7 +628,7 @@ static ssize_t max77803_muic_set_uart_sel(struct device *dev,
 		}else
 			dev_err(info->dev, "%s: Change(AP) fail!!", __func__);
 #if defined(CONFIG_SWITCH_DUAL_MODEM)
-	} else if (!strncasecmp(buf, "CP2", 2)) {
+	} else if (!strncasecmp(buf, "CP2", 3)) {
 #else
 	} else if (!strncasecmp(buf, "CP", 2)) {
 #endif
@@ -1006,42 +1006,46 @@ static int max77803_muic_set_charging_type(struct max77803_muic_info *info,
 {
 	struct max77803_muic_data *mdata = info->muic_data;
 	int ret = 0;
-//#if defined(CONFIG_MACH_HLTEVZW) || defined(CONFIG_MACH_HLTESPR) || defined(CONFIG_MACH_HLTEUSC)
 	u8 val;
-//#endif
 
 	dev_info(info->dev, "func:%s cable_type:%d: force_disable:%d\n",
 		 __func__, info->cable_type, force_disable);
 	if (mdata->charger_cb) {
 		if (force_disable) {
-//#if defined(CONFIG_MACH_HLTEVZW) || defined(CONFIG_MACH_HLTESPR) || defined(CONFIG_MACH_HLTEUSC)
-			if (system_rev == 0) {
+			if ((system_rev == 0)
+#if defined(CONFIG_MACH_HLTEVZW) || defined(CONFIG_MACH_HLTESPR) || defined(CONFIG_MACH_HLTEUSC)
+				|| (system_rev == 6)
+#endif
+			) {
 				val = (0 << CTRL3_JIGSET_SHIFT);
 				max77803_update_reg(info->muic, MAX77803_MUIC_REG_CTRL3, val,
 						CTRL3_JIGSET_MASK);
 			}
-//#endif
 			ret = mdata->charger_cb(CABLE_TYPE_NONE_MUIC);
 		} else {
-//#if defined(CONFIG_MACH_HLTEVZW) || defined(CONFIG_MACH_HLTESPR) || defined(CONFIG_MACH_HLTEUSC)
-			if (system_rev == 0) {
+			if ((system_rev == 0) 
+#if defined(CONFIG_MACH_HLTEVZW) || defined(CONFIG_MACH_HLTESPR) || defined(CONFIG_MACH_HLTEUSC)
+				|| (system_rev == 6)
+#endif
+			) {
 				val = (1 << CTRL3_JIGSET_SHIFT);
 				max77803_update_reg(info->muic, MAX77803_MUIC_REG_CTRL3, val,
 						CTRL3_JIGSET_MASK);
 			}
-//#endif
 			ret = mdata->charger_cb(info->cable_type);
 		}
 	}
 
 	if (ret) {
-//#if defined(CONFIG_MACH_HLTEVZW) || defined(CONFIG_MACH_HLTESPR) || defined(CONFIG_MACH_HLTEUSC)
-		if (system_rev == 0) {
+		if ((system_rev == 0)
+#if defined(CONFIG_MACH_HLTEVZW) || defined(CONFIG_MACH_HLTESPR) || defined(CONFIG_MACH_HLTEUSC)
+			|| (system_rev == 6)
+#endif
+		) {
 			val = (0 << CTRL3_JIGSET_SHIFT);
 			max77803_update_reg(info->muic, MAX77803_MUIC_REG_CTRL3, val,
 					CTRL3_JIGSET_MASK);
 		}
-//#endif
 		dev_err(info->dev, "%s: error from charger_cb(%d)\n", __func__,
 			ret);
 		return ret;
@@ -1661,7 +1665,9 @@ void max77803_otg_control(struct max77803_muic_info *info, int enable)
 	|| defined(CONFIG_MACH_HLTELGT) || defined(CONFIG_MACH_FLTESKT) \
 	|| defined(CONFIG_MACH_FLTEKTT) || defined(CONFIG_MACH_FLTELGT) \
 	|| defined(CONFIG_MACH_H3GDUOS_CTC) || defined(CONFIG_MACH_LT03SKT) \
-	|| defined(CONFIG_MACH_LT03KTT) || defined(CONFIG_MACH_LT03LGT)
+	|| defined(CONFIG_MACH_LT03KTT) || defined(CONFIG_MACH_LT03LGT)\
+	|| defined(CONFIG_MACH_FRESCOLTESKT)||defined(CONFIG_MACH_FRESCOLTEKTT)||defined(CONFIG_MACH_FRESCOLTELGT) \
+	|| defined(CONFIG_MACH_JACTIVESKT)
 		/* [MAX77804] Workaround to get rid of reading dummy(0x00) */
 		/* disable charger detection again */
 		max77803_read_reg(info->max77803->muic,

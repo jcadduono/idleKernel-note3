@@ -156,7 +156,7 @@ int w1_add_master_device(struct w1_bus_master *master)
 		return -ENOMEM;
 	}
 
-	retval = w1_create_master_attributes(dev);
+	retval =  w1_create_master_attributes(dev);
 	if (retval) {
 		mutex_unlock(&w1_mlock);
 		goto err_out_free_dev;

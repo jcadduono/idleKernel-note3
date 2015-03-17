@@ -52,6 +52,9 @@ static struct of_device_id led_gpio_bkl_of_match[] = {
 
 static DEFINE_SPINLOCK(bl_ctrl_lock);
 
+#if defined(CONFIG_GET_LCD_ATTACHED)
+extern int get_lcd_attached(void);
+#endif
 
 #ifdef CONFIG_BACKLIGHT_KTD2801
 #define MAX_BRIGHTNESS	255
@@ -71,10 +74,6 @@ static DEFINE_SPINLOCK(bl_ctrl_lock);
 #define KTD2801_T_L_HB		30
 
 #define MAX_BRIGHTNESS_IN_BLU 32
-
-#if defined(CONFIG_LCD_CONNECTION_CHECK)
-extern int lcd_attached;
-#endif
 
 static int easy_scale_send_bit (unsigned gpio, bool bit)
 {
@@ -164,10 +163,6 @@ static void easy_scale_type_set_brightness(struct led_classdev *led_cdev,
 
 #define MAX_BRIGHTNESS_IN_BLU 32
 
-#if defined(CONFIG_LCD_CONNECTION_CHECK)
-extern int lcd_attached;
-#endif
-
 static int easy_scale_send_bit (unsigned gpio, bool bit)
 {
 	if (bit) { /* Send bit 1 */
@@ -250,10 +245,10 @@ static void gpio_swing_type_set_brightness(struct led_classdev *led_cdev,
 	    container_of(led_cdev, struct led_gpio_bkl_data, cdev);
 	int brightness_idx = 0;
 
-#if defined(CONFIG_LCD_CONNECTION_CHECK)
-	if(lcd_attached == 0)
+#if defined(CONFIG_GET_LCD_ATTACHED)
+	if(get_lcd_attached() == 0)
 	{
-		printk("%s: is_lcd_attached(0)!  Backlight IC off  %d\n",__func__,lcd_attached);
+		pr_info("%s: get_lcd_attached(0)!  Backlight IC off\n",__func__);
 		gpio_set_value(bkl_led->led_ctrl, 0);
 		mdelay(50);
 		return;

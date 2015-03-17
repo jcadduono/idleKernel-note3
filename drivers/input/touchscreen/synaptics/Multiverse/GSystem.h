@@ -1,11 +1,11 @@
 ﻿#pragma once
 
-/////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////
 // GSystem.h
-//---------------------------------------------------------------------------
+//---------------------------------------------------------------------------------
 // Created by Byeongjae Gim
 // Email: gaiama78@gmail.com, byeongjae.kim@samsung.com
-/////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////
 
 // ! Policy, Rule and Warning
 // - Never use the STL or anything like it.
@@ -44,10 +44,13 @@
 	#include <linux/delay.h>
 	#include <linux/syscalls.h>
 	#include <linux/string.h>
+	#if defined( DG_SOC_SEC )
+		#include <linux/sec_sysfs.h>
+	#endif
 
 	#include <asm/siginfo.h>
 
-	#ifndef VM_RESERVED // for 3.10
+	#ifndef VM_RESERVED // After 3.10
 		#define VM_RESERVED (VM_DONTEXPAND | VM_DONTDUMP)
 	#endif
 #else
@@ -342,17 +345,14 @@ typedef enum// : sint32
 	EG_OBJ_TYPE_NUM
 } EG_OBJ_TYPE;
 
-// ! CALLER_ATOMIC, CALLER_ATOMIC_WAIT_INFINITE, CALLEE_BLOCK의 사용에는 특별히 Deadlock을 주의할 것
+// ! Deadlock 주의
 // - CGMmFxBuilder::Stop()과의 Deadlock을 특히 조심
-// - 'if( EG_RESULT_SUCCESS == m_pcBuilder->Pause() ){ m_pcBuilder->Notify( , , , , EG_CONTEXT_TYPE_CALLEE_NONE_BLOCK ); }' + 'Builder가 직접 Resume()'을 권장
+// - 'if( EG_RESULT_SUCCESS == m_pcBuilder->Pause() ){ m_pcBuilder->Notify( , , , , EG_NOTIFY_TYPE_NONE_BLOCK ); }' + 'Builder가 직접 Resume()'을 권장
 typedef enum// : sint32
 {
-	EG_CONTEXT_TYPE_CALLER_ATOMIC = 0,
-	EG_CONTEXT_TYPE_CALLER_ATOMIC_WAIT_INFINITE,
-	EG_CONTEXT_TYPE_CALLER_NONE_ATOMIC,
-	EG_CONTEXT_TYPE_CALLEE_BLOCK,
-	EG_CONTEXT_TYPE_CALLEE_NONE_BLOCK,
-} EG_CONTEXT_TYPE;
+	EG_NOTIFY_TYPE_BLOCK = 0,
+	EG_NOTIFY_TYPE_NONE_BLOCK,
+} EG_NOTIFY_TYPE;
 
 typedef enum// : sint32
 {
@@ -373,7 +373,8 @@ typedef enum// : sint32
 	EG_NOTIFY_CLICK_TWO_DOWN_MOVE,
 	EG_NOTIFY_CLICK_TWO_UP,
 
-	// Position and Attitude
+	// H/W
+	EG_NOTIFY_POWER,
 	EG_NOTIFY_GPS,
 	EG_NOTIFY_ACCELEROMETER,
 	EG_NOTIFY_MAGNETIC_FIELD,
@@ -626,6 +627,25 @@ typedef enum : uint64
 
 typedef enum// : sint32
 {
+	EG_TYPE_VOID = 0,
+	EG_TYPE_SINT8,
+	EG_TYPE_UINT8,
+	EG_TYPE_SINT16,
+	EG_TYPE_UINT16,
+	EG_TYPE_SINT32,
+	EG_TYPE_UINT32,
+	EG_TYPE_SINT64,
+	EG_TYPE_UINT64,
+	EG_TYPE_SINT128,
+	EG_TYPE_UINT128,
+	EG_TYPE_FLOAT32,
+	EG_TYPE_FLOAT64,
+	EG_TYPE_FLOAT128,
+	EG_TYPE_NUM
+} EG_TYPE;
+
+typedef enum// : sint32
+{
 	EG_ROUNDING_ROUND = 0,
 	EG_ROUNDING_CEIL,
 	EG_ROUNDING_FLOOR
@@ -799,6 +819,15 @@ typedef enum// : sint32
 	EG_OUTPUT_INPLACE,
 	EG_OUTPUT_OUTPLACE,
 } EG_OUTPUT;
+
+typedef enum// : sint32
+{
+	EG_POWER_NONE = 0,
+	EG_POWER_INTERNAL_BATTERY,
+	EG_POWER_EXTERNAL_USB = 10,
+	EG_POWER_EXTERNAL_AC,
+	EG_POWER_EXTERNAL_WIRELESS,
+} EG_POWER;
 
 // ! struct
 #pragma pack( 1 )
@@ -1043,10 +1072,7 @@ public:
 	static CGProcess sm_cProcess;
 
 public:
-	static void SDbgPrint( const char*, uint32, const char*, uint8*, sint32, sint32 = 0 );
-	static void SDbgPrint( const char*, uint32, const char*, sint16*, sint32, sint32 = 0 );
-	static void SDbgPrint( const char*, uint32, const char*, sint32*, sint32, sint32 = 0 );
-	static void SDbgPrint( const char*, uint32, const char*, float32*, sint32, sint32 = 0 );
+	static void SDbgPrint( const char*, uint32, const char*, void*, EG_TYPE, sint32, sint32 = 0 );
 
 	static void SDelay( uint32 );
 

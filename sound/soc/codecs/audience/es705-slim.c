@@ -76,7 +76,12 @@
 
 #if defined(SAMSUNG_ES705_FEATURE)
 static int es705_slim_rx_port_to_ch[ES705_SLIM_RX_PORTS] = {
+#ifdef CONFIG_WCD9306_CODEC
+		152, 153, 154, 155, 128, 129,
+#else
 	152, 153, 154, 155, 134, 135, 136, 137
+#endif /* CONFIG_WCD9306_CODEC */
+
 };
 #else
 static int es705_slim_rx_port_to_ch[ES705_SLIM_RX_PORTS] = {
@@ -106,6 +111,11 @@ static int es705_slim_be_id[ES705_NUM_CODEC_SLIM_DAIS] = {
 #ifdef CONFIG_SND_SOC_ES704_TEMP
 static int dev_selected;
 #endif
+
+#ifdef CONFIG_ARCH_MSM8226
+static struct regulator* es705_ldo;
+#endif /* CONFIG_ARCH_MSM8226 */
+
 static void es705_alloc_slim_rx_chan(struct slim_device *sbdev);
 static void es705_alloc_slim_tx_chan(struct slim_device *sbdev);
 static int es705_cfg_slim_rx(struct slim_device *sbdev, unsigned int *ch_num,
@@ -294,7 +304,7 @@ static int es705_cfg_slim_rx(struct slim_device *sbdev, unsigned int *ch_num,
 		goto slim_control_ch_error;
 	}
 	for (i = 0; i < ch_cnt; i++) {
-		dev_dbg(&sbdev->dev, "%s(): ch_num = %d\n",
+		dev_info(&sbdev->dev, "%s(): ch_num = %d\n",
 			__func__, ch_num[i]);
 		idx = es705_rx_ch_num_to_idx(ch_num[i]);
 		rx[idx].grph = grph;
@@ -361,7 +371,7 @@ static int es705_cfg_slim_tx(struct slim_device *sbdev, unsigned int *ch_num,
 		goto slim_control_ch_error;
 	}
 	for (i = 0; i < ch_cnt; i++) {
-		dev_dbg(&sbdev->dev, "%s(): ch_num = %d\n",
+		dev_info(&sbdev->dev, "%s(): ch_num = %d\n",
 			__func__, ch_num[i]);
 		idx = es705_tx_ch_num_to_idx(ch_num[i]);
 		tx[idx].grph = grph;
@@ -482,15 +492,6 @@ int es705_remote_cfg_slim_rx(int dai_id)
 		es705->dai[DAI_INDEX(be_id)].ch_tot = es705->dai[DAI_INDEX(dai_id)].ch_tot;
 		es705->dai[DAI_INDEX(be_id)].rate = es705->dai[DAI_INDEX(dai_id)].rate;
 		rc = es705_codec_cfg_slim_tx(es705, be_id);
-
-		dev_info(&sbdev->dev, "%s(): MDM->>>[%d][%d]ES705[%d][%d]->>>WCD channel mapping\n",
-			__func__,
-			es705->dai[DAI_INDEX(dai_id)].ch_num[0],
-			es705->dai[DAI_INDEX(dai_id)].ch_tot == 1 ? 0 :
-					es705->dai[DAI_INDEX(dai_id)].ch_num[1],
-			es705->dai[DAI_INDEX(be_id)].ch_num[0],
-			es705->dai[DAI_INDEX(be_id)].ch_tot == 1 ? 0 :
-					es705->dai[DAI_INDEX(be_id)].ch_num[1]);
 	}
 
 	return rc;
@@ -522,33 +523,11 @@ int es705_remote_cfg_slim_tx(int dai_id)
 		es705->dai[DAI_INDEX(be_id)].ch_tot = es705->dai[DAI_INDEX(dai_id)].ch_tot;
 		es705->dai[DAI_INDEX(be_id)].rate = es705->dai[DAI_INDEX(dai_id)].rate;
 		rc = es705_codec_cfg_slim_rx(es705, be_id);
-
-		dev_info(&sbdev->dev, "%s(): MDM<<<-[%d][%d]ES705[%d][%d]<<<-WCD channel mapping\n",
-			__func__,
-			es705->dai[DAI_INDEX(dai_id)].ch_num[0],
-			es705->dai[DAI_INDEX(dai_id)].ch_tot == 1 ? 0 :
-					es705->dai[DAI_INDEX(dai_id)].ch_num[1],
-			es705->dai[DAI_INDEX(be_id)].ch_num[0],
-			es705->dai[DAI_INDEX(be_id)].ch_tot == 1 ? 0 :
-					es705->dai[DAI_INDEX(be_id)].ch_num[1]);
 	}
 
 	return rc;
 }
 EXPORT_SYMBOL_GPL(es705_remote_cfg_slim_tx);
-
-int es705_get_ap_esxxx_channels(int dai_id)
-{
-	struct es705_priv *es705 = &es705_priv;
-	if (dai_id != ES705_SLIM_1_CAP)
-		return 0;
-	if (es705_priv.tx1_route_enable)
-		return (es705->ap_tx1_ch_cnt);
-	else
-		return 0;
-}
-EXPORT_SYMBOL_GPL(es705_get_ap_esxxx_channels);
-
 
 int es705_remote_close_slim_rx(int dai_id)
 {
@@ -606,10 +585,8 @@ int es705_remote_close_slim_tx(int dai_id)
 		es705_close_slim_tx(es705->gen0_client,
 				    es705->dai[DAI_INDEX(dai_id)].ch_num,
 				    ch_cnt);
-
 		be_id = es705_slim_be_id[DAI_INDEX(dai_id)];
 		rc = es705_codec_close_slim_rx(es705, be_id);
-
 		es705->dai[DAI_INDEX(dai_id)].ch_tot = 0;
 	}
 
@@ -734,6 +711,8 @@ static int es705_slim_write_then_read(struct es705_priv *es705,
 			*rspn = response;
 			break;
 		} else {
+			dev_err(&sbdev->dev, "%s(): response=0x%08x\n",
+				__func__, response);
 			rc = -EIO;
 		}
 		trials++;
@@ -878,10 +857,15 @@ void es705_slim_map_channels(struct es705_priv *es705)
 	es705->dai[DAI_INDEX(ES705_SLIM_1_CAP)].ch_num[0] = 156;
 	es705->dai[DAI_INDEX(ES705_SLIM_1_CAP)].ch_num[1] = 157;
 	/* back end for TX1 */
+#ifdef CONFIG_WCD9306_CODEC
+		es705->dai[DAI_INDEX(ES705_SLIM_3_PB)].ch_num[0] = 128;
+		es705->dai[DAI_INDEX(ES705_SLIM_3_PB)].ch_num[1] = 129;
+#else
 	es705->dai[DAI_INDEX(ES705_SLIM_3_PB)].ch_num[0] = 134;
 	es705->dai[DAI_INDEX(ES705_SLIM_3_PB)].ch_num[1] = 135;
-	es705_priv.dai[DAI_INDEX(ES705_SLIM_3_PB)].ch_num[2] = 136;
-	es705_priv.dai[DAI_INDEX(ES705_SLIM_3_PB)].ch_num[3] = 137;
+	es705->dai[DAI_INDEX(ES705_SLIM_3_PB)].ch_num[2] = 136;
+	es705->dai[DAI_INDEX(ES705_SLIM_3_PB)].ch_num[3] = 137;
+#endif /* CONFIG_WCD9306_CODEC */
 
 	/* front end for RX2 */
 	es705->dai[DAI_INDEX(ES705_SLIM_2_PB)].ch_num[0] = 154;
@@ -1216,7 +1200,7 @@ static int es705_slim_probe_dts(struct slim_device *sbdev)
 {
 	static struct slim_device intf_device;
 	struct esxxx_platform_data *pdata = sbdev->dev.platform_data;
-	int rc;
+	int rc = 0;
 
 	if (sbdev->dev.of_node) {
 		dev_info(&sbdev->dev, "%s(): Platform data from device tree\n",
@@ -1270,6 +1254,56 @@ int es705_slim_wakeup_bus(struct es705_priv *es705)
 	return rc;
 }
 
+#ifdef CONFIG_ARCH_MSM8226
+static int es705_regulator_init(struct device *dev)
+{
+	int ret;
+	struct device_node *reg_node = NULL;
+
+	reg_node = of_parse_phandle(dev->of_node, "vdd-2mic-core-supply", 0);
+	if(reg_node)
+	{
+		es705_ldo = regulator_get(dev, "vdd-2mic-core");
+		if (IS_ERR(es705_ldo)) {
+				pr_err("[%s] could not get earjack_ldo, %ld\n", __func__, PTR_ERR(es705_ldo));
+		}
+		else
+		{
+			ret = regulator_enable(es705_ldo);
+			if(ret < 0) {
+				pr_err("%s():Failed to enable regulator.\n",
+					__func__);
+				goto err_reg_enable;
+			} else
+				regulator_set_mode(es705_ldo, REGULATOR_MODE_NORMAL);
+		}
+	}else
+		pr_err("%s Audience LDO node not available\n",__func__);
+
+err_reg_enable:
+	if(es705_ldo)
+		regulator_put(es705_ldo);
+
+	return ret;
+}
+
+static int es705_regulator_deinit(void)
+{
+	if(es705_ldo)
+	{
+		int ret;
+
+		ret = regulator_disable(es705_ldo);
+		if(ret < 0) {
+			pr_err("%s():Failed to disable regulator.\n",__func__);
+		}
+		regulator_put(es705_ldo);
+	}
+
+	return 0;
+}
+#endif /* CONFIG_ARCH_MSM8226 */
+
 static int es705_slim_probe(struct slim_device *sbdev)
 {
 	int rc;
@@ -1290,6 +1324,10 @@ static int es705_slim_probe(struct slim_device *sbdev)
 		}
 	}
 #endif
+
+#ifdef CONFIG_ARCH_MSM8226
+		es705_regulator_init(&sbdev->dev);
+#endif /* CONFIG_ARCH_MSM8226 */
 
 	if (sbdev->dev.of_node) {
 		rc = es705_slim_probe_dts(sbdev);
@@ -1349,6 +1387,10 @@ static int es705_slim_remove(struct slim_device *sbdev)
 	struct esxxx_platform_data *pdata = sbdev->dev.platform_data;
 
 	dev_dbg(&sbdev->dev, "%s(): sbdev->name = %s\n", __func__, sbdev->name);
+
+#ifdef CONFIG_ARCH_MSM8226
+		es705_regulator_deinit();
+#endif /* CONFIG_ARCH_MSM8226 */
 
 	es705_gpio_free(pdata);
 
