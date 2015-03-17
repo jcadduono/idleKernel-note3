@@ -1,5 +1,9 @@
 #!/system/bin/sh
 
+# selinux fixups
+/system/xbin/supolicy --live \
+	"allow mediaserver mediaserver_tmpfs file execute"
+
 [ ! -d "/data/data/leankernel" ] && mkdir /data/data/leankernel
 chmod 755 /data/data/leankernel
 #
