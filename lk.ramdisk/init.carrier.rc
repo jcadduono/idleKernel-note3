@@ -17,6 +17,11 @@ on boot
     chown system radio /sys/class/sec/sec_touchkey/glove_mode
     chown system radio /sys/class/sec/sec_touchkey/flip_mode
     chown system radio /sys/class/sec/sec_touchkey/boost_level
+
+# IPSec for VOLTE
+    chown root system /dev/socket
+	chmod 0775 /dev/socket
+
 # permission for Input Device(Wacom).
     chmod 0660 /sys/class/input/input3/enabled
     chown system system /sys/class/input/input3/enabled
@@ -45,32 +50,56 @@ on boot
     chmod 0600 /dev/btlock
     chown bluetooth bluetooth /dev/btlock
 
-## mount carreir partition for SPR model ##
-on init
-    mkdir /carrier 0771 system system
+# SSWAP
+    write /proc/sys/vm/swappiness 130
+
+# Define TCP buffer sizes for various networks
+#   ReadMin, ReadInitial, ReadMax, WriteMin, WriteInitial, WriteMax,
+    setprop net.tcp.buffersize.default 4096,87380,704512,4096,16384,110208
+    setprop net.tcp.buffersize.wifi    524288,1048576,4525824,524288,1048576,4525824
+    setprop net.tcp.buffersize.lte     524288,1048576,2560000,524288,1048576,2560000
+    setprop net.tcp.buffersize.umts    14090,87380,704512,4096,16384,110208
+    setprop net.tcp.buffersize.hspa    12200,87380,704512,4096,16384,262144
+    setprop net.tcp.buffersize.hsupa   4094,87380,704512,4096,16384,262144
+    setprop net.tcp.buffersize.hsdpa   12200,87380,704512,4096,16384,262144
+    setprop net.tcp.buffersize.hspap   20970,87380,1220608,4096,16384,1220608
+    setprop net.tcp.buffersize.edge    8192,26280,704512,4096,16384,110208
+    setprop net.tcp.buffersize.gprs    8192,30000,704512,4096,8760,110208
+
+# Assign TCP buffer thresholds to be ceiling value of technology maximums
+# Increased technology maximums should be reflected here.
+    write /proc/sys/net/core/rmem_max  1048576
+    write /proc/sys/net/core/wmem_max  2097152
 
 on fs
-    wait /dev/block/platform/msm_sdcc.1/by-name/carrier
-    mount ext4 /dev/block/platform/msm_sdcc.1/by-name/carrier /carrier nosuid nodev barrier=1
-    chown system system /carrier
-    chmod 0771 /carrier
-  
-    
-#For Absolute Persistence Partition 
-       
-     mkdir /persdata 0755 system system 
-     mkdir /persdata/absolute 0750 system system 
-  
-     wait /dev/block/platform/msm_sdcc.1/by-name/persdata 
-     check_fs /dev/block/platform/msm_sdcc.1/by-name/persdata ext4 
-     mount ext4 /dev/block/platform/msm_sdcc.1/by-name/persdata /persdata/absolute nosuid nodev barrier=1 
-      
-     chown system system /persdata 
-     chmod 0755 /persdata 
-     chown system system /persdata/absolute 
+
+# Support Preload install apks
+    mkdir /preload 0771 system system
+
+#For Absolute Persistence Partition
+
+     mkdir /persdata 0755 system system
+     mkdir /persdata/absolute 0750 system system
+
+     wait /dev/block/platform/msm_sdcc.1/by-name/persdata
+     check_fs /dev/block/platform/msm_sdcc.1/by-name/persdata ext4
+     mount ext4 /dev/block/platform/msm_sdcc.1/by-name/persdata /persdata/absolute nosuid nodev barrier=1
+
+     chown system system /persdata
+     chmod 0755 /persdata
+     chown system system /persdata/absolute
      chmod 0750 /persdata/absolute
 
-# TODO: replace it with device's DEXPREOPT_BOOT_JARS
+# bluetooth dhcp config
+service dhcpcd_bt-pan /system/bin/dhcpcd -ABKL
+    class main
+ disabled
+ oneshot
+
+service iprenew_bt-pan /system/bin/dhcpcd -n
+    class late_start
+ disabled
+ oneshot
 
 # service for TZPR provisioning version check app
 service scranton_RD /system/bin/scranton_RD
@@ -83,24 +112,20 @@ service scranton_RD /system/bin/scranton_RD
 on property:sys.qseecomd.enable=true
     start scranton_RD
 
-# IPSec for VOLTE
-service ipsec-daemon /system/bin/IPSecService
-    class main
-    socket ipsec_socket stream 660 root system    
-    user root
-    group system
+# umount service
+service umount_service /system/bin/umount /preload
+    disabled
+    oneshot
+    
+# Support Preload install apks
+on property:persist.sys.storage_preload=1
+    mount ext4 /dev/block/mmcblk0p25 /preload nosuid nodev ro barrier=1
+    setprop storage.preload.complete 1
 
-#InsideSecure VPN Client
-service vpnclientpm /system/bin/vpnclientpm -u 1000 -g 1000 \
-     -O /data/data/com.ipsec.service/vpnclientpm.txt \
-     -U rmnet,rmnet_usb,wlan,bt-pan,rndis,p2p,eth
-      socket vpnclientpm seqpacket 0600 system system
-      disabled
-on property:service.vpnclientpm.enable=1
-      start vpnclientpm
-on property:service.vpnclientpm.enable=0
-      stop vpnclientpm
+on property:persist.sys.storage_preload=0
+    start umount_service
 
+# TODO: replace it with device's DEXPREOPT_BOOT_JARS
 # bootchecker
 service bootchecker /system/bin/bootchecker
     class late_start
@@ -108,3 +133,23 @@ service bootchecker /system/bin/bootchecker
     group system log
     oneshot
 
+# SSWAP
+service swapon /sbin/sswap -s
+    class core
+    user root
+    group root
+    seclabel u:r:sswap:s0
+    oneshot
+
+# IPSec for VOLTE
+service ipsec-daemon /system/bin/IPSecService
+    class main
+    socket ipsec_socket stream 660 system system
+    user system
+    group system net_raw inet net_admin
+
+# AT Distributor for factory test
+service at_distributor /system/bin/at_distributor
+    class late_start
+    user root
+    group radio misc log

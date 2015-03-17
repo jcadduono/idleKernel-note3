@@ -38,20 +38,13 @@ fi
 start_sensors()
 {
     if [ -c /dev/msm_dsps -o -c /dev/sensors ]; then
-        mkdir -p /data/system/sensors
-        touch /data/system/sensors/settings
-        chmod -h 775 /data/system/sensors
-        chmod -h 664 /data/system/sensors/settings
-        chown -h system /data/system/sensors/settings
+        chmod -h 775 /persist/sensors
+        chmod -h 664 /persist/sensors/sensors_settings
+        chown -h system.root /persist/sensors/sensors_settings
 
         mkdir -p /data/misc/sensors
         chmod -h 775 /data/misc/sensors
 
-        if [ ! -s /data/system/sensors/settings ]; then
-            # If the settings file is empty, enable sensors HAL
-            # Otherwise leave the file with it's current contents
-            echo 1 > /data/system/sensors/settings
-        fi
         start sensors
     fi
 }
@@ -79,9 +72,11 @@ start_charger_monitor()
 		chown -h root.system /sys/module/qpnp_charger/parameters/*
 		chown -h root.system /sys/class/power_supply/battery/input_current_max
 		chown -h root.system /sys/class/power_supply/battery/input_current_trim
+		chown -h root.system /sys/class/power_supply/battery/input_current_settled
 		chown -h root.system /sys/class/power_supply/battery/voltage_min
 		chmod -h 0664 /sys/class/power_supply/battery/input_current_max
 		chmod -h 0664 /sys/class/power_supply/battery/input_current_trim
+		chmod -h 0664 /sys/class/power_supply/battery/input_current_settled
 		chmod -h 0664 /sys/class/power_supply/battery/voltage_min
 		chmod -h 0664 /sys/module/qpnp_charger/parameters/charger_monitor
 		start charger_monitor
@@ -89,9 +84,6 @@ start_charger_monitor()
 }
 
 baseband=`getprop ro.baseband`
-izat_premium_enablement=`getprop ro.qc.sdk.izat.premium_enabled`
-izat_service_mask=`getprop ro.qc.sdk.izat.service_mask`
-
 #
 # Suppress default route installation during RA for IPV6; user space will take
 # care of this
@@ -102,67 +94,13 @@ do
 done
 echo 1 > /proc/sys/net/ipv6/conf/default/accept_ra_defrtr
 
-#
-# Start gpsone_daemon for SVLTE Type I & II devices
-#
-
-# platform id 126 is for MSM8974
-case "$platformid" in
-        "126")
-        start gpsone_daemon
-esac
-case "$target" in
-        "msm7630_fusion")
-        start gpsone_daemon
-esac
 case "$baseband" in
         "svlte2a")
-        start gpsone_daemon
         start bridgemgrd
-        ;;
-        "sglte" | "sglte2")
-        start gpsone_daemon
         ;;
 esac
 
-let "izat_service_gtp_wifi=$izat_service_mask & 2#1"
-let "izat_service_gtp_wwan_lite=($izat_service_mask & 2#10)>>1"
-let "izat_service_pip=($izat_service_mask & 2#100)>>2"
-
-if [ "$izat_premium_enablement" -ne 1 ]; then
-    if [ "$izat_service_gtp_wifi" -ne 0 ]; then
-# GTP WIFI bit shall be masked by the premium service flag
-        let "izat_service_gtp_wifi=0"
-    fi
-fi
-
-if [ "$izat_service_gtp_wwan_lite" -ne 0 ] ||
-   [ "$izat_service_gtp_wifi" -ne 0 ] ||
-   [ "$izat_service_pip" -ne 0 ]; then
-# OS Agent would also be started under the same condition
-    start location_mq
-fi
-
-if [ "$izat_service_gtp_wwan_lite" -ne 0 ] ||
-   [ "$izat_service_gtp_wifi" -ne 0 ]; then
-# start GTP services shared by WiFi and WWAN Lite
-    start xtwifi_inet
-    start xtwifi_client
-fi
-
-if [ "$izat_service_gtp_wifi" -ne 0 ] ||
-   [ "$izat_service_pip" -ne 0 ]; then
-# advanced WiFi scan service shared by WiFi and PIP
-    start lowi-server
-fi
-
-if [ "$izat_service_pip" -ne 0 ]; then
-# PIP services
-    start quipc_main
-    start quipc_igsn
-fi
-
-#start_sensors
+start_sensors
 
 case "$target" in
     "msm7630_surf" | "msm7630_1x" | "msm7630_fusion")

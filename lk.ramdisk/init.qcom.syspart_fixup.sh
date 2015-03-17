@@ -33,9 +33,14 @@ serial="$2"
 PATH=/sbin:/system/sbin:/system/bin:/system/xbin
 export PATH
 
+mount_needed=false;
+
+if [ ! -f /system/etc/boot_fixup ];then
 # This should be the first command
 # remount system as read-write.
-mount -o rw,remount,barrier=1 /system
+  mount -o rw,remount,barrier=1 /system
+  mount_needed=true;
+fi
 
 # **** WARNING *****
 # This runs in a single-threaded, critical path portion
@@ -55,40 +60,20 @@ if [ -f /system/etc/init.qcom.mdm_links.sh ]; then
   /system/bin/sh /system/etc/init.qcom.mdm_links.sh
 fi
 
-# Run thermal script
-if [ -f /system/etc/init.qcom.thermal_conf.sh ]; then
-  /system/bin/sh /system/etc/init.qcom.thermal_conf.sh
+# Run wifi script
+if [ -f /system/etc/init.qcom.wifi.sh ]; then
+  /system/bin/sh /system/etc/init.qcom.wifi.sh "$target" "$serial"
 fi
-
-## [BEGIN] system_sw.sa: Ignore wifi script.
-## Run wifi script
-#if [ -f /system/etc/init.qcom.wifi.sh ]; then
-#  /system/bin/sh /system/etc/init.qcom.wifi.sh "$target" "$serial"
-#fi
-## [END] system_sw.sa
-
-## [BEGIN] system_sw.sa: Settings from init.qcom.audio.sh
-rm -rf /system/etc/firmware/wcd9320/wcd9320_mbhc.bin
-mkdir -p /system/etc/firmware/wcd9320
-chmod 755 /system/etc/firmware/wcd9320
-ln -s /data/misc/audio/mbhc.bin /system/etc/firmware/wcd9320/wcd9320_mbhc.bin
-## [END] system_sw.sa
 
 # Run the sensor script
 if [ -f /system/etc/init.qcom.sensor.sh ]; then
   /system/bin/sh /system/etc/init.qcom.sensor.sh
 fi
 
-## [BEGIN] system_sw.sa: Ignore usf script.
-## Run usf script
-#if [ -f /system/etc/usf_settings.sh ]; then
-#  /system/bin/sh /system/etc/usf_settings.sh
-#fi
-## [END] system_sw.sa
-
 touch /system/etc/boot_fixup
-chmod 664 /system/etc/boot_fixup
 
+if $mount_needed ;then
 # This should be the last command
 # remount system as read-only.
-mount -o ro,remount,barrier=1 /system
+  mount -o ro,remount,barrier=1 /system
+fi

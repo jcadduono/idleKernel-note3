@@ -1,14 +1,19 @@
 #
 # ADDITIONAL_DEFAULT_PROPERTIES
 #
-ro.secure=0
+persist.cne.feature=0
+persist.security.ams.enforcing=1
+ro.secure=1
 ro.allow.mock.location=0
-ro.debuggable=1
+ro.debuggable=0
 ro.adb.secure=1
+ro.zygote=zygote32
 persist.sys.strict_op_enable=false
 persist.sys.whitelist=/system/etc/whitelist_appops.xml
-persist.sys.usb.config=mtp,adb
-ro.securestorage.support=false
-ro.build.selinux=0
-ro.config.knox=0
-ro.config.tima=0
+camera2.portability.force_api=1
+persist.sys.usb.config=mtp
+dalvik.vm.dex2oat-Xms=64m
+dalvik.vm.dex2oat-Xmx=512m
+dalvik.vm.image-dex2oat-Xms=64m
+dalvik.vm.image-dex2oat-Xmx=64m
+ro.dalvik.vm.native.bridge=0

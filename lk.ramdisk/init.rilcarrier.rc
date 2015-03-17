@@ -1,0 +1,19 @@
+# Copyright (C) 2012 The Android Open Source Project
+#
+# IMPORTANT: Do not create world writable files or directories.
+# This is a common source of Android security bugs.
+#
+
+on boot
+# Define TCP buffer sizes for various networks
+#   ReadMin, ReadInitial, ReadMax, WriteMin, WriteInitial, WriteMax,
+    setprop net.tcp.buffersize.default 4096,87380,704512,4096,16384,110208
+    setprop net.tcp.buffersize.wifi    524288,1048576,4525824,524288,1048576,4525824
+    setprop net.tcp.buffersize.lte     524288,1048576,2560000,524288,1048576,2560000
+    setprop net.tcp.buffersize.umts    14090,87380,704512,4096,16384,110208
+    setprop net.tcp.buffersize.hspa    12200,87380,704512,4096,16384,262144
+    setprop net.tcp.buffersize.hsupa   4094,87380,704512,4096,16384,262144
+    setprop net.tcp.buffersize.hsdpa   12200,87380,704512,4096,16384,262144
+    setprop net.tcp.buffersize.hspap   20970,87380,1220608,4096,16384,1220608
+    setprop net.tcp.buffersize.edge    8192,26280,704512,4096,16384,110208
+    setprop net.tcp.buffersize.gprs    8192,30000,704512,4096,8760,110208

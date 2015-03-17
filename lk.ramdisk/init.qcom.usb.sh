@@ -27,26 +27,6 @@
 # IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 #
-# Update USB serial number from persist storage if present, if not update
-# with value passed from kernel command line, if none of these values are
-# set then use the default value. This order is needed as for devices which
-# do not have unique serial number.
-# User needs to set unique usb serial number to persist.usb.serialno
-#
-serialno=`getprop persist.usb.serialno`
-case "$serialno" in
-    "")
-    serialnum=`getprop ro.serialno`
-    case "$serialnum" in
-        "");; #Do nothing, use default serial number
-        *)
-        echo "$serialnum" > /sys/class/android_usb/android0/iSerial
-    esac
-    ;;
-    *)
-    echo "$serialno" > /sys/class/android_usb/android0/iSerial
-esac
-
 chown -h root.system /sys/devices/platform/msm_hsusb/gadget/wakeup
 chmod -h 220 /sys/devices/platform/msm_hsusb/gadget/wakeup
 
@@ -193,4 +173,34 @@ case "$baseband" in
           # Allow QMUX daemon to assign port open wait time
           chown -h radio.radio /sys/devices/virtual/hsicctl/hsicctl0/modem_wait
     ;;
+esac
+
+
+#
+# Add changes to support diag with rndis
+#
+diag_extra=`getprop persist.sys.usb.config.extra`
+case "$diag_extra" in
+	"diag" | "diag,diag_mdm" | "diag,diag_mdm,diag_qsc")
+		case "$baseband" in
+			"mdm")
+				setprop persist.sys.usb.config.extra diag,diag_mdm
+			;;
+		        "dsda" | "sglte2" )
+				setprop persist.sys.usb.config.extra diag,diag_mdm,diag_qsc
+			;;
+		        "sglte")
+				setprop persist.sys.usb.config.extra diag,diag_qsc
+			;;
+		        "dsda2")
+				setprop persist.sys.usb.config.extra diag,diag_mdm,diag_mdm2
+			;;
+		        *)
+				setprop persist.sys.usb.config.extra diag
+			;;
+	        esac
+	;;
+        *)
+		setprop persist.sys.usb.config.extra none
+	;;
 esac
