@@ -79,8 +79,8 @@ obj-$(CONFIG_QFP_FUSE) += qfp_fuse.o
 obj-$(CONFIG_QSEECOM)  += tzic.o
 obj-$(CONFIG_TI_DRV2667) += ti_drv2667.o
 obj-$(CONFIG_QPNP_MISC) += qpnp-misc.o
-obj-$(CONFIG_BCM2079X_NFC_I2C)	+= bcm2079x-i2c.o
 obj-$(CONFIG_NFC_PN547)	+= pn547.o
+obj-$(CONFIG_BCM2079X_NFC_I2C)	+= bcm2079x-i2c.o
 ifneq ($(CONFIG_SEC_NFC_SENN3AB),y)
 obj-$(CONFIG_SEC_NFC_I2C) += sec_nfc.o
 obj-$(CONFIG_SEC_NFC) += sec_nfc.o
