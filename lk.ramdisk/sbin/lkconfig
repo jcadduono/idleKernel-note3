@@ -14,9 +14,8 @@ echo "2) panel color"
 echo "3) set screen_off_maxfreq"
 echo "4) set cpu max frequency"
 echo "5) gpu governor"
-echo "6) MMC CRC"
 echo
-echo "9) restart mpdecision (to fix stuck cores)"
+echo "9) check top 10 wake locks (ie. wakeup sources)"
 echo
 echo -n "please enter a number (or press enter to exit): "
 
@@ -37,8 +36,6 @@ case $option in
 	cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq
 	echo -n "5) gpu governor: "
 	cat /sys/devices/fdb00000.qcom,kgsl-3d0/devfreq/fdb00000.qcom,kgsl-3d0/governor
-	echo -n "6) MMC CRC: "
-	cat /sys/module/mmc_core/parameters/use_spi_crc
 	echo
 	;;
 1) 
@@ -94,19 +91,20 @@ case $option in
 	echo $GOV > /sys/devices/fdb00000.qcom,kgsl-3d0/devfreq/fdb00000.qcom,kgsl-3d0/governor
 	echo "Done! (also will persist at boot)"
 	;;
-6)
-	echo -n "Enter Y to enable, N to disable MMC CRC: "
-	read value
-	echo $value > /data/data/leankernel/use_spi_crc
-	echo $value > /sys/module/mmc_core/parameters/use_spi_crc
-	echo "Done! (also will persist at boot)"
-	;;
 9)
-	stop mpdecision
-	sleep 2
-	start mpdecision
-	echo "mpdecision restarted."
-	;;
+        echo
+        if [ -a /system/xbin/awk ]; then
+                echo "1st column: total time wakeup source has been active."
+                echo "2nd column: max time the source was continuously active."
+                echo "(The numbers are duration in seconds)"
+                echo "-----"
+                cat /sys/kernel/debug/wakeup_sources | grep -v wakeup_count \
+                  | awk '{ printf "%-10s%-8s %s\n",int($7/1000),int($8/1000),$1 }' \
+                  | sort -rn | head -10
+        else
+                echo "busybox required!"
+        fi
+        ;;
 *)
 	exit
 	;;
