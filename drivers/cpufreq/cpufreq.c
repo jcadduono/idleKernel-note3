@@ -496,6 +496,11 @@ static ssize_t store_scaling_max_freq
         if (ret != 1)
                 return -EINVAL;
 
+	// don't let mpdecision mess with max_freq
+	// TODO: make this configurable in the future via sysfs
+	if (!strcmp(current->comm,"mpdecision"))
+		return -EINVAL;
+
 	policy->user_policy.max = new_policy.max;
 	new_policy.user_policy.max = new_policy.max;
 
@@ -510,7 +515,7 @@ static ssize_t store_scaling_max_freq
 		struct task_struct *tsk;
 		for_each_process(tsk)
 		  if (!strcmp(tsk->comm,"thermal-engine")) send_sig(SIGKILL, tsk, 0);
-		pr_info("[imoseyon] thermal-engine restarting.\n");
+		pr_info("[imoseyon] thermal-engine restarting due to %s.\n", current->comm);
 	}
 
         return ret ? ret : count;
