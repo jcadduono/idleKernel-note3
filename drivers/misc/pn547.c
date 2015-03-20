@@ -758,25 +758,7 @@ static struct i2c_driver pn547_driver = {
 	},
 };
 
-/*
- * module load/unload record keeping
- */
-
-static int __init pn547_dev_init(void)
-{
-	pr_info("Loading pn547 driver\n");
-	return i2c_add_driver(&pn547_driver);
-}
-
-module_init(pn547_dev_init);
-
-static void __exit pn547_dev_exit(void)
-{
-	pr_info("Unloading pn547 driver\n");
-	i2c_del_driver(&pn547_driver);
-}
-
-module_exit(pn547_dev_exit);
+module_i2c_driver(pn547_driver);
 
 MODULE_AUTHOR("Sylvain Fonteneau");
 MODULE_DESCRIPTION("NFC PN547 driver");
