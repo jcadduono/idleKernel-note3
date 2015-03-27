@@ -19,6 +19,8 @@
 #
 # 
 
+exit
+
 if test $# -ne 2; then
 	echo "Usage: $0 vmlinux System.map" 
 	exit 1
