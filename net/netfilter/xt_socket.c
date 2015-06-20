@@ -299,13 +299,8 @@ xt_socket_get6_sk(const struct sk_buff *skb, struct xt_action_param *par)
 
 	} else if (tproto == IPPROTO_ICMPV6) {
 		if (extract_icmp6_fields(skb, thoff, &tproto, &saddr, &daddr,
-<<<<<<< HEAD
-					 &sport, &dport))
-			return NULL;
-=======
 					 &sport, &dport, &ipv6_var))
 			return false;
->>>>>>> cea9edd... netfilter: xt_socket: fix a stack corruption bug
 	} else {
 		return NULL;
 	}
