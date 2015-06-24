@@ -19,7 +19,6 @@
 #include <linux/io.h>
 #include <linux/ftrace.h>
 #include <linux/msm_adreno_devfreq.h>
-#include <linux/powersuspend.h>
 #include <mach/scm.h>
 #include "governor.h"
 
@@ -46,20 +45,9 @@ static DEFINE_SPINLOCK(tz_lock);
 
 #define TAG "msm_adreno_tz: "
 
+extern bool cpufreq_screen_on;
 /* Boolean to detect if pm has entered suspend mode */
 static bool suspended = false;
-
-/* Trap into the TrustZone, and call funcs there. */
-static int __secure_tz_entry2(u32 cmd, u32 val1, u32 val2)
-{
-	int ret;
-	spin_lock(&tz_lock);
-	/* sync memory before sending the commands to tz*/
-	__iowmb();
-	ret = scm_call_atomic2(SCM_SVC_IO, cmd, val1, val2);
-	spin_unlock(&tz_lock);
-	return ret;
-}
 
 static int __secure_tz_entry3(u32 cmd, u32 val1, u32 val2, u32 val3)
 {
@@ -123,7 +111,7 @@ static int tz_get_target_freq(struct devfreq *devfreq, unsigned long *freq,
 	 * Force to use & record as min freq when system has
 	 * entered pm-suspend or screen-off state.
 	 */
-	if (suspended || power_suspended) {
+	if (suspended || !cpufreq_screen_on) {
 		*freq = devfreq->profile->freq_table[devfreq->profile->max_state - 1];
 		return 0;
 	}
