@@ -1,4 +1,4 @@
-service lk-post-boot /sbin/lk-post-boot.sh
+service lk-post-boot /system/bin/sh /init.lk.sh
      class late_start
      user root
      disabled
