@@ -4242,6 +4242,12 @@ static int taiko_volatile(struct snd_soc_codec *ssc, unsigned int reg)
 	return 0;
 }
 
+#ifdef CONFIG_SOUND_CONTROL_HAX_3_GPL
+extern int snd_hax_reg_access(unsigned int);
+extern unsigned int snd_hax_cache_read(unsigned int);
+extern void snd_hax_cache_write(unsigned int, unsigned int);
+#endif
+
 #ifndef CONFIG_SOUND_CONTROL_HAX_3_GPL
 static
 #endif
@@ -4250,6 +4256,9 @@ int taiko_write(struct snd_soc_codec *codec, unsigned int reg,
 {
 	int ret;
 	struct wcd9xxx *wcd9xxx = codec->control_data;
+#ifdef CONFIG_SOUND_CONTROL_HAX_3_GPL
+	int val;
+#endif
 
 	if (reg == SND_SOC_NOPM)
 		return 0;
@@ -4263,13 +4272,25 @@ int taiko_write(struct snd_soc_codec *codec, unsigned int reg,
 				reg, ret);
 	}
 
+#ifdef CONFIG_SOUND_CONTROL_HAX_3_GPL
+	if (!snd_hax_reg_access(reg)) {
+		if (!((val = snd_hax_cache_read(reg)) != -1)) {
+			val = wcd9xxx_reg_read_safe(&wcd9xxx->core_res, reg);
+		}
+	} else {
+		snd_hax_cache_write(reg, value);
+		val = value;
+	}
+	return wcd9xxx_reg_write(&wcd9xxx->core_res, reg, val);
+#else
 	return wcd9xxx_reg_write(&wcd9xxx->core_res, reg, value);
+#endif
 }
 #ifdef CONFIG_SOUND_CONTROL_HAX_3_GPL
 EXPORT_SYMBOL(taiko_write);
 #endif
 
-#ifndef CONFIG_SOUND_CONTROL_HAX_3_GPL 
+#ifndef CONFIG_SOUND_CONTROL_HAX_3_GPL
 static
 #endif
 unsigned int taiko_read(struct snd_soc_codec *codec,
@@ -7329,6 +7350,8 @@ static struct regulator *taiko_codec_find_regulator(struct snd_soc_codec *codec,
 #ifdef CONFIG_SOUND_CONTROL_HAX_3_GPL
 struct snd_soc_codec *fauxsound_codec_ptr;
 EXPORT_SYMBOL(fauxsound_codec_ptr);
+int wcd9xxx_hw_revision;
+EXPORT_SYMBOL(wcd9xxx_hw_revision);
 #endif
 
 static int taiko_codec_probe(struct snd_soc_codec *codec)
@@ -7354,6 +7377,13 @@ static int taiko_codec_probe(struct snd_soc_codec *codec)
 
 	codec->control_data = dev_get_drvdata(codec->dev->parent);
 	control = codec->control_data;
+
+#ifdef CONFIG_SOUND_CONTROL_HAX_3_GPL
+	if (TAIKO_IS_1_0(control->version))
+		wcd9xxx_hw_revision = 1;
+	else
+		wcd9xxx_hw_revision = 2;
+#endif
 
 	wcd9xxx_ssr_register(control, taiko_device_down,
 			     taiko_post_reset_cb, (void *)codec);
