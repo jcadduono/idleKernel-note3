@@ -85,8 +85,7 @@ BUILD_KERNEL()
 	cd $RDIR
 	mkdir -p build
 	make -C $RDIR O=build lk_defconfig \
-		VARIANT_DEFCONFIG=msm8974_sec_hlte_"$VARIANT"_defconfig \
-		SELINUX_DEFCONFIG=selinux_defconfig
+		VARIANT_DEFCONFIG=msm8974_sec_hlte_"$VARIANT"_defconfig
 	echo "Starting build..."
 	make -C $RDIR O=build -j"$THREADS"
 	cp build/arch/arm/boot/zImage $KDIR/zImage
