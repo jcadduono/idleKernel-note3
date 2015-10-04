@@ -17,12 +17,14 @@
 # root directory of LeanKernel git repo (default is this script's location)
 RDIR=$(pwd)
 
-# device variant/carrier, some possible options:
+# device variant/carrier, possible options:
 #	att = N900A (AT&T)
-#	tmo = N900T (T-Mobile) / N900W8 (Canadian)
-#	vzw = N900V (Verizon)
-#	spr = N900P (Sprint)
+#	can = N900W8 (Canadian, same as T-Mobile)
 #	eur = N9005 (Snapdragon International / hltexx / Europe)
+#	spr = N900P (Sprint)
+#	tmo = N900T (T-Mobile, same as Canadian)
+#	usc = N900R (US Cellular)
+#	vzw = N900V (Verizon)
 VARIANT=tmo
 
 # Kernel version string appended to 3.4.x-leanKernel-hlte-
