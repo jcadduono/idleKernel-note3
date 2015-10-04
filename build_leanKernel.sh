@@ -29,19 +29,18 @@ VARIANT=tmo
 
 # Kernel version string appended to 3.4.x-leanKernel-hlte-
 # (shown in Settings -> About device)
-KERNEL_VERSION="6.4-jc"
+KERNEL_VERSION="$VARIANT-6.4-jc"
+
+# output directory of flashable kernel
+OUT_DIR=$RDIR
+# output filename of flashable kernel
+OUT_NAME=leanKernel-hlte-$KERNEL_VERSION
 
 # should we make a TWRP flashable zip? (1 = yes, 0 = no)
 MAKE_ZIP=1
-# output filename of TWRP flashable zip
-ZIP=$RDIR/leanKernel-hlte$VARIANT-$KERNEL_VERSION.zip
 
 # should we make an Odin flashable tar.md5? (1 = yes, 0 = no)
 MAKE_TAR=1
-# output filename of Odin flashable tar.md5 (not including extension)
-TAR_NAME=leanKernel-hlte$VARIANT-$KERNEL_VERSION
-# output directory of Odin flashable tar.md5
-TAR_DIR=$RDIR
 
 # directory containing cross-compile arm-cortex_a15 toolchain
 TOOLCHAIN=/home/jc/build/toolchain/arm-cortex_a15-linux-gnueabihf-linaro_4.9.4-2015.06
@@ -77,8 +76,8 @@ CLEAN_BUILD()
 	echo "Removing old boot.img..."
 	rm -f $RDIR/lk.zip/boot.img
 	echo "Removing old zip/tar.md5 files..."
-	rm -f $ZIP
-	rm -f $TAR_DIR/$TAR_NAME.tar.md5
+	rm -f $OUT_DIR/$OUT_NAME.zip
+	rm -f $OUT_DIR/$OUT_NAME.tar.md5
 }
 
 BUILD_KERNEL()
@@ -139,7 +138,7 @@ CREATE_ZIP()
 {
 	echo "Compressing to TWRP flashable zip file..."
 	cd $RDIR/lk.zip
-	zip -r -9 - * > $ZIP
+	zip -r -9 - * > $OUT_DIR/$OUT_NAME.zip
 	cd $RDIR
 }
 
@@ -147,10 +146,10 @@ CREATE_TAR()
 {
 	echo "Compressing to Odin flashable tar.md5 file..."
 	cd $RDIR/lk.zip
-	tar -H ustar -c boot.img > $TAR_DIR/$TAR_NAME.tar
-	cd $TAR_DIR
-	md5sum -t $TAR_NAME.tar >> $TAR_NAME.tar
-	mv $TAR_NAME.tar $TAR_NAME.tar.md5
+	tar -H ustar -c boot.img > $OUT_DIR/$OUT_NAME.tar
+	cd $OUT_DIR
+	md5sum -t $OUT_NAME.tar >> $OUT_NAME.tar
+	mv $OUT_NAME.tar $OUT_NAME.tar.md5
 	cd $RDIR
 }
 
