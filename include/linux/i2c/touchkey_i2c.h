@@ -34,6 +34,14 @@ extern int poweroff_charging;
 #include <linux/mutex.h>
 #include <linux/wakelock.h>
 
+#if defined(CONFIG_SEC_K_PROJECT)
+#define CYPRESS_RECENT_BACK_REPORT_FW_VER	0x1C
+#elif defined(CONFIG_SEC_H_PROJECT)
+#define CYPRESS_RECENT_BACK_REPORT_FW_VER	0x11
+#else
+#define CYPRESS_RECENT_BACK_REPORT_FW_VER	0xFF
+#endif
+
 #if defined(CONFIG_KEYBOARD_CYPRESS_TOUCHKEY)
 /* Touchkey Register */
 #define CYPRESS_GEN			0X00

@@ -687,6 +687,7 @@ static irqreturn_t cypress_touchkey_interrupt(int irq, void *dev_id)
 	int code;
 	int press;
 	int ret;
+	int i;
 
 	ret = gpio_get_value(info->pdata->gpio_int);
 	if (ret) {
@@ -708,22 +709,57 @@ static irqreturn_t cypress_touchkey_interrupt(int irq, void *dev_id)
 		goto out;
 	}
 
-	press = !(buf[0] & PRESS_BIT_MASK);
-	code = (int)(buf[0] & KEYCODE_BIT_MASK) - 1;
-	dev_info(&info->client->dev,
-			"%s: code=%d %s. fw_ver=0x%x, module_ver=0x%x \n", __func__,
-			code, press ? "pressed" : "released", info->ic_fw_ver, info->module_ver);
+	if (info->ic_fw_ver >= CYPRESS_RECENT_BACK_REPORT_FW_VER) {
+		int back_data = 0;
+		int menu_data = 0;
 
-	if (code < 0) {
+		back_data = (buf[0] >> 2) & 0x3;
+		menu_data = buf[0] & 0x3;
+
+		if (back_data)
+			input_report_key(info->input_dev, info->keycode[1], (back_data % 2));
+		if (menu_data)
+			input_report_key(info->input_dev, info->keycode[0], (menu_data % 2));
+
+		press = (back_data % 2) | (menu_data % 2);
+
+#ifndef CONFIG_SAMSUNG_PRODUCT_SHIP
+		dev_info(&info->client->dev, "%s: data: %X, fw_ver: 0x%x, modue_ver: 0x%x\n", __func__,
+						buf[0], info->ic_fw_ver, info->module_ver);
+#else
+		dev_info(&info->client->dev, "%s: data: %X, fw_ver: 0x%x, modue_ver: 0x%x\n", __func__,
+						press, info->ic_fw_ver, info->module_ver);
+#endif
+
+	} else {
+		press = !(buf[0] & PRESS_BIT_MASK);
+		code = (int)(buf[0] & KEYCODE_BIT_MASK) - 1;
+
+#ifndef CONFIG_SAMSUNG_PRODUCT_SHIP
 		dev_info(&info->client->dev,
-				"%s, not profer interrupt 0x%2X.(release all finger)\n",
-				__func__, buf[0]);
-		/* need release all finger function. */
-		goto out;
-	}
+				"%s: code=%d %s. fw_ver=0x%x, module_ver=0x%x \n", __func__,
+				code, press ? "pressed" : "released", info->ic_fw_ver, info->module_ver);
+#else
+		dev_info(&info->client->dev,
+				"%s: %s. fw_ver=0x%x, module_ver=0x%x \n", __func__,
+				press ? "pressed" : "released", info->ic_fw_ver, info->module_ver);
+#endif
+		if (code < 0) {
+			dev_info(&info->client->dev,
+					"%s, not profer interrupt 0x%2X.(release all finger)\n",
+					__func__, buf[0]);
+			/* need release all finger function. */
+			for (i = 0; i < info->pdata->keycodes_size; i++) {
+				input_report_key(info->input_dev, info->keycode[i], 0);
+				input_sync(info->input_dev);
+			}
+			goto out;
+		}
 
 		input_report_key(info->input_dev, info->keycode[code], press);
-		input_sync(info->input_dev);
+	}
+
+	input_sync(info->input_dev);
 #ifdef TSP_BOOSTER
 	cypress_set_dvfs_lock(info, !!press);
 #endif

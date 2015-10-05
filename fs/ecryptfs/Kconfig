@@ -35,3 +35,9 @@ config SDP
 	depends on ECRYPT_FS
 	help
 	Secure Data Protection
+
+config FORCE_DISABLE_FIPS
+	bool "Force disable FIPS config"
+	default n
+	help
+	  Force disable FIPS config

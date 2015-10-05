@@ -488,14 +488,12 @@ static int android_enable(struct android_dev *dev)
 	if (--dev->disable_depth == 0) {
 
 		list_for_each_entry(conf, &dev->configs, list_item) {
-			err = usb_add_config(cdev, &conf->usb_config,
-						android_bind_config);
+		usb_add_config(cdev, &conf->usb_config,
+					android_bind_config);
 			if (err < 0) {
 				pr_err("%s: usb_add_config failed : err: %d\n",
 						__func__, err);
-                               dev->disable_depth++;
-				return err;
-			}
+				}
 		}
 #if defined(CONFIG_SEC_H_PROJECT)
 		schedule_usb_gadget_connect_work(dev);
@@ -2701,8 +2699,6 @@ static ssize_t enable_store(struct device *pdev, struct device_attribute *attr,
 	int enabled = 0;
 	bool audio_enabled = false;
 	static DEFINE_RATELIMIT_STATE(rl, 10*HZ, 1);
-	int err = 0;
-
 	if (!cdev)
 		return -ENODEV;
 
@@ -2783,14 +2779,7 @@ static ssize_t enable_store(struct device *pdev, struct device_attribute *attr,
 			}
 		if (audio_enabled)
 			msleep(100);
-		err = android_enable(dev);
-		if (err < 0) {
-			pr_err("%s: android_enable failed\n", __func__);
-			dev->connected = 0;
-			dev->enabled = false;
-			mutex_unlock(&dev->mutex);
-			return size;
-		}
+		android_enable(dev);
 		dev->enabled = true;
 	} else if (!enabled && dev->enabled) {
 		android_disable(dev);

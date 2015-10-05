@@ -10448,6 +10448,10 @@ static s32 wl_init_scan(struct bcm_cfg80211 *cfg)
 	cfg->scan_timeout.data = (unsigned long) cfg;
 	cfg->scan_timeout.function = wl_scan_timeout;
 
+#ifdef WL11U
+	cfg->iw_ie_len = 0; /* init interworking IE in probe request */
+#endif /* WL11U */
+
 	return err;
 }
 
