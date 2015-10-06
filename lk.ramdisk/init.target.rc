@@ -48,7 +48,7 @@ on fs
     wait /dev/block/platform/msm_sdcc.1/by-name/cache
     check_fs /dev/block/platform/msm_sdcc.1/by-name/cache ext4
     mount ext4 /dev/block/platform/msm_sdcc.1/by-name/cache /cache nosuid nodev noatime noauto_da_alloc,discard,journal_async_commit,errors=panic
-    mount f2fs /dev/block/platform/msm_sdcc.1/by-name/cache /cache noatime nosuid nodev discard,inline_xattr
+    mount f2fs /dev/block/platform/msm_sdcc.1/by-name/cache /cache nosuid nodev noatime nodiratime discard,inline_xattr,errors=recover
 
     wait /dev/block/platform/msm_sdcc.1/by-name/persist
     check_fs /dev/block/platform/msm_sdcc.1/by-name/persist ext4

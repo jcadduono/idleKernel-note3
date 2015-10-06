@@ -190,6 +190,7 @@ DirEncryptService                           u:object_r:system_server_service:s0
 download                                    u:object_r:system_server_service:s0
 dualscreen                                  u:object_r:system_server_service:s0
 epdg                                        u:object_r:system_server_service:s0
+EXT_CONTROL_DEVICE_SERVICE                  u:object_r:system_server_service:s0
 FMPlayer                                    u:object_r:system_server_service:s0
 harmony_eas_service                         u:object_r:system_server_service:s0
 healthcover                                 u:object_r:system_server_service:s0
@@ -208,6 +209,7 @@ msapwifi                                    u:object_r:system_server_service:s0
 multiwindow                                 u:object_r:system_server_service:s0
 multiwindow_facade                          u:object_r:system_server_service:s0
 ReactiveService                             u:object_r:system_server_service:s0
+OTP                                         u:object_r:otp_server_service:s0
 quickconnect                                u:object_r:system_server_service:s0
 remoteinjection                             u:object_r:system_server_service:s0
 saccessory_manager                          u:object_r:system_server_service:s0
@@ -348,6 +350,8 @@ ktuca                                       u:object_r:system_server_service:s0
 VZW_LOCATION_SERVICE                        u:object_r:system_server_service:s0
 wifioffload                                 u:object_r:system_server_service:s0
 com.skt.tbase.INativeService                u:object_r:tbased_service:s0
+############ carrier_att
+com.smartcom.root.APNWidgetRootService      u:object_r:system_app_service:s0
 ############ carrier_jpn
 # OSV models
 DeviceManager3LM                            u:object_r:system_server_service:s0
@@ -357,9 +361,14 @@ bml_engine                                  u:object_r:oneseg_mw_service:s0
 broadcast.ATSCMHProcessObserver             u:object_r:oneseg_mw_service:s0
 ISDtvService.SDtvStackService               u:object_r:oneseg_mw_service:s0
 broadcast.OneSegDsmcc                       u:object_r:oneseg_mw_service:s0
+sd.service                                  u:object_r:dtvserver_service:s0
+dtvbml.server                               u:object_r:dtvserver_service:s0
+dtv.server                                  u:object_r:dtvserver_service:s0
 stctl.service                               u:object_r:mmb_mw_service:s0
 stbml.service                               u:object_r:mmb_mw_service:s0
 strec.service                               u:object_r:mmb_mw_service:s0
 mmbfcmp4mw.player                           u:object_r:mmb_mw_service:s0
 fclicemwserver                              u:object_r:mmb_mw_service:s0
 streccm.service                             u:object_r:mmb_mw_service:s0
+# FeliCa
+felica                                      u:object_r:nfc_service:s0

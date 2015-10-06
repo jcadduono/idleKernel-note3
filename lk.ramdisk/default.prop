@@ -20,3 +20,4 @@ ro.dalvik.vm.native.bridge=0
 ro.securestorage.support=false
 ro.config.knox=0
 ro.config.tima=0
+
