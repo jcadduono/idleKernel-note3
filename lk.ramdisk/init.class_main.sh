@@ -26,48 +26,11 @@
 # ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #
 
-#
-# start ril-daemon only for targets on which radio is present
-#
-baseband=`getprop ro.baseband`
+start qmuxd
+
 netmgr=`getprop ro.use_data_netmgrd`
-sgltecsfb=`getprop persist.radio.sglte_csfb`
 
-case "$baseband" in
-    "apq")
-    setprop ro.radio.noril yes
-    stop ril-daemon
-esac
-
-case "$baseband" in
-    "msm" | "csfb" | "svlte2a" | "mdm" | "sglte" | "sglte2" | "dsda2" | "unknown")
-    start qmuxd
-    case "$baseband" in
-        "svlte2a" | "csfb")
-          start qmiproxy
-        ;;
-        "sglte" | "sglte2" )
-          if [ "x$sgltecsfb" != "xtrue" ]; then
-              start qmiproxy
-          else
-              setprop persist.radio.voice.modem.index 0
-          fi
-        ;;
-        "dsda2")
-          setprop persist.radio.multisim.config dsda
-    esac
-
-    multisim=`getprop persist.radio.multisim.config`
-
-    if [ "$multisim" = "dsds" ] || [ "$multisim" = "dsda" ]; then
-        start ril-daemon2
-    elif [ "$multisim" = "tsts" ]; then
-        start ril-daemon2
-        start ril-daemon3
-    fi
-
-    case "$netmgr" in
-        "true")
-        start netmgrd
-    esac
+case "$netmgr" in
+    "true")
+    start netmgrd
 esac

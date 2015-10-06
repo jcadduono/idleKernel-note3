@@ -59,7 +59,9 @@ BUILD_RAMDISK()
 {
 	echo "Building ramdisk.img..."
 	cd $RDIR/lk.ramdisk
-	find . | cpio -o -H newc | gzip > $KDIR/ramdisk.img
+	mkdir -pm 755 dev proc sys system
+	mkdir -pm 771 carrier data
+	find | fakeroot cpio -o -H newc | xz -9e --format=lzma > $KDIR/ramdisk.img
 	cd $RDIR
 }
 

@@ -171,15 +171,6 @@ service thermal-engine /system/bin/thermal-engine
    user root
    group root
 
-# Disable Qualcomm Enterprize Security
-# service security-check1 /sbin/security_boot_check system
-#    class core
-#    oneshot
-
-# service security-check2 /sbin/security_boot_check recovery
-#    class core
-#    oneshot
-
 service time_daemon /system/bin/time_daemon
    class late_start
    user root
@@ -295,13 +286,6 @@ service imscmservice /system/bin/imscmservice
    user system
    group radio net_raw diag qcom_diag log
 
-# Disable Qualcomm Enterprize Security
-# service nqs /system/bin/nqs
-#    class late_start
-#    socket nqs_qsb_comm stream 660 system system
-#    user system
-#    group drmrpc
-
 service pfm /system/bin/pfm
     class late_start
     user system
@@ -311,32 +295,8 @@ service ml_daemon /system/bin/ml_daemon
     class core
     user root
     group root
-# SecEDS
+
 service TvoutService_C /system/bin/bintvoutservice
      class main
      user system
      group graphics
-on property:ro.SecEDS.enable=false
-    stop TvoutService_C
-
-# Secure Storage startup
-service secure_storage /system/bin/secure_storage_daemon
-    class core
-    user system
-    group system
-    disabled
-
-on property:ro.securestorage.support=true
-    mkdir /dev/.secure_storage
-    chmod 0711 /dev/.secure_storage
-    chown system system /dev/.secure_storage
-    restorecon -R /dev/.secure_storage
-    start secure_storage
-
-on property:ro.securestorage.knox=true
-    mkdir /dev/.secure_storage
-    chmod 0711 /dev/.secure_storage
-    chown system system /dev/.secure_storage
-    restorecon -R /dev/.secure_storage
-    start secure_storage
-

@@ -45,12 +45,6 @@ on boot
     chmod 0600 /dev/btlock
     chown bluetooth bluetooth /dev/btlock
 
-# AT Distributor for factory test
-service at_distributor /system/bin/at_distributor
-    class late_start
-    user root
-    group radio misc log
-
 on fs
 
 #For Absolute Persistence Partition
@@ -86,5 +80,3 @@ service ipsec-daemon /system/bin/IPSecService
     socket ipsec_socket stream 660 root system
     user root
     group system
-
-

@@ -588,21 +588,6 @@ on boot
 # Permission for a RPMB checking thru IMEI
     chown system radio /sys/kernel/debug/tzdbg/log
 
-    # Define TCP buffer sizes for various networks
-    #   ReadMin, ReadInitial, ReadMax, WriteMin, WriteInitial, WriteMax,
-    setprop net.tcp.buffersize.default  4096,87380,110208,4096,16384,110208
-    setprop net.tcp.buffersize.wifi     524288,1048576,4525824,524288,1048576,4525824
-    setprop net.tcp.buffersize.ethernet 524288,1048576,3145728,524288,1048576,2097152
-    setprop net.tcp.buffersize.lte      524288,1048576,2560000,524288,1048576,2560000
-    setprop net.tcp.buffersize.umts     58254,349525,1048576,58254,349525,1048576
-    setprop net.tcp.buffersize.hspa     40778,244668,734003,16777,100663,301990
-    setprop net.tcp.buffersize.hsupa    40778,244668,734003,16777,100663,301990
-    setprop net.tcp.buffersize.hsdpa    61167,367002,1101005,8738,52429,262114
-    setprop net.tcp.buffersize.hspap    122334,734003,2202010,32040,192239,576717
-    setprop net.tcp.buffersize.edge     4093,26280,70800,4096,16384,70800
-    setprop net.tcp.buffersize.gprs     4092,8760,48000,4096,8760,48000
-    setprop net.tcp.buffersize.evdo     4094,87380,262144,4096,16384,262144
-
 # Permissions for InputDevices.
     chown system radio /sys/class/sec/tsp/cmd
     chown system system /sys/class/sec/sec_touchkey/brightness
@@ -1384,12 +1369,6 @@ service cs_service /system/bin/cs
     user system
     group system radio inet sdcard_r sdcard_rw media_rw shell
 
-# Sensor
-service sensorhubservice /system/bin/sensorhubservice
-    class main
-    user system
-    group input
-
 # insthk
   service insthk /system/bin/insthk
   class main
@@ -1420,13 +1399,3 @@ on property:persist.security.tlc.ccm=1
 on property:persist.security.tlc.tui=1
   start tui
   setprop persist.security.tlc.tui 0
-
-on property:sys.boot_completed=1
-    write /sys/block/mmcblk0/queue/scheduler sio
-
-# bootchecker
-service bootchecker /system/bin/bootchecker
-    class late_start
-    user system
-    group system log
-    oneshot
