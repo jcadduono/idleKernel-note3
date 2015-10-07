@@ -59,22 +59,15 @@ if ! [ -f $RDIR"/arch/arm/configs/msm8974_sec_hlte_"$VARIANT"_defconfig" ] ; the
 	exit -1
 fi
 
-KDIR=$RDIR/arch/arm/boot
+KDIR=$RDIR/build/arch/arm/boot
 
 CLEAN_BUILD()
 {
 	echo "Cleaning build..."
 	cd $RDIR
 	rm -rf build
-	mkdir build
-	echo "Cleaning up files in $KDIR..."
-	rm -f $KDIR/*-zImage
-	rm -f $KDIR/*.dtb
-	rm -f $KDIR/zImage*
-	rm -f $KDIR/ramdisk.img
-	rm -f $KDIR/dt.img
 	echo "Removing old boot.img..."
-	rm -f $RDIR/lk.zip/boot.img
+	rm -f lk.zip/boot.img
 	echo "Removing old zip/tar.md5 files..."
 	rm -f $OUT_DIR/$OUT_NAME.zip
 	rm -f $OUT_DIR/$OUT_NAME.tar.md5
@@ -89,27 +82,13 @@ BUILD_KERNEL()
 		VARIANT_DEFCONFIG=msm8974_sec_hlte_"$VARIANT"_defconfig
 	echo "Starting build..."
 	make -C $RDIR O=build -j"$THREADS"
-	cp build/arch/arm/boot/zImage $KDIR/zImage
-}
-
-APPEND_DTB()
-{
-	echo "Appending DTB to zImage..."
-	for DTS_FILE in `ls $KDIR/dts/msm8974/msm8974-sec-hlte-*.dts`
-	do
-		DTB_FILE=${DTS_FILE%.dts}.dtb
-		DTB_FILE=$KDIR/${DTB_FILE##*/}
-		ZIMG_FILE=${DTB_FILE%.dtb}-zImage
-		$RDIR/scripts/dtc/dtc -p 1024 -O dtb -o $DTB_FILE $DTS_FILE
-		cat $KDIR/zImage $DTB_FILE > $ZIMG_FILE
-	done
 }
 
 BUILD_DTIMAGE()
 {
 	echo "Creating dt.img..."
-	$RDIR/tools/dtbTool -o $KDIR/dt.img -s 2048 -p $RDIR/scripts/dtc/ $KDIR/
-	chmod a+r $KDIR/dt.img
+	cd $RDIR
+	tools/dtbTool -o $KDIR/dt.img -s 2048 -p scripts/dtc/ $KDIR/
 }
 
 BUILD_RAMDISK()
@@ -155,7 +134,7 @@ CREATE_TAR()
 	cd $RDIR
 }
 
-if CLEAN_BUILD && BUILD_KERNEL && APPEND_DTB && BUILD_DTIMAGE && BUILD_RAMDISK && BUILD_BOOT_IMG; then
+if CLEAN_BUILD && BUILD_KERNEL && BUILD_DTIMAGE && BUILD_RAMDISK && BUILD_BOOT_IMG; then
 	if [ $MAKE_ZIP -eq 1 ]; then CREATE_ZIP; fi
 	if [ $MAKE_TAR -eq 1 ]; then CREATE_TAR; fi
 	echo "Finished!"

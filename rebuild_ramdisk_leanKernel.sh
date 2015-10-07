@@ -41,15 +41,12 @@ MAKE_TAR=1
 
 ############## SCARY NO-TOUCHY STUFF ###############
 
-KDIR=$RDIR/arch/arm/boot
+KDIR=$RDIR/build/arch/arm/boot
 
 CLEAN_BUILD()
 {
-	echo "Cleaning up files in $KDIR..."
-	cd $RDIR
-	rm -f $KDIR/ramdisk.img
 	echo "Removing old boot.img..."
-	rm -f $RDIR/lk.zip/boot.img
+	rm -f lk.zip/boot.img
 	echo "Removing old zip/tar.md5 files..."
 	rm -f $OUT_DIR/$OUT_NAME.zip
 	rm -f $OUT_DIR/$OUT_NAME.tar.md5
@@ -98,7 +95,7 @@ CREATE_TAR()
 	cd $RDIR
 }
 
-if BUILD_RAMDISK && BUILD_BOOT_IMG; then
+if CLEAN_BUILD && BUILD_RAMDISK && BUILD_BOOT_IMG; then
 	if [ $MAKE_ZIP -eq 1 ]; then CREATE_ZIP; fi
 	if [ $MAKE_TAR -eq 1 ]; then CREATE_TAR; fi
 	echo "Finished!"
