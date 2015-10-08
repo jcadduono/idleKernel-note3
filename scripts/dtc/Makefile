@@ -1,11 +1,11 @@
 # scripts/dtc makefile
 
-hostprogs-y	:= dtc
-always		:= $(hostprogs-y)
+hostprogs-y := dtc
+always := $(hostprogs-y)
 
-dtc-objs	:= dtc.o flattree.o fstree.o data.o livetree.o treesource.o \
-		   srcpos.o checks.o util.o
-dtc-objs	+= dtc-lexer.lex.o dtc-parser.tab.o
+dtc-objs := dtc.o flattree.o fstree.o data.o livetree.o treesource.o \
+	srcpos.o checks.o util.o
+dtc-objs += dtc-lexer.lex.o dtc-parser.tab.o
 
 # Source files need to get at the userspace version of libfdt_env.h to compile
 
@@ -28,4 +28,10 @@ HOSTCFLAGS_dtc-parser.tab.o := $(HOSTCFLAGS_DTC)
 $(obj)/dtc-lexer.lex.o: $(obj)/dtc-parser.tab.h
 
 # generated files need to be cleaned explicitly
-clean-files	:= dtc-lexer.lex.c dtc-parser.tab.c dtc-parser.tab.h
+clean-files := dtc-lexer.lex.c dtc-parser.tab.c dtc-parser.tab.h
+
+prep:
+	make -f Makefile.prep
+
+clean:
+	make -f Makefile.prep clean

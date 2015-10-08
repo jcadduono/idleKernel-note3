@@ -1,0 +1,179 @@
+#
+# Device Tree Compiler
+#
+
+#
+# Version information will be constructed in this order:
+# EXTRAVERSION might be "-rc", for example.
+# LOCAL_VERSION is likely from command line.
+# CONFIG_LOCALVERSION from some future config system.
+#
+VERSION = 1
+PATCHLEVEL = 4
+SUBLEVEL = 1
+EXTRAVERSION =
+LOCAL_VERSION =
+CONFIG_LOCALVERSION =
+
+CPPFLAGS = -I libfdt -I .
+WARNINGS = -Werror -Wall -Wpointer-arith -Wcast-qual -Wnested-externs \
+	-Wstrict-prototypes -Wmissing-prototypes -Wredundant-decls -Wshadow
+CFLAGS = -static -O2 -fomit-frame-pointer -Werror $(WARNINGS)
+
+BISON = bison
+LEX = flex
+
+HOSTOS := $(shell uname -s | tr '[:upper:]' '[:lower:]' | \
+	    sed -e 's/\(cygwin\).*/cygwin/')
+
+#
+# Overall rules
+#
+ifdef V
+VECHO = :
+else
+VECHO = echo "	"
+ARFLAGS = rc
+.SILENT:
+endif
+
+NODEPTARGETS = clean distclean
+ifeq ($(MAKECMDGOALS),)
+DEPTARGETS = all
+else
+DEPTARGETS = $(filter-out $(NODEPTARGETS),$(MAKECMDGOALS))
+endif
+
+#
+# Rules for versioning
+#
+
+DTC_VERSION = $(VERSION).$(PATCHLEVEL).$(SUBLEVEL)$(EXTRAVERSION)
+VERSION_FILE = version_gen.h
+
+CONFIG_SHELL := $(shell if [ -x "$$BASH" ]; then echo $$BASH; \
+	  else if [ -x /bin/bash ]; then echo /bin/bash; \
+	  else echo sh; fi ; fi)
+
+nullstring :=
+space	:= $(nullstring) # end of line
+
+localver_config = $(subst $(space),, $(string) \
+			      $(patsubst "%",%,$(CONFIG_LOCALVERSION)))
+
+localver_cmd = $(subst $(space),, $(string) \
+			      $(patsubst "%",%,$(LOCALVERSION)))
+
+localver_full  = $(localver_config)$(localver_cmd)
+
+dtc_version = $(DTC_VERSION)$(localver_full)
+
+# Contents of the generated version file.
+define filechk_version
+	(echo "#define DTC_VERSION \"DTC $(dtc_version)\""; )
+endef
+
+define filechk
+	set -e;					\
+	echo '	CHK $@';			\
+	mkdir -p $(dir $@);			\
+	$(filechk_$(1)) < $< > $@.tmp;		\
+	if [ -r $@ ] && cmp -s $@ $@.tmp; then	\
+		rm -f $@.tmp;			\
+	else					\
+		echo '	UPD $@';		\
+		mv -f $@.tmp $@;		\
+	fi;
+endef
+
+include Makefile.dtc
+
+SCRIPTS = dtdiff
+
+all: dtc libfdt distclean
+
+ifneq ($(DEPTARGETS),)
+-include $(DTC_OBJS:%.o=%.d)
+endif
+
+include libfdt/Makefile.libfdt
+
+.PHONY: libfdt
+libfdt: libfdt/libfdt.a
+
+libfdt/libfdt.a: $(addprefix libfdt/,$(LIBFDT_OBJS))
+
+libfdt_clean:
+	@$(VECHO) CLEAN "(libfdt)"
+	rm -f $(addprefix libfdt/,$(STD_CLEANFILES))
+
+ifneq ($(DEPTARGETS),)
+-include $(LIBFDT_OBJS:%.o=libfdt/%.d)
+endif
+
+# This stops make from generating the lex and bison output during
+# auto-dependency computation, but throwing them away as an
+# intermediate target and building them again "for real"
+.SECONDARY: $(DTC_GEN_SRCS) $(CONVERT_GEN_SRCS)
+
+$(VERSION_FILE): Makefile FORCE
+	$(call filechk,version)
+
+
+dtc: $(DTC_OBJS)
+
+STD_CLEANFILES = *.s *.o *.a *.d
+STD_DISTFILES = dtc *.tab.[ch] *.lex.c $(VERSION_FILE)
+
+clean: libfdt_clean
+	@$(VECHO) CLEAN
+	rm -f $(STD_CLEANFILES) $(STD_DISTFILES)
+
+distclean: libfdt_clean
+	@$(VECHO) DISTCLEAN
+	rm -f $(STD_CLEANFILES) 
+
+#
+# Generic compile rules
+#
+%: %.o
+	@$(VECHO) LD $@
+	$(LINK.c) -o $@ $^
+
+%.o: %.c
+	@$(VECHO) CC $@
+	$(CC) $(CPPFLAGS) $(CFLAGS) -o $@ -c $<
+
+%.o: %.S
+	@$(VECHO) AS $@
+	$(CC) $(CPPFLAGS) $(AFLAGS) -D__ASSEMBLY__ -o $@ -c $<
+
+%.d: %.c
+	@$(VECHO) DEP $<
+	$(CC) $(CPPFLAGS) -MM -MG -MT "$*.o $@" $< > $@
+
+%.d: %.S
+	@$(VECHO) DEP $<
+	$(CC) $(CPPFLAGS) -MM -MG -MT "$*.o $@" $< > $@
+
+%.i:	%.c
+	@$(VECHO) CPP $@
+	$(CC) $(CPPFLAGS) -E $< > $@
+
+%.s:	%.c
+	@$(VECHO) CC -S $@
+	$(CC) $(CPPFLAGS) $(CFLAGS) -o $@ -S $<
+
+%.a:
+	@$(VECHO) AR $@
+	$(AR) $(ARFLAGS) $@ $^
+
+%.lex.c: %.l
+	@$(VECHO) LEX $@
+	$(LEX) -o$@ $<
+
+%.tab.c %.tab.h %.output: %.y
+	@$(VECHO) BISON $@
+	$(BISON) -d $<
+
+FORCE:
