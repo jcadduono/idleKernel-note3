@@ -65,15 +65,15 @@ BUILD_RAMDISK()
 BUILD_BOOT_IMG()
 {
 	echo "Generating boot.img..."
-	$RDIR/tools/mkbootimg --kernel $KDIR/zImage \
+	$RDIR/scripts/mkqcdtbootimg/mkqcdtbootimg --kernel $KDIR/zImage \
 		--ramdisk $KDIR/ramdisk.img \
-		--output $RDIR/lk.zip/boot.img \
+		--dt_dir $KDIR \
 		--cmdline "quiet console=null androidboot.hardware=qcom user_debug=23 msm_rtb.filter=0x37 ehci-hcd.park=3" \
 		--base 0x00000000 \
 		--pagesize 2048 \
 		--ramdisk_offset 0x02000000 \
 		--tags_offset 0x01E00000 \
-		--dt $KDIR/dt.img
+		--output $RDIR/lk.zip/boot.img 
 }
 
 CREATE_ZIP()

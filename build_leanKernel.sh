@@ -17,6 +17,7 @@
 # root directory of LeanKernel git repo (default is this script's location)
 RDIR=$(pwd)
 
+[ -z $VARIANT ] && \
 # device variant/carrier, possible options:
 #	att = N900A (AT&T)
 #	can = N900W8 (Canadian, same as T-Mobile)
@@ -84,13 +85,6 @@ BUILD_KERNEL()
 	make -C $RDIR O=build -j"$THREADS"
 }
 
-BUILD_DTIMAGE()
-{
-	echo "Creating dt.img..."
-	cd $RDIR
-	tools/dtbTool -o $KDIR/dt.img -s 2048 -p scripts/dtc/ $KDIR/
-}
-
 BUILD_RAMDISK()
 {
 	echo "Building ramdisk.img..."
@@ -104,15 +98,15 @@ BUILD_RAMDISK()
 BUILD_BOOT_IMG()
 {
 	echo "Generating boot.img..."
-	$RDIR/tools/mkbootimg --kernel $KDIR/zImage \
+	$RDIR/scripts/mkqcdtbootimg/mkqcdtbootimg --kernel $KDIR/zImage \
 		--ramdisk $KDIR/ramdisk.img \
-		--output $RDIR/lk.zip/boot.img \
+		--dt_dir $KDIR \
 		--cmdline "quiet console=null androidboot.hardware=qcom user_debug=23 msm_rtb.filter=0x37 ehci-hcd.park=3" \
 		--base 0x00000000 \
 		--pagesize 2048 \
 		--ramdisk_offset 0x02000000 \
 		--tags_offset 0x01E00000 \
-		--dt $KDIR/dt.img
+		--output $RDIR/lk.zip/boot.img 
 }
 
 CREATE_ZIP()
@@ -134,7 +128,7 @@ CREATE_TAR()
 	cd $RDIR
 }
 
-if CLEAN_BUILD && BUILD_KERNEL && BUILD_DTIMAGE && BUILD_RAMDISK && BUILD_BOOT_IMG; then
+if CLEAN_BUILD && BUILD_KERNEL && BUILD_RAMDISK && BUILD_BOOT_IMG; then
 	if [ $MAKE_ZIP -eq 1 ]; then CREATE_ZIP; fi
 	if [ $MAKE_TAR -eq 1 ]; then CREATE_TAR; fi
 	echo "Finished!"
