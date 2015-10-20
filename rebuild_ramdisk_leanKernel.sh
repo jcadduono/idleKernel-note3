@@ -26,7 +26,7 @@ VARIANT=tmo
 
 # Kernel version string appended to 3.4.x-leanKernel-hlte-
 # (shown in Settings -> About device)
-KERNEL_VERSION="$VARIANT-6.4-jc"
+KERNEL_VERSION="$VARIANT-6.4-cm12.1-jc"
 
 # output directory of flashable kernel
 OUT_DIR=$RDIR
@@ -57,7 +57,7 @@ BUILD_RAMDISK()
 	echo "Building ramdisk.img..."
 	cd $RDIR/lk.ramdisk
 	mkdir -pm 755 dev proc sys system
-	mkdir -pm 771 carrier data
+	mkdir -pm 771 data
 	find | fakeroot cpio -o -H newc | xz -9e --format=lzma > $KDIR/ramdisk.img
 	cd $RDIR
 }

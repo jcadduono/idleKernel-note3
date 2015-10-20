@@ -1,9 +1,5 @@
 #!/system/bin/sh
 
-# selinux fixups
-/system/xbin/supolicy --live \
-	"allow mediaserver mediaserver_tmpfs file execute"
-
 [ ! -d "/data/data/leankernel" ] && mkdir /data/data/leankernel
 chmod 755 /data/data/leankernel
 #
@@ -52,5 +48,5 @@ if [ -f "/system/xbin/daemonsu" ]; then
 fi
 
 stop thermal-engine
-/system/xbin/busybox run-parts /system/etc/init.d
+sleep 2
 start thermal-engine
