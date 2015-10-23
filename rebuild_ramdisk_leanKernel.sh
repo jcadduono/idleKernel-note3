@@ -1,5 +1,6 @@
 #!/bin/bash
-# leanKernel ramdisk rebuild script by jcadduono
+# leanKernel for Samsung Galaxy Note 3 ramdisk rebuild script by jcadduono
+# This rebuild script is for AOSP/CyanogenMod only
 
 ################### BEFORE STARTING ################
 #
@@ -14,19 +15,24 @@
 # root directory of LeanKernel git repo (default is this script's location)
 RDIR=$(pwd)
 
+[ -z $VARIANT ] && \
 # device variant/carrier, possible options:
-#	att = N900A (AT&T)
+#	att = N900A  (AT&T)
 #	can = N900W8 (Canadian, same as T-Mobile)
-#	eur = N9005 (Snapdragon International / hltexx / Europe)
-#	spr = N900P (Sprint)
-#	tmo = N900T (T-Mobile, same as Canadian)
-#	usc = N900R (US Cellular)
-#	vzw = N900V (Verizon)
+#	eur = N9005  (Snapdragon International / hltexx / Europe)
+#	spr = N900P  (Sprint)
+#	tmo = N900T  (T-Mobile, same as Canadian)
+#	usc = N900R4 (US Cellular)
+#	vzw = N900V  (Verizon)
 VARIANT=tmo
+
+[ -z $VER ] && \
+# version number
+VER="6.4"
 
 # Kernel version string appended to 3.4.x-leanKernel-hlte-
 # (shown in Settings -> About device)
-KERNEL_VERSION="$VARIANT-6.4-cm12.1-jc"
+KERNEL_VERSION="$VARIANT-$VER-cm12.1-jc"
 
 # output directory of flashable kernel
 OUT_DIR=$RDIR
@@ -40,6 +46,11 @@ MAKE_ZIP=1
 MAKE_TAR=1
 
 ############## SCARY NO-TOUCHY STUFF ###############
+
+if ! [ -f $RDIR"/arch/arm/configs/msm8974_sec_hlte_"$VARIANT"_defconfig" ] ; then
+	echo "Device variant/carrier $VARIANT not found in arm configs!"
+	exit -1
+fi
 
 KDIR=$RDIR/build/arch/arm/boot
 
@@ -58,7 +69,7 @@ BUILD_RAMDISK()
 	cd $RDIR/lk.ramdisk
 	mkdir -pm 755 dev proc sys system
 	mkdir -pm 771 data
-	find | fakeroot cpio -o -H newc | xz -9e --format=lzma > $KDIR/ramdisk.img
+	find | fakeroot cpio -o -H newc | xz -9e --format=lzma > $KDIR/ramdisk.cpio.xz
 	cd $RDIR
 }
 
@@ -66,9 +77,9 @@ BUILD_BOOT_IMG()
 {
 	echo "Generating boot.img..."
 	$RDIR/scripts/mkqcdtbootimg/mkqcdtbootimg --kernel $KDIR/zImage \
-		--ramdisk $KDIR/ramdisk.img \
+		--ramdisk $KDIR/ramdisk.cpio.xz \
 		--dt_dir $KDIR \
-		--cmdline "console=null androidboot.hardware=qcom user_debug=31 msm_rtb.filter=0x3F androidboot.bootdevice=msm_sdcc.1" \
+		--cmdline "quiet console=null androidboot.hardware=qcom user_debug=31 msm_rtb.filter=0x3F androidboot.bootdevice=msm_sdcc.1" \
 		--base 0x00000000 \
 		--pagesize 2048 \
 		--ramdisk_offset 0x02900000 \
