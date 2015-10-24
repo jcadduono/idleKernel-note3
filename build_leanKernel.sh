@@ -33,9 +33,13 @@ VARIANT=tmo
 # version number
 VER="6.4"
 
-# Kernel version string appended to 3.4.x-leanKernel-hlte-
+# kernel version string appended to 3.4.x-leanKernel-hlte-
 # (shown in Settings -> About device)
 KERNEL_VERSION="$VARIANT-$VER-jc"
+
+[ -z $PERMISSIVE ] && \
+# should we boot with SELinux mode set to permissive? (1 = permissive, 0 = enforcing)
+PERMISSIVE=0
 
 # output directory of flashable kernel
 OUT_DIR=$RDIR
@@ -64,6 +68,8 @@ if ! [ -f $RDIR"/arch/arm/configs/msm8974_sec_hlte_"$VARIANT"_defconfig" ] ; the
 	echo "Device variant/carrier $VARIANT not found in arm configs!"
 	exit -1
 fi
+
+[ $PERMISSIVE -eq 1 ] && SELINUX="permissive" || SELINUX="enforcing"
 
 KDIR=$RDIR/build/arch/arm/boot
 
@@ -106,7 +112,7 @@ BUILD_BOOT_IMG()
 	$RDIR/scripts/mkqcdtbootimg/mkqcdtbootimg --kernel $KDIR/zImage \
 		--ramdisk $KDIR/ramdisk.cpio.xz \
 		--dt_dir $KDIR \
-		--cmdline "quiet console=null androidboot.hardware=qcom user_debug=23 msm_rtb.filter=0x37 ehci-hcd.park=3" \
+		--cmdline "quiet console=null androidboot.hardware=qcom user_debug=23 msm_rtb.filter=0x37 ehci-hcd.park=3 androidboot.selinux=$SELINUX" \
 		--base 0x00000000 \
 		--pagesize 2048 \
 		--ramdisk_offset 0x02000000 \
