@@ -1,6 +1,6 @@
 #!/bin/bash
 # leanKernel for Samsung Galaxy Note 3 build script by jcadduono
-# This build script is for AOSP/CyanogenMod only
+# This build script is for SlimRom only
 
 ################### BEFORE STARTING ################
 #
@@ -35,7 +35,7 @@ VER="6.4"
 
 # kernel version string appended to 3.4.x-leanKernel-hlte-
 # (shown in Settings -> About device)
-KERNEL_VERSION="$VARIANT-$VER-cm12.1-jc"
+KERNEL_VERSION="$VARIANT-$VER-slim5.1-jc"
 
 [ -z $PERMISSIVE ] && \
 # should we boot with SELinux mode set to permissive? (1 = permissive, 0 = enforcing)
