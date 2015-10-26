@@ -135,15 +135,10 @@ dun                                            u:object_r:dun_service:s0
 DigitalPen                                     u:object_r:digitalpen_service:s0
 qti.ims.connectionmanagerservice               u:object_r:imscm_service:s0
 com.qti.snapdragon.sdk.display.IColorService   u:object_r:color_service:s0
-#line 1 "vendor/cm/sepolicy/service_contexts"
+#line 1 "vendor/slim/sepolicy/service_contexts"
 cmhw                                      u:object_r:system_server_service:s0
 edgegestureservice                        u:object_r:system_server_service:s0
 themes                                    u:object_r:system_server_service:s0
 torch                                     u:object_r:system_server_service:s0
 killswitch                                u:object_r:system_server_service:s0
-cmstatusbar                               u:object_r:system_server_service:s0
 profile                                   u:object_r:system_server_service:s0
-cmpartnerinterface                        u:object_r:system_server_service:s0
-cmtelephonymanager                        u:object_r:system_server_service:s0
-cmhardware                                u:object_r:system_server_service:s0
-cmappsuggest                              u:object_r:system_server_service:s0

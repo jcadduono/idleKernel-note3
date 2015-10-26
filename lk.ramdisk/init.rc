@@ -9,8 +9,8 @@ import /init.usb.rc
 import /init.${ro.hardware}.rc
 import /init.${ro.zygote}.rc
 import /init.trace.rc
-# Include CM's extra init file
-import /init.cm.rc
+# Include Slim's extra init file
+import /init.slim.rc
 # Include leanKernel's init file
 import /init.lk.rc
 

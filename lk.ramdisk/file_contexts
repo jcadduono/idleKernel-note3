@@ -603,7 +603,8 @@
 /data/bcmnfc(/.*)?                                      u:object_r:nfc_data_file:s0
 
 # SEC
-/sys/devices/virtual/sec/sec_key/hall_irq_ctrl          u:object_r:sysfs_sec:s0
+/sys/devices/virtual/sec(/.*)?							u:object_r:sysfs_sec:s0
+/sys/class/sec(/.*)?									u:object_r:sysfs_sec:s0
 
 #wifi
 /efs/wifi/.mac.info 					u:object_r:wifi_efs_file:s0
@@ -621,7 +622,7 @@
 /efs/FactoryApp(/.*)?  					u:object_r:efs_file:s0
 /efs/imei	  					u:object_r:efs_file:s0
 /efs/mps_code.dat					u:object_r:efs_file:s0
-#line 1 "vendor/cm/sepolicy/file_contexts"
+#line 1 "vendor/slim/sepolicy/file_contexts"
 /cache/dalvik-cache(/.*)? u:object_r:dalvikcache_data_file:s0
 
 /cache/recovery(/.*)?     u:object_r:recovery_cache_file:s0
@@ -629,9 +630,6 @@
 # Auditd is a logging daemon. Put it into logd's context
 /system/bin/auditd        u:object_r:logd_exec:s0
 /data/misc/audit(/.*)?    u:object_r:auditd_log:s0
-
-# Themes
-/data/system/theme(/.*)?  u:object_r:theme_data_file:s0
 
 /system/bin/sysinit       u:object_r:sysinit_exec:s0
 
@@ -660,7 +658,7 @@
 /data/system/users/[0-9]+/keyguard_wallpaper   u:object_r:wallpaper_file:s0
 
 # Persistent properties
-/persist/properties(/.*)?         u:object_r:persist_property_file:s0
+/persist/properties         u:object_r:persist_property_file:s0
 
 # LiveDisplay
 /sys/devices/virtual/graphics/fb0/aco           u:object_r:livedisplay_sysfs:s0
