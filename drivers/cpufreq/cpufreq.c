@@ -33,6 +33,8 @@
 
 #include <trace/events/power.h>
 
+bool cpufreq_screen_on = true;
+
 /**
  * The "cpufreq driver" - the arch- or hardware-dependent low
  * level driver of CPUFreq support, and its spinlock. This lock
