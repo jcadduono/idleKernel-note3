@@ -982,4 +982,3 @@ int kgsl_mmu_gpuaddr_in_range(struct kgsl_pagetable *pt, unsigned int gpuaddr)
 	return 0;
 }
 EXPORT_SYMBOL(kgsl_mmu_gpuaddr_in_range);
-

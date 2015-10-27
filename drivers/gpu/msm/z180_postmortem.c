@@ -231,4 +231,3 @@ int z180_dump(struct kgsl_device *device, int manual)
 
 	return 0;
 }
-
