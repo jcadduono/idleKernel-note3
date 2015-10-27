@@ -1,0 +1,69 @@
+user=gps domain=location_app type=location_app_data_file
+user=system seinfo=platform name=com.qualcomm.services.location domain=location_app type=location_app_data_file
+user=system seinfo=platform name=com.qualcomm.location.XT domain=location_app type=location_app_data_file
+user=_app seinfo=media domain=media_app type=platform_app_data_file
+user=_app seinfo=shared domain=shared_app type=platform_app_data_file
+user=_app seinfo=release domain=release_app type=platform_app_data_file
+user=system domain=s_system_app type=system_app_data_file
+user=bluetooth domain=s_bluetooth type=bluetooth_data_file
+user=nfc domain=s_nfc type=nfc_data_file
+user=radio domain=s_radio type=radio_data_file
+user=_isolated domain=s_isolated_app
+user=_app seinfo=platform domain=s_platform_app type=platform_app_data_file
+user=_app domain=s_untrusted_app type=app_data_file
+user=drm seinfo=platform name=com.sec.android.SamsungDrmProvider domain=s_platform_app type=platform_app_data_file
+user=shell name=com.android.shell domain=s_untrusted_app type=shell_data_file
+user=shell seinfo=platform name=com.sec.android.gotrace domain=s_platform_app type=platform_app_data_file
+user=smartcard domain=s_platform_app type=platform_app_data_file
+user=_app seinfo=platform name=com.sec.android.nearby.mediaserver domain=s_platform_app type=platform_media_app_data_file
+user=_app seinfo=platform name=com.android.defcontainer domain=bridged_platform_app type=platform_app_data_file
+user=_app seinfo=platform name=com.sec.android.app.controlpanel domain=bridged_platform_app type=platform_app_data_file
+user=_app seinfo=platform name=com.sec.minimode.taskcloser domain=bridged_platform_app type=platform_app_data_file
+user=sprintextension seinfo=spr_ext name=com.sec.sprextension domain=system_app type=system_app_data_file
+isSystemServer=true domain=system_server
+user=shared_relro domain=shared_relro
+user=shell seinfo=platform domain=shell type=shell_data_file
+user=system seinfo=platform name=com.sec.android.app.sysscope domain=syscope_app type=system_app_data_file
+user=_app seinfo=platform name=com.sec.smartcard.pinservice type=platform_app_data_file
+user=_app seinfo=samsung domain=samsung_app type=app_data_file
+user=_app seinfo=samsung name=com.sec.android.app.samsungapps domain=samsung_app type=app_data_file
+user=_app seinfo=untrusted name=com.vlingo.midas domain=samsung_app type=app_data_file
+user=_app seinfo=untrusted name=tv.peel.samsung.app domain=samsung_app type=app_data_file
+user=_app seinfo=untrusted name=tv.peel.samsung.widget domain=samsung_app type=app_data_file
+user=_app seinfo=untrusted name=com.rageconsulting.android.lightflow domain=filtered_untrusted_app type=app_data_file
+user=_app seinfo=untrusted name=com.rageconsulting.android.lightflowlite domain=filtered_untrusted_app type=app_data_file
+user=_app seinfo=untrusted name=rubberbigpepper.lgCamera domain=filtered_untrusted_app type=app_data_file
+user=_app seinfo=untrusted name=com.google.android.calendar domain=filtered_google_app type=app_data_file
+user=_app seinfo=untrusted name=com.google.android.gms domain=filtered_google_app type=app_data_file
+user=_app seinfo=untrusted name=com.google.android.gms.unstable domain=filtered_google_app type=app_data_file
+user=_app seinfo=untrusted name=com.google.android.gms:snet domain=filtered_google_app type=app_data_file
+user=_app seinfo=untrusted name=com.google.process.location domain=filtered_google_app type=app_data_file
+user=system seinfo=platform name=com.sec.knox.containeragent domain=knox_system_app type=system_app_data_file
+user=system seinfo=platform name=com.policydm domain=policyloader_app type=policyloader_app_data_file
+user=_isolated seinfo=container domain=container_app type=container_app_data_file
+user=_app seinfo=container domain=container_app type=container_app_data_file
+user=_app seinfo=platform name=com.sec.knox.store domain=store_app type=store_app_data_file
+user=_app seinfo=caccard name=com.baimobile.android.pcsclite.service domain=knox_untrusted_app type=app_data_file
+user=_app seinfo=keyboard domain=knox_untrusted_app type=app_data_file
+user=_app seinfo=knox_untrusted name=com.centrify.mdm.samsung domain=knox_untrusted_app type=app_data_file
+user=_app seinfo=knox_untrusted name=com.samsung.knoxemm.mdm domain=knox_untrusted_app type=app_data_file
+user=_app seinfo=untrusted name=com.android.vending domain=knox_untrusted_app type=app_data_file
+user=_app seinfo=untrusted name=com.google.android.googlequicksearchbox domain=knox_untrusted_app type=app_data_file
+user=_app seinfo=untrusted name=com.google.android.googlequicksearchbox:search domain=knox_untrusted_app type=app_data_file
+user=_app seinfo=untrusted name=com.google.process.gapps domain=knox_untrusted_app type=app_data_file
+user=_app seinfo=untrusted name=com.google.android.inputmethod.latin domain=knox_untrusted_app type=app_data_file
+user=_app seinfo=untrusted name=com.google.android.inputmethod.korean domain=knox_untrusted_app type=app_data_file
+user=_app seinfo=untrusted name=com.google.android.inputmethod.pinyin domain=knox_untrusted_app type=app_data_file
+user=_app seinfo=untrusted name=com.google.android.marvin.talkback domain=knox_untrusted_app type=app_data_file
+user=_app seinfo=fixmo domain=fixmo_app type=fixmo_app_data_file
+user=_app seinfo=trustonicpartner domain=trustonicpartner_app type=app_data_file
+user=_app seinfo=good_trustonicpartner domain=trustonicpartner_app type=app_data_file
+user=_app seinfo=vpn_untrusted name=net.juniper.junos.pulse.android domain=vpn_untrusted_app type=app_data_file
+user=_app seinfo=vpn_untrusted name=net.juniper.junos.pulse.android:remote domain=vpn_untrusted_app type=app_data_file
+user=_app seinfo=vmware domain=vmware_app type=app_data_file
+user=_app seinfo=sprintitson domain=itsonclient_app type=sprintitson_file
+user=sprintitson seinfo=sprintitson domain=itsonclient_app type=sprintitson_file
+user=itson seinfo=sprintitson domain=itsonclient_app type=sprintitson_file
+user=_app seinfo=mmphone domain=carrier_app type=app_data_file
+user=system seinfo=platform name=diagandroid.iqd domain=diagandroid_app type=system_app_data_file
+user=_app seinfo=tmosimlock name=com.tmobile.simlock domain=filtered_untrusted_app type=app_data_file
