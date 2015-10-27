@@ -17,11 +17,12 @@ RDIR=$(pwd)
 
 [ -z $VARIANT ] && \
 # device variant/carrier, possible options:
-#	att = N900A  (AT&T)
 #	can = N900W8 (Canadian, same as T-Mobile)
 #	eur = N9005  (Snapdragon International / hltexx / Europe)
 #	spr = N900P  (Sprint)
 #	tmo = N900T  (T-Mobile, same as Canadian)
+# not currently possible options (missing SlimRom support!):
+#	att = N900A  (AT&T)
 #	usc = N900R4 (US Cellular)
 #	vzw = N900V  (Verizon)
 VARIANT=tmo
@@ -56,6 +57,11 @@ if ! [ -f $RDIR"/arch/arm/configs/msm8974_sec_hlte_"$VARIANT"_defconfig" ] ; the
 	exit -1
 fi
 
+if ! [ -d $RDIR"/lk.ramdisk/variant/$VARIANT/" ] ; then
+	echo "Device variant/carrier $VARIANT not found in lk.ramdisk/variant!"
+	exit -1
+fi
+
 [ $PERMISSIVE -eq 1 ] && SELINUX="permissive" || SELINUX="enforcing"
 
 KDIR=$RDIR/build/arch/arm/boot
@@ -71,8 +77,13 @@ CLEAN_BUILD()
 
 BUILD_RAMDISK()
 {
+	echo "Building ramdisk structure..."
+	cd $RDIR
+	mkdir -p build/ramdisk
+	cp -ar lk.ramdisk/common/* build/ramdisk
+	cp -ar lk.ramdisk/variant/$VARIANT/* build/ramdisk
 	echo "Building ramdisk.img..."
-	cd $RDIR/lk.ramdisk
+	cd $RDIR/build/ramdisk
 	mkdir -pm 755 dev proc sys system
 	mkdir -pm 771 data
 	find | fakeroot cpio -o -H newc | xz -9e --format=lzma > $KDIR/ramdisk.cpio.xz
