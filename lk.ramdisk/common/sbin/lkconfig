@@ -11,11 +11,12 @@ echo "---"
 echo "0) display current settings"
 echo "1) panel temperature"
 echo "2) panel color"
-echo "3) set screen_off_maxfreq"
-echo "4) set cpu max frequency"
+echo "3) cpu max frequency"
+echo "4) cpu governor"
 echo "5) gpu governor"
-echo "6) MMC CRC"
-echo
+echo "6) tcp congestion control"
+echo "7) io scheduler"
+echo "8) mmc crc"
 echo "9) check top 10 wake locks (ie. wakeup sources)"
 echo
 echo -n "please enter a number (or press enter to exit): "
@@ -31,83 +32,226 @@ case $option in
 	cat /sys/class/lcd/panel/temperature
 	echo -n "2) panel color: "
 	cat /sys/class/lcd/panel/panel_colors
-	echo -n "3) screen off maxfreq: "
-	cat `ls -d /sys/devices/system/cpu/cpufreq/*a*`/screen_off_maxfreq
-	echo -n "4) cpu max frequency: "
+	echo "3) cpu max frequency:"
+	echo -n "     screen on: "
 	cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq
+	echo -n "     screen off: "
+	[ -d /sys/devices/system/cpu/cpufreq/interactive ] && cat /sys/devices/system/cpu/cpufreq/interactive/screen_off_maxfreq || echo unavailable
+	echo -n "4) cpu governor: "
+	cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
 	echo -n "5) gpu governor: "
 	cat /sys/devices/fdb00000.qcom,kgsl-3d0/devfreq/fdb00000.qcom,kgsl-3d0/governor
-	echo -n "6) MMC CRC: "
-	cat /sys/module/mmc_core/parameters/use_spi_crc
+	echo -n "6) tcp congestion control: "
+	cat /proc/sys/net/ipv4/tcp_congestion_control
+	echo "7) io scheduler:"
+	echo -n "     internal memory: "
+	cat /sys/block/mmcblk0/queue/scheduler
+	echo -n "     external sdcard: "
+	cat /sys/block/mmcblk1/queue/scheduler
+	echo -n "8) mmc crc: "
+	[ `cat /sys/module/mmc_core/parameters/use_spi_crc` == Y ] && echo enabled || echo disabled
+	;;
+1)
 	echo
+	echo -n "enter a number between -60 and 0 (the default is 0): "
+	read value
+	if [ $value -ge -60 -a $value -le 0 ]; then
+		echo $value > /data/data/leankernel/paneltemp
+		echo $value > /sys/class/lcd/panel/temperature
+		echo "done!"
+	fi
+	;;
+2)
 	echo
-	;;
-1) 
-	echo -n "Enter a number between -60 and 0 (0 is kernel default): "
+	echo -n "enter a number between 0 and 4 (the default is 2): "
 	read value
-	echo $value > /data/data/leankernel/paneltemp
-	echo $value > /sys/class/lcd/panel/temperature
-	echo "Done! (also will persist at boot)"
+	if [ $value -ge -0 -a $value -le 4 ]; then
+		echo $value > /data/data/leankernel/panelcolor
+		echo $value > /sys/class/lcd/panel/panel_colors
+		echo "done! toggle screen off/on to see changes"
+	fi
 	;;
-2)	
-	echo -n "Enter a number between 0 and 4 (2 is kernel default): "
-	read value
-	echo $value > /data/data/leankernel/panelcolor
-	echo $value > /sys/class/lcd/panel/panel_colors
-	echo "Turn off screen and back on (also will persist at boot)"
-	;;
-3)	
-	echo -n "Enter a number between 0 and 4 (0:650mhz,1:883mhz,2:1.2ghz/default,3:1.5ghz,4:disable): "
-	read value
-	case $value in
-	  0) FREQ=652800;;
-	  1) FREQ=883200;;
-	  2) FREQ=1267200;;
-	  3) FREQ=1574400;;
-	  4) FREQ=2265600;;
+3)
+	echo
+	echo "1) screen on max frequency"
+	echo "2) screen off max frequency"
+	echo
+	echo -n "enter a number (or press enter to return): "
+	read choice
+	case $choice in
+	1)
+		echo "1) 650 mhz"
+		echo "2) 883 mhz"
+		echo "3) 1.2 ghz"
+		echo "4) 1.5 ghz"
+		echo "5) 2.2 ghz (default)"
+		echo "6) 2.5 ghz"
+		echo "7) 2.7 ghz"
+		echo
+		echo -n "enter a number (or press enter to return): "
+		read value
+		case $value in
+			1) FREQ=652800;;
+			2) FREQ=883200;;
+			3) FREQ=1267200;;
+			4) FREQ=1574400;;
+			5) FREQ=2265600;;
+			6) FREQ=2496000;;
+			7) FREQ=2726400;;
+			*) FREQ=;;
+		esac
+		if [ -n $FREQ ]; then
+			echo $FREQ > /data/data/leankernel/scaling_max_freq
+			echo $FREQ > /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq
+			echo "done!"
+		fi
+		;;
+	2)
+		echo "1) 650 mhz"
+		echo "2) 883 mhz"
+		echo "3) 1.2 ghz (default)"
+		echo "4) 1.5 ghz"
+		echo "5) 2.2 ghz (disabled)"
+		echo
+		echo -n "enter a number (or press enter to return): "
+		read value
+		case $value in
+			1) FREQ=652800;;
+			2) FREQ=883200;;
+			3) FREQ=1267200;;
+			4) FREQ=1574400;;
+			5) FREQ=2265600;;
+			*) FREQ=;;
+		esac
+		if [ -n $FREQ ]; then
+			echo $FREQ > /data/data/leankernel/screen_off_maxfreq
+			[ -d /sys/devices/system/cpu/cpufreq/interactive ] && echo $FREQ > /sys/devices/system/cpu/cpufreq/interactive/screen_off_maxfreq
+			echo "done!"
+		fi
+		;;
 	esac
-	echo $FREQ > /data/data/leankernel/screen_off_maxfreq
-	echo $FREQ > `ls -d /sys/devices/system/cpu/cpufreq/*a*`/screen_off_maxfreq
-	echo "Done! (also will persist at boot)"
 	;;
 4)
-	echo -n "Enter a number between 0 and 2 (0:2.2ghz,1:2.5ghz,2:2.7ghz): "
-	read value
-	case $value in
-	  0) FREQ=2265600;;
-	  1) FREQ=2496000;;
-	  2) FREQ=2726400;;
-	esac
-	echo $FREQ > /data/data/leankernel/scaling_max_freq
-	echo $FREQ > /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq
-	echo "Done! (also will persist at boot)"
-	;;
-5)
-        echo -n "Enter a number between 0 and 3 (0:adreno-tz/default,1:powersave,2:performance,3:ondemand): "
+	echo
+	echo "1) ondemand"
+	echo "2) interactiveX (default)"
+	echo "3) performance"
+	echo
+	echo -n "enter a number (or press enter to return): "
         read value
         case $value in
-          0) GOV=msm-adreno-tz;;
-          1) GOV=powersave;;
-          2) GOV=performance;;
-          3) GOV=simple_ondemand;;
+		1) GOV=ondemand;;
+		2) GOV=interactiveX;;
+		3) GOV=performance;;
+		*) GOV=;;
         esac
-	echo $GOV > /data/data/leankernel/gpu_governor
-	echo $GOV > /sys/devices/fdb00000.qcom,kgsl-3d0/devfreq/fdb00000.qcom,kgsl-3d0/governor
-	echo "Done! (also will persist at boot)"
+	if [ -n $GOV ]; then
+		echo $GOV > /data/data/leankernel/cpu_governor
+		echo $GOV > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
+		echo "done!"
+	fi
+	;;
+5)
+	echo
+	echo "1) msm-adreno-tz (default)"
+	echo "2) powersave"
+	echo "3) performance"
+	echo "4) simple_ondemand"
+	echo
+	echo -n "enter a number (or press enter to return): "
+        read value
+        case $value in
+		1) GOV=msm-adreno-tz;;
+		2) GOV=powersave;;
+		3) GOV=performance;;
+		4) GOV=simple_ondemand;;
+		*) GOV=;;
+        esac
+	if [ -n $GOV ]; then
+		echo $GOV > /data/data/leankernel/gpu_governor
+		echo $GOV > /sys/devices/fdb00000.qcom,kgsl-3d0/devfreq/fdb00000.qcom,kgsl-3d0/governor
+		echo "done!"
+	fi
 	;;
 6)
-	echo -n "Enter Y to enable, N to disable MMC CRC: "
+	echo
+	echo "1) cubic (default)"
+	echo "2) westwood"
+	echo "3) reno"
+	echo
+	echo -n "enter a number (or press enter to return): "
+        read value
+        case $value in
+		1) ALG=cubic;;
+		2) ALG=westwood;;
+		3) ALG=reno;;
+		*) ALG=;;
+        esac
+	if [ -n $ALG ]; then
+		echo $ALG > /data/data/leankernel/tcp_congestion_control
+		echo $ALG > /proc/sys/net/ipv4/tcp_congestion_control
+		echo "done!"
+	fi
+	;;
+7)
+	echo
+	echo "1) internal memory io scheduler"
+	echo "2) external sdcard io scheduler"
+	echo
+	echo -n "enter a number (or press enter to return): "
+	read choice
+	case $choice in
+	1|2)
+		echo "1) noop"
+		echo "2) deadline"
+		echo "3) row"
+		echo "4) sio (default)"
+		echo "5) fiops"
+		echo
+		echo -n "enter a number (or press enter to return): "
+		read value
+		case $value in
+			1) SCHED=noop;;
+			2) SCHED=deadline;;
+			3) SCHED=row;;
+			4) SCHED=sio;;
+			5) SCHED=fiops;;
+			*) SCHED=;;
+		esac
+		if [ -n $SCHED ]; then
+			if [ $choice -eq 1 ]; then
+				echo $SCHED > /data/data/leankernel/io_scheduler_internal
+				echo $SCHED > /sys/block/mmcblk0/queue/scheduler
+			else
+				echo $SCHED > /data/data/leankernel/io_scheduler_external
+				echo $SCHED > /sys/block/mmcblk1/queue/scheduler
+			fi
+			echo "done!"
+		fi
+		;;
+	esac
+	;;
+8)
+	echo
+	echo -n "enter 'y' to enable or 'n' to disable mmc crc: "
 	read value
-	echo $value > /data/data/leankernel/use_spi_crc
-	echo $value > /sys/module/mmc_core/parameters/use_spi_crc
-	echo "Done! (also will persist at boot)"
+	case $value in
+		y|Y) CRC=Y;;
+		n|N) CRC=N;;
+		*) CRC=;;
+	esac
+	if [ -n $CRC ]; then
+		echo $CRC > /data/data/leankernel/use_spi_crc
+		echo $CRC > /sys/module/mmc_core/parameters/use_spi_crc
+		echo "done!"
+	fi
 	;;
 9)
-        echo
+	echo
         if [ -a /system/xbin/awk ]; then
                 echo "1st column: total time wakeup source has been active."
                 echo "2nd column: max time the source was continuously active."
-                echo "(The numbers are duration in seconds)"
+                echo "(the numbers are duration in seconds)"
                 echo "-----"
                 cat /sys/kernel/debug/wakeup_sources | grep -v wakeup_count \
                   | awk '{ printf "%-10s%-8s %s\n",int($7/1000),int($8/1000),$1 }' \
