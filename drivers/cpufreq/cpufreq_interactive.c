@@ -39,7 +39,8 @@
 #define CONFIG_RETENTION_CHANGE
 
 static int active_count;
-bool cpufreq_screen_on = true;
+
+extern bool cpufreq_screen_on;
 
 struct cpufreq_interactive_cpuinfo {
 	struct timer_list cpu_timer;
@@ -1919,7 +1920,6 @@ static int __init cpufreq_interactive_init(void)
 	struct cpufreq_interactive_cpuinfo *pcpu;
 	struct sched_param param = { .sched_priority = MAX_RT_PRIO-1 };
 
-	cpufreq_screen_on = true;
 	/* Initalize per-cpu timers */
 	for_each_possible_cpu(i) {
 		pcpu = &per_cpu(cpuinfo, i);

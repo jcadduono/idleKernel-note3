@@ -72,6 +72,8 @@ CLEAN_BUILD()
 	echo "Removing old zip/tar.md5 files..."
 	rm -f $OUT_DIR/$OUT_NAME.zip
 	rm -f $OUT_DIR/$OUT_NAME.tar.md5
+	echo "Removing old ramdisk structure..."
+	rm -rf build/ramdisk
 }
 
 BUILD_RAMDISK()

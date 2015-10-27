@@ -476,6 +476,16 @@ on boot
     # Vibetonz
     chmod 0660 /dev/tspdrv
     chown vibe vibe /dev/tspdrv
+    chown system system /sys/class/timed_output/vibrator/pwm_value
+    chmod 0660 /sys/class/timed_output/vibrator/pwm_value
+    chown system system /sys/class/timed_output/vibrator/pwm_max
+    chmod 0660 /sys/class/timed_output/vibrator/pwm_max
+    chown system system /sys/class/timed_output/vibrator/pwm_min
+    chmod 0660 /sys/class/timed_output/vibrator/pwm_min
+    chown system system /sys/class/timed_output/vibrator/pwm_default
+    chmod 0660 /sys/class/timed_output/vibrator/pwm_default
+    chown system system /sys/class/timed_output/vibrator/pwm_threshold
+    chmod 0660 /sys/class/timed_output/vibrator/pwm_threshold
 
     # basic network init
     ifup lo
