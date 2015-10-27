@@ -1171,4 +1171,3 @@ done:
 	/* reset the sync flag */
 	*cmd_flags &= ~KGSL_CMD_FLAGS_PROFILE;
 }
-
