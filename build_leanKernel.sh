@@ -112,7 +112,7 @@ BUILD_RAMDISK()
 	cd $RDIR/build/ramdisk
 	mkdir -pm 755 dev proc sys system
 	mkdir -pm 771 carrier data
-	find | fakeroot cpio -o -H newc | xz -9e --format=lzma > $KDIR/ramdisk.cpio.xz
+	find | fakeroot cpio -o -H newc | xz --check=crc32 --lzma2=dict=2MiB > $KDIR/ramdisk.cpio.xz
 	cd $RDIR
 }
 

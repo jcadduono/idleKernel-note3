@@ -6,21 +6,6 @@
 
 OBJS		=
 
-# Ensure that MMCIF loader code appears early in the image
-# to minimise that number of bocks that have to be read in
-# order to load it.
-ifeq ($(CONFIG_ZBOOT_ROM_MMCIF),y)
-OBJS		+= mmcif-sh7372.o
-endif
-
-# Ensure that SDHI loader code appears early in the image
-# to minimise that number of bocks that have to be read in
-# order to load it.
-ifeq ($(CONFIG_ZBOOT_ROM_SH_MOBILE_SDHI),y)
-OBJS		+= sdhi-shmobile.o
-OBJS		+= sdhi-sh7372.o
-endif
-
 AFLAGS_head.o += -DTEXT_OFFSET=$(TEXT_OFFSET)
 # change@wtl.rsengott
 # FIPS_KERNEL_RAM_BASE is start of kernel text in RAM
@@ -38,34 +23,6 @@ CFLAGS_string.o	:= -Os
 #
 # Architecture dependencies
 #
-ifeq ($(CONFIG_ARCH_ACORN),y)
-OBJS		+= ll_char_wr.o font.o
-endif
-
-ifeq ($(CONFIG_ARCH_SHARK),y)
-OBJS		+= head-shark.o ofw-shark.o
-endif
-
-ifeq ($(CONFIG_ARCH_P720T),y)
-# Borrow this code from SA1100
-OBJS		+= head-sa1100.o
-endif
-
-ifeq ($(CONFIG_ARCH_SA1100),y)
-OBJS		+= head-sa1100.o
-endif
-
-ifeq ($(CONFIG_ARCH_VT8500),y)
-OBJS		+= head-vt8500.o
-endif
-
-ifeq ($(CONFIG_CPU_XSCALE),y)
-OBJS		+= head-xscale.o
-endif
-
-ifeq ($(CONFIG_PXA_SHARPSL_DETECT_MACH_ID),y)
-OBJS		+= head-sharpsl.o
-endif
 
 ifeq ($(CONFIG_CPU_ENDIAN_BE32),y)
 ifeq ($(CONFIG_CPU_CP15),y)
@@ -73,10 +30,6 @@ OBJS		+= big-endian.o
 else
 # The endian should be set by h/w design.
 endif
-endif
-
-ifeq ($(CONFIG_ARCH_SHMOBILE),y)
-OBJS		+= head-shmobile.o
 endif
 
 #
