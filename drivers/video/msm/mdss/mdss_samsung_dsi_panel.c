@@ -1810,7 +1810,7 @@ static ssize_t mipi_samsung_backlight_show(struct device *dev,
 
 	rc = snprintf((char *)buf, PAGE_SIZE, "%d\n",
 					msd.dstat.bright_level );
-	pr_info("backlight : %d\n", *buf);
+	pr_debug("backlight : %d\n", *buf);
 
 	return rc;
 }
@@ -1820,7 +1820,7 @@ static ssize_t mipi_samsung_backlight_store(struct device *dev,
 {
 	int bl_level = atoi(buf);
 
-	pr_info("%s : level (%d)\n",__func__,bl_level);
+	pr_debug("%s : level (%d)\n",__func__,bl_level);
 
 	msd.dstat.bright_level = bl_level;
 	mipi_samsung_disp_send_cmd(PANEL_BRIGHT_CTRL, true);
@@ -1835,7 +1835,7 @@ static ssize_t mipi_samsung_auto_brightness_show(struct device *dev,
 
 	rc = snprintf((char *)buf, PAGE_SIZE, "%d\n",
 					msd.dstat.auto_brightness);
-	pr_info("auto_brightness: %d\n", *buf);
+	pr_debug("auto_brightness: %d\n", *buf);
 
 	return rc;
 }

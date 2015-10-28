@@ -52,7 +52,9 @@
 
 static struct msm_thermal_data msm_thermal_info;
 static struct delayed_work check_temp_work;
+#ifdef CONFIG_THERMAL_MONITOR_LOG
 static struct delayed_work temp_log_work;
+#endif
 static bool core_control_enabled;
 static uint32_t cpus_offlined;
 static DEFINE_MUTEX(core_control_mutex);
@@ -1309,7 +1311,7 @@ static void __ref do_freq_control(long temp)
 		max_freq = table[limit_idx].frequency;
 
 #ifdef CONFIG_SEC_PM_DEBUG
-		pr_info("%s: down Limit=%d Temp: %ld\n",
+		pr_debug("%s: down Limit=%d Temp: %ld\n",
 				KBUILD_MODNAME, limit_idx, temp);
 #endif
 	} else if (temp < msm_thermal_info.limit_temp_degC -
@@ -1325,7 +1327,7 @@ static void __ref do_freq_control(long temp)
 			max_freq = table[limit_idx].frequency;
 
 #ifdef CONFIG_SEC_PM_DEBUG
-		pr_info("%s: up Limit=%d Temp: %ld\n",
+		pr_debug("%s: up Limit=%d Temp: %ld\n",
 				KBUILD_MODNAME, limit_idx, temp);
 #endif
 	}
@@ -1381,7 +1383,7 @@ reschedule:
 				msecs_to_jiffies(msm_thermal_info.poll_ms));
 }
 
-
+#ifdef CONFIG_THERMAL_MONITOR_LOG
 static void __ref msm_therm_temp_log(struct work_struct *work)
 {
 
@@ -1393,7 +1395,7 @@ static void __ref msm_therm_temp_log(struct work_struct *work)
 
 	if(!tsens_get_max_sensor_num(&max_sensors))
 	{
-		pr_info( "Debug Temp for Sensor: ");
+		pr_debug("Debug Temp for Sensor: ");
 		for(i=0;i<max_sensors;i++)
 		{
 			tsens_dev.sensor_num = i;
@@ -1401,11 +1403,12 @@ static void __ref msm_therm_temp_log(struct work_struct *work)
 			ret = sprintf(buffer + added, "(%d --- %ld)", i, temp);
 			added += ret;						
 		}
-		pr_info("%s", buffer);
+		pr_debug("%s", buffer);
 	}
 	schedule_delayed_work(&temp_log_work,
 				HZ*5); //For every 5 seconds log the temperature values of all the msm thermistors.
 }
+#endif
 
 static int __ref msm_thermal_cpu_callback(struct notifier_block *nfb,
 		unsigned long action, void *hcpu)
@@ -3358,7 +3361,9 @@ static int msm_thermal_dev_exit(struct platform_device *inp_dev)
 		kfree(thresh);
 		thresh = NULL;
 	}
+#ifdef CONFIG_THERMAL_MONITOR_LOG
 	cancel_delayed_work_sync(&temp_log_work);
+#endif
 	return 0;
 }
 
@@ -3379,9 +3384,10 @@ static struct platform_driver msm_thermal_device_driver = {
 
 int __init msm_thermal_device_init(void)
 {
+#ifdef CONFIG_THERMAL_MONITOR_LOG
 	INIT_DELAYED_WORK(&temp_log_work, msm_therm_temp_log);
 	schedule_delayed_work(&temp_log_work, HZ*2);
-
+#endif
 	return platform_driver_register(&msm_thermal_device_driver);
 }
 
