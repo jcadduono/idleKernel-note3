@@ -53,55 +53,7 @@ endif
 
 comma = ,
 
-# This selects which instruction set is used.
-# Note that GCC does not numerically define an architecture version
-# macro, but instead defines a whole series of macros which makes
-# testing for a specific architecture or later rather impossible.
-arch-$(CONFIG_CPU_32v7)		:=-D__LINUX_ARM_ARCH__=7 $(call cc-option,-march=armv7-a,-march=armv5t -Wa$(comma)-march=armv7-a)
-arch-$(CONFIG_CPU_32v6)		:=-D__LINUX_ARM_ARCH__=6 $(call cc-option,-march=armv6,-march=armv5t -Wa$(comma)-march=armv6)
-# Only override the compiler option if ARMv6. The ARMv6K extensions are
-# always available in ARMv7
-ifeq ($(CONFIG_CPU_32v6),y)
-arch-$(CONFIG_CPU_32v6K)	:=-D__LINUX_ARM_ARCH__=6 $(call cc-option,-march=armv6k,-march=armv5t -Wa$(comma)-march=armv6k)
-endif
-arch-$(CONFIG_CPU_32v5)		:=-D__LINUX_ARM_ARCH__=5 $(call cc-option,-march=armv5te,-march=armv4t)
-arch-$(CONFIG_CPU_32v4T)	:=-D__LINUX_ARM_ARCH__=4 -march=armv4t
-arch-$(CONFIG_CPU_32v4)		:=-D__LINUX_ARM_ARCH__=4 -march=armv4
-arch-$(CONFIG_CPU_32v3)		:=-D__LINUX_ARM_ARCH__=3 -march=armv3
-
-# Since 'cortex-a15' is a superset of the 'armv7-a' arch spec, we need to
-# explicitly redefine the arch options to not include '-march=armv7-a' when
-# generating code for Krait, which is compatible with the instruction set of the
-# Cortex-A15, because GCC will warn us about ambiguous ISA restrictions caused
-# by seemingly conflicting -march and -mcpu options.
-# If $(CC) does not support the -mcpu=cortex-a15 option, fall back on passing
-# -march=armv7-a to specify the ISA restriction, though this is suboptimal. To
-# keep things simpler, we don't bother with a fallback option if the compiler
-# doesn't even support -march=armv7-a, since in that situation we would have
-# bigger problems.
-arch-$(CONFIG_ARCH_MSM_KRAIT)	:=-D__LINUX_ARM_ARCH__=7 $(call cc-option,-mcpu=cortex-a15,-march=armv7-a)
-
-# This selects how we optimise for the processor.
-tune-$(CONFIG_CPU_ARM610)	:=-mtune=arm610
-tune-$(CONFIG_CPU_ARM710)	:=-mtune=arm710
-tune-$(CONFIG_CPU_ARM7TDMI)	:=-mtune=arm7tdmi
-tune-$(CONFIG_CPU_ARM720T)	:=-mtune=arm7tdmi
-tune-$(CONFIG_CPU_ARM740T)	:=-mtune=arm7tdmi
-tune-$(CONFIG_CPU_ARM9TDMI)	:=-mtune=arm9tdmi
-tune-$(CONFIG_CPU_ARM940T)	:=-mtune=arm9tdmi
-tune-$(CONFIG_CPU_ARM946E)	:=$(call cc-option,-mtune=arm9e,-mtune=arm9tdmi)
-tune-$(CONFIG_CPU_ARM920T)	:=-mtune=arm9tdmi
-tune-$(CONFIG_CPU_ARM922T)	:=-mtune=arm9tdmi
-tune-$(CONFIG_CPU_ARM925T)	:=-mtune=arm9tdmi
-tune-$(CONFIG_CPU_ARM926T)	:=-mtune=arm9tdmi
-tune-$(CONFIG_CPU_FA526)	:=-mtune=arm9tdmi
-tune-$(CONFIG_CPU_SA110)	:=-mtune=strongarm110
-tune-$(CONFIG_CPU_SA1100)	:=-mtune=strongarm1100
-tune-$(CONFIG_CPU_XSCALE)	:=$(call cc-option,-mtune=xscale,-mtune=strongarm110) -Wa,-mcpu=xscale
-tune-$(CONFIG_CPU_XSC3)		:=$(call cc-option,-mtune=xscale,-mtune=strongarm110) -Wa,-mcpu=xscale
-tune-$(CONFIG_CPU_FEROCEON)	:=$(call cc-option,-mtune=marvell-f,-mtune=xscale)
-tune-$(CONFIG_CPU_V6)		:=$(call cc-option,-mtune=arm1136j-s,-mtune=strongarm)
-tune-$(CONFIG_CPU_V6K)		:=$(call cc-option,-mtune=arm1136j-s,-mtune=strongarm)
+arch-$(CONFIG_ARCH_MSM_KRAIT) :=-D__LINUX_ARM_ARCH__=7 $(call cc-option,-mcpu=cortex-a15,-march=armv7-a)
 
 ifeq ($(CONFIG_AEABI),y)
 CFLAGS_ABI	:=-mabi=aapcs-linux -mno-thumb-interwork
@@ -133,101 +85,10 @@ CHECKFLAGS	+= -D__arm__
 #Default value
 head-y		:= arch/arm/kernel/head$(MMUEXT).o arch/arm/kernel/init_task.o
 textofs-y	:= 0x00008000
-textofs-$(CONFIG_ARCH_CLPS711X) := 0x00028000
-# We don't want the htc bootloader to corrupt kernel during resume
-textofs-$(CONFIG_PM_H1940)      := 0x00108000
-# SA1111 DMA bug: we don't want the kernel to live in precious DMA-able memory
-ifeq ($(CONFIG_ARCH_SA1100),y)
-textofs-$(CONFIG_SA1111) := 0x00208000
-endif
 
 # Machine directory name.  This list is sorted alphanumerically
 # by CONFIG_* macro name.
-machine-$(CONFIG_ARCH_AT91)		:= at91
-machine-$(CONFIG_ARCH_BCMRING)		:= bcmring
-machine-$(CONFIG_ARCH_CLPS711X)		:= clps711x
-machine-$(CONFIG_ARCH_CNS3XXX)		:= cns3xxx
-machine-$(CONFIG_ARCH_DAVINCI)		:= davinci
-machine-$(CONFIG_ARCH_DOVE)		:= dove
-machine-$(CONFIG_ARCH_EBSA110)		:= ebsa110
-machine-$(CONFIG_ARCH_EP93XX)		:= ep93xx
-machine-$(CONFIG_ARCH_GEMINI)		:= gemini
-machine-$(CONFIG_ARCH_H720X)		:= h720x
-machine-$(CONFIG_ARCH_HIGHBANK)		:= highbank
-machine-$(CONFIG_ARCH_INTEGRATOR)	:= integrator
-machine-$(CONFIG_ARCH_IOP13XX)		:= iop13xx
-machine-$(CONFIG_ARCH_IOP32X)		:= iop32x
-machine-$(CONFIG_ARCH_IOP33X)		:= iop33x
-machine-$(CONFIG_ARCH_IXP2000)		:= ixp2000
-machine-$(CONFIG_ARCH_IXP23XX)		:= ixp23xx
-machine-$(CONFIG_ARCH_IXP4XX)		:= ixp4xx
-machine-$(CONFIG_ARCH_KIRKWOOD)		:= kirkwood
-machine-$(CONFIG_ARCH_KS8695)		:= ks8695
-machine-$(CONFIG_ARCH_LPC32XX)		:= lpc32xx
-machine-$(CONFIG_ARCH_MMP)		:= mmp
-machine-$(CONFIG_ARCH_MSM)		:= msm
-machine-$(CONFIG_ARCH_MV78XX0)		:= mv78xx0
-machine-$(CONFIG_ARCH_IMX_V4_V5)	:= imx
-machine-$(CONFIG_ARCH_IMX_V6_V7)	:= imx
-machine-$(CONFIG_ARCH_MXS)		:= mxs
-machine-$(CONFIG_ARCH_NETX)		:= netx
-machine-$(CONFIG_ARCH_NOMADIK)		:= nomadik
-machine-$(CONFIG_ARCH_OMAP1)		:= omap1
-machine-$(CONFIG_ARCH_OMAP2)		:= omap2
-machine-$(CONFIG_ARCH_OMAP3)		:= omap2
-machine-$(CONFIG_ARCH_OMAP4)		:= omap2
-machine-$(CONFIG_ARCH_ORION5X)		:= orion5x
-machine-$(CONFIG_ARCH_PICOXCELL)	:= picoxcell
-machine-$(CONFIG_ARCH_PNX4008)		:= pnx4008
-machine-$(CONFIG_ARCH_PRIMA2)		:= prima2
-machine-$(CONFIG_ARCH_PXA)		:= pxa
-machine-$(CONFIG_ARCH_REALVIEW)		:= realview
-machine-$(CONFIG_ARCH_RPC)		:= rpc
-machine-$(CONFIG_ARCH_S3C24XX)		:= s3c24xx s3c2412 s3c2440
-machine-$(CONFIG_ARCH_S3C64XX)		:= s3c64xx
-machine-$(CONFIG_ARCH_S5P64X0)		:= s5p64x0
-machine-$(CONFIG_ARCH_S5PC100)		:= s5pc100
-machine-$(CONFIG_ARCH_S5PV210)		:= s5pv210
-machine-$(CONFIG_ARCH_EXYNOS4)		:= exynos
-machine-$(CONFIG_ARCH_EXYNOS5)		:= exynos
-machine-$(CONFIG_ARCH_SA1100)		:= sa1100
-machine-$(CONFIG_ARCH_SHARK)		:= shark
-machine-$(CONFIG_ARCH_SHMOBILE) 	:= shmobile
-machine-$(CONFIG_ARCH_TEGRA)		:= tegra
-machine-$(CONFIG_ARCH_U300)		:= u300
-machine-$(CONFIG_ARCH_U8500)		:= ux500
-machine-$(CONFIG_ARCH_VERSATILE)	:= versatile
-machine-$(CONFIG_ARCH_VEXPRESS)		:= vexpress
-machine-$(CONFIG_ARCH_VT8500)		:= vt8500
-machine-$(CONFIG_ARCH_W90X900)		:= w90x900
-machine-$(CONFIG_FOOTBRIDGE)		:= footbridge
-machine-$(CONFIG_MACH_SPEAR300)		:= spear3xx
-machine-$(CONFIG_MACH_SPEAR310)		:= spear3xx
-machine-$(CONFIG_MACH_SPEAR320)		:= spear3xx
-machine-$(CONFIG_MACH_SPEAR600)		:= spear6xx
-machine-$(CONFIG_ARCH_ZYNQ)		:= zynq
-
-# Platform directory name.  This list is sorted alphanumerically
-# by CONFIG_* macro name.
-plat-$(CONFIG_ARCH_MXC)		:= mxc
-plat-$(CONFIG_ARCH_OMAP)	:= omap
-plat-$(CONFIG_ARCH_S3C64XX)	:= samsung
-plat-$(CONFIG_ARCH_ZYNQ)	:= versatile
-plat-$(CONFIG_PLAT_IOP)		:= iop
-plat-$(CONFIG_PLAT_NOMADIK)	:= nomadik
-plat-$(CONFIG_PLAT_ORION)	:= orion
-plat-$(CONFIG_PLAT_PXA)		:= pxa
-plat-$(CONFIG_PLAT_S3C24XX)	:= s3c24xx samsung
-plat-$(CONFIG_PLAT_S5P)		:= s5p samsung
-plat-$(CONFIG_PLAT_SPEAR)	:= spear
-plat-$(CONFIG_PLAT_VERSATILE)	:= versatile
-
-ifeq ($(CONFIG_ARCH_EBSA110),y)
-# This is what happens if you forget the IOCS16 line.
-# PCMCIA cards stop working.
-CFLAGS_3c589_cs.o :=-DISA_SIXTEEN_BIT_PERIPHERAL
-export CFLAGS_3c589_cs.o
-endif
+machine-$(CONFIG_ARCH_MSM) := msm
 
 # The byte offset of the kernel image in RAM from the start of RAM.
 TEXT_OFFSET := $(textofs-y)
@@ -240,12 +101,11 @@ MACHINE  :=
 endif
 
 machdirs := $(patsubst %,arch/arm/mach-%/,$(machine-y))
-platdirs := $(patsubst %,arch/arm/plat-%/,$(plat-y))
 
 ifeq ($(KBUILD_SRC),)
-KBUILD_CPPFLAGS += $(patsubst %,-I%include,$(machdirs) $(platdirs))
+KBUILD_CPPFLAGS += $(patsubst %,-I%include,$(machdirs))
 else
-KBUILD_CPPFLAGS += $(patsubst %,-I$(srctree)/%include,$(machdirs) $(platdirs))
+KBUILD_CPPFLAGS += $(patsubst %,-I$(srctree)/%include,$(machdirs))
 endif
 
 export	TEXT_OFFSET GZFLAGS MMUEXT
@@ -256,8 +116,6 @@ ifeq ($(FASTFPE),$(wildcard $(FASTFPE)))
 FASTFPE_OBJ	:=$(FASTFPE)/
 endif
 
-core-$(CONFIG_FPE_NWFPE)	+= arch/arm/nwfpe/
-core-$(CONFIG_FPE_FASTFPE)	+= $(FASTFPE_OBJ)
 core-$(CONFIG_VFP)		+= arch/arm/vfp/
 core-$(CONFIG_VMWARE_MVP)      += arch/arm/mvp/
 
@@ -265,7 +123,7 @@ core-$(CONFIG_VMWARE_MVP)      += arch/arm/mvp/
 core-y				+= arch/arm/kernel/ arch/arm/mm/ arch/arm/common/
 core-y				+= arch/arm/net/
 core-y				+= arch/arm/crypto/
-core-y				+= $(machdirs) $(platdirs)
+core-y				+= $(machdirs)
 
 drivers-$(CONFIG_OPROFILE)      += arch/arm/oprofile/
 core-y				+= arch/arm/perfmon/
