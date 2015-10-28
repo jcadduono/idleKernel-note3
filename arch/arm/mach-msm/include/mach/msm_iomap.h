@@ -47,15 +47,6 @@
 
 #define MSM8625_WARM_BOOT_PHYS  0x0FD00000
 
-/* Legacy single-target iomap */
-#if defined(CONFIG_ARCH_QSD8X50)
-#include "msm_iomap-8x50.h"
-#elif defined(CONFIG_ARCH_MSM8X60)
-#include "msm_iomap-8x60.h"
-#elif defined(CONFIG_ARCH_FSM9XXX)
-#include "msm_iomap-fsm9xxx.h"
-#else
-
 /* Unified iomap */
 
 #define MSM_TMR_BASE		IOMEM(0xFA000000)	/*  4K	*/
@@ -67,11 +58,7 @@
 #define MSM_SAW_L2_BASE		IOMEM(0xFA007000)	/*  4K	*/
 #define MSM_SAW0_BASE		IOMEM(0xFA008000)	/*  4K	*/
 #define MSM_SAW1_BASE		IOMEM(0xFA009000)	/*  4K	*/
-
-#ifndef CONFIG_ARCH_MSM9625
 #define MSM_IMEM_BASE		IOMEM(0xFA00A000)	/*  4K	*/
-#endif
-
 #define MSM_ACC0_BASE		IOMEM(0xFA00B000)	/*  4K	*/
 #define MSM_ACC1_BASE		IOMEM(0xFA00C000)	/*  4K	*/
 #define MSM_ACC2_BASE		IOMEM(0xFA00D000)	/*  4K	*/
@@ -101,44 +88,12 @@
 #define MSM_RPM_MPM_BASE	IOMEM(0xFA802000)	/*  4K	*/
 #define MSM_AD5_BASE		IOMEM(0xFA900000)	/*  13M (D00000)
 							  0xFB600000 */
-/* MSM9625 has unaligned imem so we need to map excess 2K virtually
- * to get the correct mapping. This should not be done for any
- * other chipset under normal circumstances.
- */
-#ifdef CONFIG_ARCH_MSM9625
-#define MSM_IMEM_BASE		IOMEM(0xFB601800)	/* 6K -> 8K */
-#endif
 
 #define MSM_STRONGLY_ORDERED_PAGE	0xFA0F0000
 #define MSM8625_CPU_PHYS		0x0FE00000
 
-
-#if defined(CONFIG_ARCH_MSM9615) || defined(CONFIG_ARCH_MSM7X27) \
-	|| defined(CONFIG_ARCH_MSM7X30) || defined(CONFIG_ARCH_MSM9625) \
-	|| defined(CONFIG_ARCH_MSM8610) || defined(CONFIG_ARCH_MSM8226) \
-	|| defined(CONFIG_ARCH_MSMKRYPTON)
-#define MSM_SHARED_RAM_SIZE	SZ_1M
-#else
 #define MSM_SHARED_RAM_SIZE	SZ_2M
-#endif
 
-#include "msm_iomap-7xxx.h"
-#include "msm_iomap-7x30.h"
-#include "msm_iomap-8625.h"
-#include "msm_iomap-8960.h"
-#include "msm_iomap-8930.h"
-#include "msm_iomap-8064.h"
-#include "msm_iomap-9615.h"
 #include "msm_iomap-8974.h"
-#include "msm_iomap-8084.h"
-#include "msm_iomap-9625.h"
-#include "msm_iomap-8092.h"
-#include "msm_iomap-8226.h"
-#include "msm_iomap-8610.h"
-#include "msm_iomap-krypton.h"
-#include "msm_iomap-fsm9900.h"
-#include "msm_iomap-samarium.h"
-
-#endif
 
 #endif
