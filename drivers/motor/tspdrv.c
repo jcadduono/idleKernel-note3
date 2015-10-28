@@ -159,12 +159,12 @@ static int set_vibetonz(int timeout)
 			ImmVibeSPI_ForceOut_AmpDisable(0);
 		}
 	} else {
-		DbgOut((KERN_INFO "tspdrv: ENABLE\n"));
+		DbgOut((KERN_DEBUG "tspdrv: ENABLE\n"));
 		if (vibrator_drvdata.vib_model == HAPTIC_PWM) {
 			strength = (int8_t) (MAX_STRENGTH * pwm_value / 100);
 			ImmVibeSPI_ForceOut_SetSamples(0, 8, 1, &strength);
 		} else { /* HAPTIC_MOTOR */
-		DbgOut((KERN_INFO "tspdrv: ampenable\n"));
+			DbgOut((KERN_DEBUG "tspdrv: ampenable\n"));
 			ImmVibeSPI_ForceOut_AmpEnable(0);
 		}
 	}
@@ -653,7 +653,7 @@ static __devinit int tspdrv_probe(struct platform_device *pdev)
 {
 	int ret, i, rc;   /* initialized below */
 
-	DbgOut((KERN_INFO "tspdrv: tspdrv_probe.\n"));
+	DbgOut((KERN_DEBUG "tspdrv: tspdrv_probe.\n"));
 	motor_min_strength = g_nlra_gp_clk_n*MOTOR_MIN_STRENGTH/100;
 	if(!pdev->dev.of_node){
 		DbgOut(KERN_ERR "tspdrv: tspdrv probe failed, DT is NULL");
@@ -730,7 +730,7 @@ static __devinit int tspdrv_probe(struct platform_device *pdev)
 
 static int __devexit tspdrv_remove(struct platform_device *pdev)
 {
-	DbgOut((KERN_INFO "tspdrv: tspdrv_remove.\n"));
+	DbgOut((KERN_DEBUG "tspdrv: tspdrv_remove.\n"));
 
 	iounmap(virt_mmss_gp1_base);
 	
@@ -746,7 +746,7 @@ static int __devexit tspdrv_remove(struct platform_device *pdev)
 
 static int open(struct inode *inode, struct file *file)
 {
-	DbgOut((KERN_INFO "tspdrv: open.\n"));
+	DbgOut((KERN_DEBUG "tspdrv: open.\n"));
 
 	if (!try_module_get(THIS_MODULE))
 		return -ENODEV;
@@ -756,7 +756,7 @@ static int open(struct inode *inode, struct file *file)
 
 static int release(struct inode *inode, struct file *file)
 {
-	DbgOut((KERN_INFO "tspdrv: release.\n"));
+	DbgOut((KERN_DEBUG "tspdrv: release.\n"));
 
 	/*
 	** Reset force and stop timer when the driver is closed, to make sure
