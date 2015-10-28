@@ -78,20 +78,8 @@ endif
 targets += $(DTB_LIST)
 
 # Rule to build device tree blobs
-ifeq ($(CONFIG_ARCH_MSM8226),y)
-$(obj)/%.dtb: $(src)/dts/msm8226/%.dts FORCE
-	$(call if_changed_dep,dtc)
-endif
 
-ifeq ($(CONFIG_ARCH_MSM8610),y)
-$(obj)/%.dtb: $(src)/dts/msm8610/%.dts FORCE
-	$(call if_changed_dep,dtc)
-endif
-
-ifeq ($(CONFIG_ARCH_MSM8974PRO),y)
-$(obj)/%.dtb: $(src)/dts/msm8974pro/%.dts FORCE
-	$(call if_changed_dep,dtc)
-else
+ifeq ($(CONFIG_ARCH_MSM8974),y)
      $(obj)/%.dtb: $(src)/dts/msm8974/%.dts FORCE
 	$(call if_changed_dep,dtc)
 endif
