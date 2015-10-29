@@ -296,10 +296,8 @@ out:
 		if (!fatal)
 			fatal = err;
 		ext4_mark_super_dirty(sb);
-	} else {
-		print_bh(sb, bitmap_bh, 0, EXT4_BLOCK_SIZE(sb));
+	} else
 		ext4_error(sb, "bit already cleared for inode %lu", ino);
-	}
 
 error_return:
 	brelse(bitmap_bh);
@@ -409,7 +407,7 @@ static int find_group_orlov(struct super_block *sb, struct inode *parent,
 			ext4fs_dirhash(qstr->name, qstr->len, &hinfo);
 			grp = hinfo.hash;
 		} else
-			erandom_get_random_bytes((char *)&grp, (size_t)sizeof(grp));
+			get_random_bytes(&grp, sizeof(grp));
 		parent_group = (unsigned)grp % ngroups;
 		for (i = 0; i < ngroups; i++) {
 			g = (parent_group + i) % ngroups;
@@ -617,9 +615,8 @@ static int find_group_other(struct super_block *sb, struct inode *parent,
  * For other inodes, search forward from the parent directory's block
  * group to find a free inode.
  */
-struct inode *__ext4_new_inode(handle_t *handle, struct inode *dir,
-			       umode_t mode, const struct qstr *qstr,
-			       __u32 goal, uid_t *owner, int nblocks)
+struct inode *ext4_new_inode(handle_t *handle, struct inode *dir, umode_t mode,
+			     const struct qstr *qstr, __u32 goal, uid_t *owner)
 {
 	struct super_block *sb;
 	struct buffer_head *inode_bitmap_bh = NULL;
@@ -681,10 +678,7 @@ got_group:
 		if (!gdp)
 			goto fail;
 
-		if (inode_bitmap_bh) {
-			ext4_handle_release_buffer(handle, inode_bitmap_bh);
-			brelse(inode_bitmap_bh);
-		}
+		brelse(inode_bitmap_bh);
 		inode_bitmap_bh = ext4_read_inode_bitmap(sb, group);
 		if (!inode_bitmap_bh)
 			goto fail;
@@ -700,19 +694,10 @@ repeat_in_this_group:
 				   "inode=%lu", ino + 1);
 			continue;
 		}
-		if (!handle) {
-			BUG_ON(nblocks <= 0);
-			handle = ext4_journal_start_sb(dir->i_sb, nblocks);
-			if (IS_ERR(handle)) {
-				err = PTR_ERR(handle);
-				goto fail;
-			}
-		}
 		BUFFER_TRACE(inode_bitmap_bh, "get_write_access");
 		err = ext4_journal_get_write_access(handle, inode_bitmap_bh);
 		if (err)
 			goto fail;
-
 		ext4_lock_group(sb, group);
 		ret2 = ext4_test_and_set_bit(ino, inode_bitmap_bh->b_data);
 		ext4_unlock_group(sb, group);
@@ -725,18 +710,12 @@ next_group:
 		if (++group == ngroups)
 			group = 0;
 	}
-	ext4_handle_release_buffer(handle, inode_bitmap_bh);
 	err = -ENOSPC;
 	goto out;
 
 got:
 	BUFFER_TRACE(inode_bitmap_bh, "call ext4_handle_dirty_metadata");
 	err = ext4_handle_dirty_metadata(handle, NULL, inode_bitmap_bh);
-	if (err)
-		goto fail;
-
-	BUFFER_TRACE(group_desc_bh, "get_write_access");
-	err = ext4_journal_get_write_access(handle, group_desc_bh);
 	if (err)
 		goto fail;
 
@@ -775,6 +754,11 @@ got:
 		if (err)
 			goto fail;
 	}
+
+	BUFFER_TRACE(group_desc_bh, "get_write_access");
+	err = ext4_journal_get_write_access(handle, group_desc_bh);
+	if (err)
+		goto fail;
 
 	/* Update the relevant bg descriptor fields */
 	if (EXT4_HAS_RO_COMPAT_FEATURE(sb, EXT4_FEATURE_RO_COMPAT_GDT_CSUM)) {
