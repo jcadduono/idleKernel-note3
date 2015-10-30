@@ -49,6 +49,7 @@
 #include <mach/memory.h>
 #include <mach/msm_memtypes.h>
 #include <mach/rpm-regulator-smd.h>
+#include <mach/scm.h>
 
 #include "mdss.h"
 #include "mdss_fb.h"
@@ -85,6 +86,8 @@ struct msm_mdp_interface mdp5 = {
 
 #define IB_QUOTA 800000000
 #define AB_QUOTA 800000000
+
+#define MEM_PROTECT_SD_CTRL 0xF
 
 static DEFINE_SPINLOCK(mdp_lock);
 static DEFINE_MUTEX(mdp_clk_lock);
@@ -684,7 +687,7 @@ void mdss_mdp_set_clk_rate(unsigned long rate)
 	struct clk *clk = mdss_mdp_get_clk(MDSS_CLK_MDP_SRC);
 	unsigned long min_clk_rate;
 
-	min_clk_rate = max(rate, mdata->perf_tune.min_mdp_clk);
+	min_clk_rate = max(rate, mdata->min_mdp_clk);
 
 	if (clk) {
 		mutex_lock(&mdp_clk_lock);
@@ -1338,6 +1341,7 @@ static int mdss_mdp_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, mdata);
 	mdss_res = mdata;
 	mutex_init(&mdata->reg_lock);
+	atomic_set(&mdata->sd_client_count, 0);
 
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "mdp_phys");
 	if (!res) {
@@ -2763,6 +2767,26 @@ int mdss_mdp_footswitch_ctrl_ulps(int on, struct device *dev)
 	}
 
 	return 0;
+}
+
+int mdss_mdp_secure_display_ctrl(unsigned int enable)
+{
+	struct sd_ctrl_req {
+		unsigned int enable;
+	} __attribute__ ((__packed__)) request;
+	unsigned int resp = -1;
+	int ret = 0;
+
+	request.enable = enable;
+
+	ret = scm_call(SCM_SVC_MP, MEM_PROTECT_SD_CTRL,
+		&request, sizeof(request), &resp, sizeof(resp));
+	pr_debug("scm_call MEM_PROTECT_SD_CTRL(%u): ret=%d, resp=%x",
+				enable, ret, resp);
+	if (ret)
+		return ret;
+
+	return resp;
 }
 
 static inline int mdss_mdp_suspend_sub(struct mdss_data_type *mdata)

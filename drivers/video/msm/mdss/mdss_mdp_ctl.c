@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -701,7 +701,8 @@ int mdss_mdp_perf_bw_check(struct mdss_mdp_ctl *ctl,
 {
 	struct mdss_data_type *mdata = ctl->mdata;
 	struct mdss_mdp_perf_params perf;
-	u32 bw, threshold;
+	u32 bw, threshold, i;
+	u64 bw_sum_of_intfs = 0;
 
 	/* we only need bandwidth check on real-time clients (interfaces) */
 	if (ctl->intf_type == MDSS_MDP_NO_INTF)
@@ -709,13 +710,23 @@ int mdss_mdp_perf_bw_check(struct mdss_mdp_ctl *ctl,
 
 	__mdss_mdp_perf_calc_ctl_helper(ctl, &perf,
 			left_plist, left_cnt, right_plist, right_cnt);
+	ctl->bw_pending = perf.bw_ctl;
+
+	for (i = 0; i < mdata->nctl; i++) {
+		struct mdss_mdp_ctl *temp = mdata->ctl_off + i;
+		if (temp->power_on && (temp->intf_type != MDSS_MDP_NO_INTF))
+			bw_sum_of_intfs += temp->bw_pending;
+	}
 
 	/* convert bandwidth to kb */
-	bw = DIV_ROUND_UP_ULL(perf.bw_ctl, 1000);
+	bw = DIV_ROUND_UP_ULL(bw_sum_of_intfs, 1000);
 	pr_debug("calculated bandwidth=%uk\n", bw);
 
-	threshold = ctl->is_video_mode ? mdata->max_bw_low : mdata->max_bw_high;
+	threshold = (ctl->is_video_mode ||
+		mdss_mdp_video_mode_intf_connected(ctl)) ?
+		mdata->max_bw_low : mdata->max_bw_high;
 	if (bw > threshold) {
+		ctl->bw_pending = 0;
 		pr_debug("exceeds bandwidth: %ukb > %ukb\n", bw, threshold);
 		return -E2BIG;
 	}
@@ -735,7 +746,8 @@ static void mdss_mdp_perf_calc_ctl(struct mdss_mdp_ctl *ctl,
 			left_plist, (left_plist ? MDSS_MDP_MAX_STAGE : 0),
 			right_plist, (right_plist ? MDSS_MDP_MAX_STAGE : 0));
 
-	if (ctl->is_video_mode || mdss_mdp_video_mode_intf_connected(ctl)) {
+	if (ctl->is_video_mode || ((ctl->intf_type != MDSS_MDP_NO_INTF) &&
+		mdss_mdp_video_mode_intf_connected(ctl))) {
 		perf->bw_ctl =
 			max(apply_fudge_factor(perf->bw_overlap,
 				&mdss_res->ib_factor_overlap),
@@ -877,7 +889,7 @@ static inline void mdss_mdp_ctl_perf_update_bus(struct mdss_mdp_ctl *ctl)
 				ctl->cur_perf.bw_ctl);
 		}
 	}
-	bus_ib_quota = max(bw_sum_of_intfs, mdata->perf_tune.min_bus_vote);
+	bus_ib_quota = max(bw_sum_of_intfs, mdata->min_bus_vote);
 	bus_ab_quota = apply_fudge_factor(bus_ib_quota,
 		&mdss_res->ab_factor);
 	trace_mdp_perf_update_bus(bus_ab_quota, bus_ib_quota);
@@ -2275,6 +2287,7 @@ int mdss_mdp_ctl_addr_setup(struct mdss_data_type *mdata,
 {
 	struct mdss_mdp_ctl *head;
 	struct mutex *shared_lock = NULL;
+	struct mutex *wb_lock = NULL;
 	u32 i;
 	u32 size = len;
 
@@ -2288,6 +2301,14 @@ int mdss_mdp_ctl_addr_setup(struct mdss_data_type *mdata,
 			return -ENOMEM;
 		}
 		mutex_init(shared_lock);
+		wb_lock = devm_kzalloc(&mdata->pdev->dev,
+					   sizeof(struct mutex),
+					   GFP_KERNEL);
+		if (!wb_lock) {
+			pr_err("unable to allocate mem for mutex\n");
+			return -ENOMEM;
+		}
+		mutex_init(wb_lock);
 	}
 
 	head = devm_kzalloc(&mdata->pdev->dev, sizeof(struct mdss_mdp_ctl) *
@@ -2307,6 +2328,7 @@ int mdss_mdp_ctl_addr_setup(struct mdss_data_type *mdata,
 
 	if (!mdata->has_wfd_blk) {
 		head[len - 1].shared_lock = shared_lock;
+		head[len - 1].wb_lock = wb_lock;
 		/*
 		 * Allocate a virtual ctl to be able to perform simultaneous
 		 * line mode and block mode operations on the same
