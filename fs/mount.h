@@ -4,6 +4,7 @@
 
 struct mnt_namespace {
 	atomic_t		count;
+	unsigned int            proc_inum;
 	struct mount *	root;
 	struct list_head	list;
 	wait_queue_head_t poll;
