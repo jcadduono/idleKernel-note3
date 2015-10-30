@@ -100,3 +100,4 @@ obj-$(CONFIG_CHECK_SIMSLOT_COUNT) += sim_slot.o
 obj-$(CONFIG_SEC_MODEM) += modem_if/
 
 obj-$(CONFIG_DUALWAVE) += dualwave/
+obj-$(CONFIG_UID_CPUTIME) 	+= uid_cputime.o
