@@ -84,11 +84,6 @@ struct mdss_fudge_factor {
 	u32 denom;
 };
 
-struct mdss_perf_tune {
-	unsigned long min_mdp_clk;
-	u64 min_bus_vote;
-};
-
 struct mdss_prefill_data {
 	u32 ot_bytes;
 	u32 y_buf_bytes;
@@ -132,6 +127,7 @@ struct mdss_data_type {
 	u32 has_decimation;
 	u8 has_wfd_blk;
 	u32 has_no_lut_read;
+	atomic_t sd_client_count;
 	u8 has_wb_ad;
 
 	u32 rotator_ot_limit;
@@ -214,7 +210,8 @@ struct mdss_data_type {
 	int handoff_pending;
 	struct mdss_prefill_data prefill_data;
 	bool ulps;
-	struct mdss_perf_tune perf_tune;
+	unsigned long min_mdp_clk;
+	u64 min_bus_vote;
 	int iommu_ref_cnt;
 
 	u64 ab[MDSS_MAX_HW_BLK];
@@ -271,5 +268,13 @@ static inline int mdss_get_iommu_domain(u32 type)
 		return -ENODEV;
 
 	return mdss_res->iommu_map[type].domain_idx;
+}
+
+static inline int mdss_get_sd_client_cnt(void)
+{
+	if (!mdss_res)
+		return 0;
+	else
+		return atomic_read(&mdss_res->sd_client_count);
 }
 #endif /* MDSS_H */

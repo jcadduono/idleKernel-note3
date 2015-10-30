@@ -345,7 +345,7 @@ int mdss_mdp_smp_reserve(struct mdss_mdp_pipe *pipe)
 		for (; i >= 0; i--)
 			mdss_mdp_smp_mmb_free(pipe->smp_map[i].reserved,
 				false);
-		rc = -ENOMEM;
+		rc = -ENOBUFS;
 	}
 	mutex_unlock(&mdss_mdp_smp_lock);
 
@@ -565,6 +565,8 @@ static struct mdss_mdp_pipe *mdss_mdp_pipe_init(struct mdss_mdp_mixer *mixer,
 		 * shared as long as its attached to a writeback mixer
 		 */
 		pipe = mdata->dma_pipes + mixer->num;
+		if (pipe->mixer->type != MDSS_MDP_MIXER_TYPE_WRITEBACK)
+			return NULL;
 		kref_get(&pipe->kref);
 		pr_debug("pipe sharing for pipe=%d\n", pipe->num);
 	} else {
@@ -1301,27 +1303,32 @@ static inline void __mdss_mdp_pipe_program_pixel_extn_helper(
 	 */
 	if (plane == 1)
 		src_h >>= pipe->chroma_sample_v;
+
 	lr_pe = ((pipe->scale.right_ftch[plane] & mask) << 24)|
 		((pipe->scale.right_rpt[plane] & mask) << 16)|
 		((pipe->scale.left_ftch[plane] & mask) << 8)|
 		(pipe->scale.left_rpt[plane] & mask);
-	tb_pe = ((pipe->scale.btm_ftch[plane] & mask) << 24)|	
+
+	tb_pe = ((pipe->scale.btm_ftch[plane] & mask) << 24)|
 		((pipe->scale.btm_rpt[plane] & mask) << 16)|
 		((pipe->scale.top_ftch[plane] & mask) << 8)|
 		(pipe->scale.top_rpt[plane] & mask);
+
 	writel_relaxed(lr_pe, pipe->base +
 			MDSS_MDP_REG_SSPP_SW_PIX_EXT_C0_LR + off);
 	writel_relaxed(tb_pe, pipe->base +
 			MDSS_MDP_REG_SSPP_SW_PIX_EXT_C0_TB + off);
+
 	mask = 0xFFFF;
 	tot_req_pixels = (((src_h + pipe->scale.num_ext_pxls_top[plane] +
 		pipe->scale.num_ext_pxls_btm[plane]) & mask) << 16) |
 		((pipe->scale.roi_w[plane] +
 		pipe->scale.num_ext_pxls_left[plane] +
 		pipe->scale.num_ext_pxls_right[plane]) & mask);
-	writel_relaxed(tot_req_pixels, pipe->base +	
+
+	writel_relaxed(tot_req_pixels, pipe->base +
 			MDSS_MDP_REG_SSPP_SW_PIX_EXT_C0_REQ_PIXELS + off);
-			
+
 	pr_debug("pipe num=%d, plane=%d, LR PE=0x%x, TB PE=0x%x, req_pixels=0x0%x\n",
 		pipe->num, plane, lr_pe, tb_pe, tot_req_pixels);
 }
