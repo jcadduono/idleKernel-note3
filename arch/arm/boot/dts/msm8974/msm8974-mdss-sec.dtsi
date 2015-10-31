@@ -101,8 +101,6 @@
 		mdss_fb0: qcom,mdss_fb_primary {
 			cell-index = <0>;
 			compatible = "qcom,mdss-fb";
-			qcom,memory-reservation-type = "EBI1";
-			qcom,memory-reservation-size = <0x0000000>;	/* 0 MB allocaed for fb0 */
 			qcom,memory-alt-reservation-size = <0x1F40000>;	 /* Framebuffer reservation only for LPM or recovery boot mode */
 		};
 
@@ -199,9 +197,9 @@
 		qcom,platform-bist-ctrl = [00 00 b1 ff 00 00];
 		qcom,platform-regulator-settings = [07 09 03 00 20 00 01];
 		qcom,platform-lane-config = [00 00 00 00 00 00 00 01 97
-			00 00 00 00 05 00 00 01 97
-			00 00 00 00 0a 00 00 01 97
-			00 00 00 00 0f 00 00 01 97
+			00 00 00 00 00 00 00 01 97
+			00 00 00 00 00 00 00 01 97
+			00 00 00 00 00 00 00 01 97
 			00 c0 00 00 00 00 00 01 bb];
 		qcom,platform-supply-entry1 {
 				qcom,supply-name = "vdd";
