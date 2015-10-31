@@ -136,7 +136,7 @@
 /dev/msm_preproc_ctl      0660   system     audio
 /dev/msm_rtac             0660   system     audio
 /dev/msm_voicememo        0660   system     audio
-/dev/radio0               0640   fm_radio   fm_radio
+/dev/radio0               0640   system     audio
 /dev/smd3                 0660   bluetooth  net_bt_stack
 /dev/smd2                 0660   bluetooth  net_bt_stack
 /dev/ttyHSL1              0660   system     system
@@ -213,15 +213,15 @@ v/ppp                  0660   radio      vpn
 
 
 # Felica
-/dev/felica               0660    mfc   system
-/dev/felica_pon           0660    mfc   system
-/dev/felica_cen           0660    mfc   felicalock
-/dev/felica_rfs           0440    mfc   system
-/dev/felica_rws           0660    mfc   system
-/dev/felica_ant           0660    mfc   system
-/dev/felica_int_poll      0400    mfc   system
-/dev/felica_uid           0220    mfc   system
-/dev/felica_uicc          0660    mfc   system
+/dev/felica               0660    nfc   system
+/dev/felica_pon           0660    nfc   system
+/dev/felica_cen           0660    nfc   system
+/dev/felica_rfs           0440    nfc   system
+/dev/felica_rws           0660    nfc   system
+/dev/felica_ant           0660    nfc   system
+/dev/felica_int_poll      0400    nfc   system
+/dev/felica_uid           0220    nfc   system
+/dev/felica_uicc          0660    nfc   system
 
 # NFC
 # JPN Felica Temporary Workaround
