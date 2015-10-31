@@ -1,4 +1,4 @@
-/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -2101,10 +2101,6 @@
 
 	qcom,msm-adsp-sensors {
 		compatible = "qcom,msm-adsp-sensors";
-		qcom,src-id = <11>;
-		qcom,dst-id = <604>;
-		qcom,ab = <32505856>;
-		qcom,ib = <32505856>;
 	};
 
 	qcom,mss@fc880000 {
@@ -2178,6 +2174,7 @@
 		gpios = <&msmgpio 36 0>, <&msmgpio 37 0>, <&msmgpio 38 0>, <&msmgpio 39 0>, <&msmgpio 40 0>;
 		qcom,has-48mhz-xo;
 		qcom,has-pronto-hw;
+		qcom,wcnss-pm = <11 19 1200 1 1 6>;
 	};
 
 	qcom,ocmem@fdd00000 {
@@ -2454,6 +2451,7 @@
 		qcom,poll-ms = <250>;
 		qcom,limit-temp = <80>;
 		qcom,temp-hysteresis = <10>;
+		qcom,therm-reset-temp = <115>;
 		qcom,freq-step = <2>;
 		qcom,freq-control-mask = <0xf>;
 		qcom,core-limit-temp = <85>;
