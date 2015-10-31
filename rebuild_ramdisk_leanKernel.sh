@@ -52,7 +52,7 @@ MAKE_TAR=1
 
 ############## SCARY NO-TOUCHY STUFF ###############
 
-if ! [ -f $RDIR"/arch/arm/configs/msm8974_sec_hlte_"$VARIANT"_defconfig" ] ; then
+if ! [ -f $RDIR"/arch/arm/configs/variant_hlte_"$VARIANT ] ; then
 	echo "Device variant/carrier $VARIANT not found in arm configs!"
 	exit -1
 fi

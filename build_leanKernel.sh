@@ -65,7 +65,7 @@ export ARCH=arm
 export CROSS_COMPILE=$TOOLCHAIN/bin/arm-eabi-
 export LOCALVERSION=$KERNEL_VERSION
 
-if ! [ -f $RDIR"/arch/arm/configs/msm8974_sec_hlte_"$VARIANT"_defconfig" ] ; then
+if ! [ -f $RDIR"/arch/arm/configs/variant_hlte_"$VARIANT ] ; then
 	echo "Device variant/carrier $VARIANT not found in arm configs!"
 	exit -1
 fi
@@ -97,7 +97,7 @@ BUILD_KERNEL()
 	cd $RDIR
 	mkdir -p build
 	make -C $RDIR O=build lk_defconfig \
-		VARIANT_DEFCONFIG=msm8974_sec_hlte_"$VARIANT"_defconfig
+		VARIANT_DEFCONFIG=variant_hlte_$VARIANT
 	echo "Starting build..."
 	make -C $RDIR O=build -j"$THREADS"
 }
