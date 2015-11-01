@@ -78,7 +78,7 @@
 		cell-index = <19>;
 		compatible = "i2c-gpio";
 		gpios = <&msmgpio 87 0 /* sda */
-				&msmgpio 88 0 /* scl */
+			&msmgpio 88 0 /* scl */
 		>;
 		#address-cells = <1>;
 		#size-cells = <0>;
@@ -109,7 +109,7 @@
 		cell-index = <21>;
 		compatible = "i2c-gpio";
 		gpios = <&msmgpio 95 0 /* sda */
-		&msmgpio 96 0 /* scl */
+			&msmgpio 96 0 /* scl */
 		>;
 		#address-cells = <1>;
 		#size-cells = <0>;
@@ -133,8 +133,10 @@
 		cell-index = <22>;
 		compatible = "i2c-gpio";
 		gpios = <&msmgpio 109 0 /* sda */
-		&msmgpio 108 0 /* scl */
+			&msmgpio 108 0 /* scl */
 		>;
+		#address-cells = <1>;
+		#size-cells = <0>;
 
 		barcode_emul_ice4@19 {
 			compatible = "barcode_hlte,barcode_emul_hlte";
@@ -155,7 +157,7 @@
 		cell-index = <23>;
 		compatible = "i2c-gpio";
 		gpios = <&msmgpio 60 0 /* sda */
-		&msmgpio 61 0 /* scl */
+			&msmgpio 61 0 /* scl */
 		>;
 	};
 
