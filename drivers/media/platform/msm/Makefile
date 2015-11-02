@@ -1,5 +1,5 @@
 obj-$(CONFIG_MSM_VIDC_V4L2) += vidc/
 obj-$(CONFIG_DVB_MPQ) += dvb/
-
 obj-$(CONFIG_MSMB_CAMERA) += camera_v2/
+obj-$(CONFIG_MSM_TORCH_CONTROL) += torch_control.o
 obj-y += vcap/
