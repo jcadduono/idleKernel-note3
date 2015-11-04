@@ -70,11 +70,6 @@ CFILE="/data/data/leankernel/use_spi_crc"
 SFILE="/sys/module/mmc_core/parameters/use_spi_crc"
 [ -f $CFILE ] && echo `cat $CFILE` > $SFILE
 
-# daemonsu support - probably not needed
-if [ -f "/system/xbin/daemonsu" ]; then
-   [ ! "`ps | grep daemonsu`" ] && /system/xbin/daemonsu --auto-daemon &
-fi
-
 stop thermal-engine
 /system/xbin/busybox run-parts /system/etc/init.d
 start thermal-engine
