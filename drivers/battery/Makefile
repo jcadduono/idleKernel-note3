@@ -9,6 +9,8 @@ obj-$(CONFIG_FUELGAUGE_MAX17048)	+= max17048_fuelgauge.o	sec_fuelgauge.o
 obj-$(CONFIG_FUELGAUGE_MAX17050)	+= max17050_fuelgauge.o	sec_fuelgauge.o
 obj-$(CONFIG_FUELGAUGE_MAX77823)	+= max77823_fuelgauge.o
 
+obj-$(CONFIG_FORCE_FAST_CHARGE) += fastchg.o
+
 obj-$(CONFIG_CHARGER_MAX8903)	+= max8903_charger.o
 obj-$(CONFIG_CHARGER_SMB328)	+= smb328_charger.o
 obj-$(CONFIG_CHARGER_SMB347)	+= smb347_charger.o
