@@ -1,5 +1,5 @@
 #!/bin/bash
-# leanKernel for Samsung Galaxy Note 3 build script by jcadduono
+# idleKernel for Samsung Galaxy Note 3 build script by jcadduono
 # This build script is for SlimRom only
 
 ################### BEFORE STARTING ################
@@ -10,12 +10,12 @@
 # Download it here: http://forum.xda-developers.com/showthread.php?t=2098133
 #
 # once you've set up the config section how you like it, you can simply run
-# ./build_leanKernel.sh
-# while inside the /leanKernel-note3/ directory.
+# ./build.sh
+# while inside the /idleKernel-note3/ directory.
 #
 ###################### CONFIG ######################
 
-# root directory of LeanKernel git repo (default is this script's location)
+# root directory of idleKernel git repo (default is this script's location)
 RDIR=$(pwd)
 
 [ -z $VARIANT ] && \
@@ -28,15 +28,15 @@ RDIR=$(pwd)
 #	att = N900A  (AT&T)
 #	usc = N900R4 (US Cellular)
 #	vzw = N900V  (Verizon)
-VARIANT=tmo
+VARIANT=can
 
 [ -z $VER ] && \
 # version number
-VER="6.4"
+VER=6.5
 
-# kernel version string appended to 3.4.x-leanKernel-hlte-
+# kernel version string appended to 3.4.x-idleKernel-hlte-
 # (shown in Settings -> About device)
-KERNEL_VERSION="$VARIANT-$VER-slim5.1-jc"
+KERNEL_VERSION=$VARIANT-$VER-slim5.1
 
 [ -z $PERMISSIVE ] && \
 # should we boot with SELinux mode set to permissive? (1 = permissive, 0 = enforcing)
@@ -45,7 +45,7 @@ PERMISSIVE=0
 # output directory of flashable kernel
 OUT_DIR=$RDIR
 # output filename of flashable kernel
-OUT_NAME=leanKernel-hlte-$KERNEL_VERSION
+OUT_NAME=idleKernel-hlte-$KERNEL_VERSION
 
 # should we make a TWRP flashable zip? (1 = yes, 0 = no)
 MAKE_ZIP=1
@@ -70,8 +70,8 @@ if ! [ -f $RDIR"/arch/arm/configs/variant_hlte_"$VARIANT ] ; then
 	exit -1
 fi
 
-if ! [ -d $RDIR"/lk.ramdisk/variant/$VARIANT/" ] ; then
-	echo "Device variant/carrier $VARIANT not found in lk.ramdisk/variant!"
+if ! [ -d $RDIR"/ik.ramdisk/variant/$VARIANT/" ] ; then
+	echo "Device variant/carrier $VARIANT not found in ik.ramdisk/variant!"
 	exit -1
 fi
 
@@ -85,7 +85,7 @@ CLEAN_BUILD()
 	cd $RDIR
 	rm -rf build
 	echo "Removing old boot.img..."
-	rm -f lk.zip/boot.img
+	rm -f ik.zip/boot.img
 	echo "Removing old zip/tar.md5 files..."
 	rm -f $OUT_DIR/$OUT_NAME.zip
 	rm -f $OUT_DIR/$OUT_NAME.tar.md5
@@ -96,7 +96,7 @@ BUILD_KERNEL()
 	echo "Creating kernel config..."
 	cd $RDIR
 	mkdir -p build
-	make -C $RDIR O=build lk_defconfig \
+	make -C $RDIR O=build ik_defconfig \
 		VARIANT_DEFCONFIG=variant_hlte_$VARIANT
 	echo "Starting build..."
 	make -C $RDIR O=build -j"$THREADS"
@@ -107,8 +107,8 @@ BUILD_RAMDISK()
 	echo "Building ramdisk structure..."
 	cd $RDIR
 	mkdir -p build/ramdisk
-	cp -ar lk.ramdisk/common/* build/ramdisk
-	cp -ar lk.ramdisk/variant/$VARIANT/* build/ramdisk
+	cp -ar ik.ramdisk/common/* build/ramdisk
+	cp -ar ik.ramdisk/variant/$VARIANT/* build/ramdisk
 	echo "Building ramdisk.img..."
 	cd $RDIR/build/ramdisk
 	mkdir -pm 755 dev proc sys system
@@ -128,13 +128,13 @@ BUILD_BOOT_IMG()
 		--pagesize 2048 \
 		--ramdisk_offset 0x02900000 \
 		--tags_offset 0x02700000 \
-		--output $RDIR/lk.zip/boot.img 
+		--output $RDIR/ik.zip/boot.img 
 }
 
 CREATE_ZIP()
 {
 	echo "Compressing to TWRP flashable zip file..."
-	cd $RDIR/lk.zip
+	cd $RDIR/ik.zip
 	zip -r -9 - * > $OUT_DIR/$OUT_NAME.zip
 	cd $RDIR
 }
@@ -142,7 +142,7 @@ CREATE_ZIP()
 CREATE_TAR()
 {
 	echo "Compressing to Odin flashable tar.md5 file..."
-	cd $RDIR/lk.zip
+	cd $RDIR/ik.zip
 	tar -H ustar -c boot.img > $OUT_DIR/$OUT_NAME.tar
 	cd $OUT_DIR
 	md5sum -t $OUT_NAME.tar >> $OUT_NAME.tar
