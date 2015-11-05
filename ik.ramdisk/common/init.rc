@@ -10,11 +10,9 @@ import /init.${ro.hardware}.rc
 import /init.${ro.zygote}.rc
 import /init.trace.rc
 import /init.carrier.rc
-import /init.lk.rc
+import /init.idlekernel.rc
 
 on early-init
-    write /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq 2265600
-
     # Set init and its forked children's oom_adj.
     write /proc/1/oom_score_adj -1000
 

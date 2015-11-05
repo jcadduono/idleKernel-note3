@@ -1,12 +1,14 @@
 #!/system/bin/sh
 
-detectsu=`ls /data/data`
-[ -z "$detectsu" ] && echo "Must be superuser!" && exit
+DDIR=/data/data/idlekernel
+
+checksu=`ls /data/data`
+[ -z "$checksu" ] && echo "Must be superuser!" && exit
 
 while true; do
 
 echo
-echo "leanKernel configurator"
+echo "idleKernel configurator (based on lkconfig by Imoseyon)"
 echo "---"
 echo "0) display current settings"
 echo "1) panel temperature"
@@ -56,7 +58,7 @@ case $option in
 	echo -n "enter a number between -60 and 0 (the default is 0): "
 	read value
 	if [ $value -ge -60 -a $value -le 0 ]; then
-		echo $value > /data/data/leankernel/paneltemp
+		echo $value > $DDIR/paneltemp
 		echo $value > /sys/class/lcd/panel/temperature
 		echo "done!"
 	fi
@@ -66,7 +68,7 @@ case $option in
 	echo -n "enter a number between 0 and 4 (the default is 2): "
 	read value
 	if [ $value -ge -0 -a $value -le 4 ]; then
-		echo $value > /data/data/leankernel/panelcolor
+		echo $value > $DDIR/panelcolor
 		echo $value > /sys/class/lcd/panel/panel_colors
 		echo "done! toggle screen off/on to see changes"
 	fi
@@ -101,15 +103,15 @@ case $option in
 			*) FREQ=;;
 		esac
 		if [ -n $FREQ ]; then
-			echo $FREQ > /data/data/leankernel/scaling_max_freq
+			echo $FREQ > $DDIR/scaling_max_freq
 			echo $FREQ > /sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq
 			echo "done!"
 		fi
 		;;
 	2)
 		echo "1) 650 mhz"
-		echo "2) 883 mhz"
-		echo "3) 1.2 ghz (default)"
+		echo "2) 883 mhz (default)"
+		echo "3) 1.2 ghz"
 		echo "4) 1.5 ghz"
 		echo "5) 2.2 ghz (disabled)"
 		echo
@@ -124,7 +126,7 @@ case $option in
 			*) FREQ=;;
 		esac
 		if [ -n $FREQ ]; then
-			echo $FREQ > /data/data/leankernel/screen_off_maxfreq
+			echo $FREQ > $DDIR/screen_off_maxfreq
 			[ -d /sys/devices/system/cpu/cpufreq/interactive ] && echo $FREQ > /sys/devices/system/cpu/cpufreq/interactive/screen_off_maxfreq
 			echo "done!"
 		fi
@@ -146,7 +148,7 @@ case $option in
 		*) GOV=;;
         esac
 	if [ -n $GOV ]; then
-		echo $GOV > /data/data/leankernel/cpu_governor
+		echo $GOV > $DDIR/cpu_governor
 		echo $GOV > /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
 		echo "done!"
 	fi
@@ -168,7 +170,7 @@ case $option in
 		*) GOV=;;
         esac
 	if [ -n $GOV ]; then
-		echo $GOV > /data/data/leankernel/gpu_governor
+		echo $GOV > $DDIR/gpu_governor
 		echo $GOV > /sys/devices/fdb00000.qcom,kgsl-3d0/devfreq/fdb00000.qcom,kgsl-3d0/governor
 		echo "done!"
 	fi
@@ -188,7 +190,7 @@ case $option in
 		*) ALG=;;
         esac
 	if [ -n $ALG ]; then
-		echo $ALG > /data/data/leankernel/tcp_congestion_control
+		echo $ALG > $DDIR/tcp_congestion_control
 		echo $ALG > /proc/sys/net/ipv4/tcp_congestion_control
 		echo "done!"
 	fi
@@ -220,10 +222,10 @@ case $option in
 		esac
 		if [ -n $SCHED ]; then
 			if [ $choice -eq 1 ]; then
-				echo $SCHED > /data/data/leankernel/io_scheduler_internal
+				echo $SCHED > $DDIR/io_scheduler_internal
 				echo $SCHED > /sys/block/mmcblk0/queue/scheduler
 			else
-				echo $SCHED > /data/data/leankernel/io_scheduler_external
+				echo $SCHED > $DDIR/io_scheduler_external
 				echo $SCHED > /sys/block/mmcblk1/queue/scheduler
 			fi
 			echo "done!"
@@ -241,7 +243,7 @@ case $option in
 		*) CRC=;;
 	esac
 	if [ -n $CRC ]; then
-		echo $CRC > /data/data/leankernel/use_spi_crc
+		echo $CRC > $DDIR/use_spi_crc
 		echo $CRC > /sys/module/mmc_core/parameters/use_spi_crc
 		echo "done!"
 	fi
