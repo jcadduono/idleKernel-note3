@@ -342,3 +342,12 @@ config EN_OOPS
 	default n
 	help
 	  Say Y to enable oops filter
+
+config FORCE_FAST_CHARGE
+	bool "Force fast charging (AC/USB/Wireless) by Yank555.lu"
+	depends on CHARGER_MAX77803
+	default n
+	help
+	  A simple sysfs interface to force adapters that
+	  are detected as USB to charge as AC (1A/h) or to set
+	  custom charging currents for AC, USB, or wireless.
