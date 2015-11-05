@@ -11,8 +11,8 @@ import /init.${ro.zygote}.rc
 import /init.trace.rc
 # Include CM's extra init file
 import /init.cm.rc
-# Include leanKernel's init file
-import /init.lk.rc
+# Include idleKernel's init file
+import /init.idlekernel.rc
 
 
 on early-init
