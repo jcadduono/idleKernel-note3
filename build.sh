@@ -20,18 +20,15 @@ RDIR=$(pwd)
 
 [ -z $VARIANT ] && \
 # device variant/carrier, possible options:
-#	can = N900W8 (Canadian, same as T-Mobile)
-#	eur = N9005  (Snapdragon International / hltexx / Europe)
-#	spr = N900P  (Sprint)
-#	tmo = N900T  (T-Mobile, same as Canadian)
+#	can = N900W8	(Canadian, same as T-Mobile)
+#	eur = N9005	(Snapdragon International / hltexx / Europe)
+#	spr = N900P	(Sprint)
+#	tmo = N900T	(T-Mobile, same as Canadian)
+#	kor = N900K/L/S	(Unified Korean / KT Corporation, LG Telecom, South Korea Telecom)
 # not currently possible options (missing SlimRom support!):
-#	att = N900A  (AT&T)
-#	usc = N900R4 (US Cellular)
-#	vzw = N900V  (Verizon)
-# korean variants:
-#	ktt = N900K  (KT Corporation)
-#	lgt = N900L  (LG Telecom)
-#	skt = N900S  (South Korea Telecom)
+#	att = N900A	(AT&T)
+#	usc = N900R4	(US Cellular)
+#	vzw = N900V	(Verizon)
 VARIANT=can
 
 [ -z $VER ] && \
