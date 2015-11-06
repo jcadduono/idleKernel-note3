@@ -24,6 +24,10 @@ RDIR=$(pwd)
 #	tmo = N900T  (T-Mobile, same as Canadian)
 #	usc = N900R4 (US Cellular)
 #	vzw = N900V  (Verizon)
+# korean variants:
+#	ktt = N900K  (KT Corporation)
+#	lgt = N900L  (LG Telecom)
+#	skt = N900S  (South Korea Telecom)
 VARIANT=can
 
 [ -z $VER ] && \
