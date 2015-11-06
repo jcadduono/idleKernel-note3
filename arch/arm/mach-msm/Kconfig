@@ -199,6 +199,27 @@ config MACH_HLTEAUS
 	help
 	  Support for Samsung HLTEAUS device.
 
+config MACH_HLTESKT
+	default n
+	bool "Samsung model HLTESKT"
+	select SEC_H_PROJECT
+	help
+	  Support for Samsung HLTESKT device.
+
+config MACH_HLTEKTT
+	default n
+	bool "Samsung model HLTEKTT"
+	select SEC_H_PROJECT
+	help
+	  Support for Samsung HLTEKTT device.
+
+config MACH_HLTELGT
+	default n
+	bool "Samsung model HLTELGT"
+	select SEC_H_PROJECT
+	help
+	  Support for Samsung HLTELGT device.
+
 config MACH_H
 	default n
 	bool "Samsung model H"
@@ -211,6 +232,14 @@ config MACH_H_LTE
 	bool "Samsung model H_LTE"
 	help
 	  Support for Samsung H_LTE device.
+
+config SEC_LOCALE_KOR
+	default n
+	bool "Samsung model KOREA"
+
+config SEC_LOCALE_KOR_H
+	default n
+	bool "Samsung H model KOREA"
 endmenu
 
 config SAMSUNG_PRODUCT_SHIP
