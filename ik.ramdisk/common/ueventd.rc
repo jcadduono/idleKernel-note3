@@ -254,3 +254,11 @@ subsystem adf
 
 # Reactivation Lock
 /dev/block/mmcblk0rpmb	0660	system	system
+
+# Note 5 compatibility below
+
+# sysfs properties
+/sys/devices/platform/trusty.*	trusty_version	0440	root	log
+
+# Google FRP solution
+/dev/block/platform/msm_sdcc.1/by-name/persist	0660	system	system

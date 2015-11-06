@@ -5,6 +5,9 @@
 #
 
 on boot
+    setprop ro.product.model SM-N900R4
+    setprop ro.product.name hlteusc
+
 # permission for Input Device(Touchkey).
     chmod 0660 /sys/class/input/input2/enabled
     chown system system /sys/class/input/input2/enabled

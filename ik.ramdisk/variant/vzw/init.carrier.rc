@@ -5,6 +5,8 @@
 #
 
 on boot
+    setprop ro.product.model SM-N900V
+    setprop ro.product.name hltevzw
 
 # Assign TCP buffer thresholds to be ceiling value of technology maximums
 # Increased technology maximums should be reflected here.

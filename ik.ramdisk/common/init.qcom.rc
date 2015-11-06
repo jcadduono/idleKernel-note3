@@ -416,11 +416,6 @@ service dpmd /system/bin/dpmd
     class late_start
     socket dpmd stream 660 root system
 
-service irsc_util /system/bin/logwrapper /system/bin/irsc_util "/etc/sec_config"
-    class main
-    user root
-    oneshot
-
 service rmt_storage /system/bin/rmt_storage
     class core
     user root
@@ -487,13 +482,6 @@ service bt-sap /system/bin/sapd 15
     class late_start
     disabled
     oneshot
-
-service btsnoop /system/bin/btsnoop
-   user bluetooth
-   group bluetooth net_bt_admin sdcard_rw sdcard_r
-   class late_start
-   disabled
-   oneshot
 
 service ftmd /system/bin/logwrapper /system/bin/ftmdaemon
     class late_start

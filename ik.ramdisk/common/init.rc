@@ -10,6 +10,7 @@ import /init.${ro.hardware}.rc
 import /init.${ro.zygote}.rc
 import /init.trace.rc
 import /init.carrier.rc
+import /init.n5.rc
 import /init.idlekernel.rc
 
 on early-init
@@ -1112,20 +1113,6 @@ service servicemanager /system/bin/servicemanager
     onrestart restart sensorhubservice
     onrestart restart TvoutService_C
 
-service vold /system/bin/vold
-    class core
-    socket vold stream 0660 root mount
-    ioprio be 2
-## Samsung ODE >>>
-    socket dir_enc_report stream 0660 root mount
-## Samsung ODE <<<
-
-service epmd /system/bin/epmd
-    class main
-    socket epm stream 0660 system system
-    socket ppm stream 0660 system system
-    ioprio be 2
-
 service netd /system/bin/netd
     class main
     socket netd stream 0660 root system
@@ -1146,14 +1133,6 @@ service icd /system/bin/icd
     group system log
     onrestart check_icd
     oneshot
-
-service ril-daemon /system/bin/rild
-    class main
-    socket rild stream 660 root radio
-    socket rild-debug stream 660 radio system
-    socket rild-cas stream 660 casdrm mmb
-    user root
-    group radio cache inet misc audio log qcom_diag
 
 service DR-daemon /system/bin/ddexe
     class main
@@ -1331,15 +1310,6 @@ service pre-recovery /system/bin/uncrypt
     disabled
     oneshot
 
-# Strongswan VPN
-service charon /system/bin/charon
-    class main
-    socket charon stream 600 system system
-    #charon will setuid to vpn after getting necessary resources.
-    group vpn net_admin inet
-    disabled
-    oneshot
-
 service sysprof /system/bin/sysprof -f /data/local/tmp/.sysprofctrl -o /data/local/tmp/.sysprofreport -c /data/local/tmp/sysprofconf
     class main
     user root
@@ -1388,22 +1358,3 @@ on property:sys.qseecomd.enable=true
   start cs_service
   start insthk
 
-# ccm
-  service ccm /system/bin/tlc_server
-  user system
-  group system 
-  disabled
-
-on property:persist.security.tlc.ccm=1  
-  start ccm
-  setprop persist.security.tlc.ccm 0
-
-# tui
-  service tui /system/bin/tlc_server TUI
-  user system
-  group system
-  disabled
-
-on property:persist.security.tlc.tui=1
-  start tui
-  setprop persist.security.tlc.tui 0

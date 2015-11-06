@@ -1,0 +1,191 @@
+on init
+    export BOOTCLASSPATH /system/framework/core-libart.jar:/system/framework/conscrypt.jar:/system/framework/okhttp.jar:/system/framework/core-junit.jar:/system/framework/bouncycastle.jar:/system/framework/ext.jar:/system/framework/framework.jar:/system/framework/telephony-common.jar:/system/framework/voip-common.jar:/system/framework/ims-common.jar:/system/framework/mms-common.jar:/system/framework/android.policy.jar:/system/framework/apache-xml.jar:/system/framework/sec_edm.jar:/system/framework/sagearpolicymanager.jar:/system/framework/seccamera.jar:/system/framework/scrollpause.jar:/system/framework/stayrotation.jar:/system/framework/smartfaceservice.jar:/system/framework/timakeystore.jar:/system/framework/fipstimakeystore.jar:/system/framework/secocsp.jar:/system/framework/commonimsinterface.jar:/system/framework/imsmanager.jar:/system/framework/secEmailBC.jar:/system/framework/sprengine.jar:/system/framework/smartbondingservice.jar:/system/framework/knoxvpnuidtag.jar:/system/framework/sec_sdp_sdk.jar:/system/framework/simageis.jar
+    export LD_PRELOAD libsigchain.so
+
+    symlink /dev/block/platform/msm_sdcc.1/by-name/persist /dev/block/persistent
+
+on boot
+    setprop ro.build.version.sdk 22
+    setprop ro.build.version.codename REL
+    setprop ro.build.version.release 5.1.1
+
+    setprop ro.product.device hlte
+    setprop ro.product.board MSM8974
+    setprop ro.product.cpu.abi armeabi-v7a
+    setprop ro.product.cpu.abi2 armeabi
+    setprop ro.product.brand samsung
+    setprop ro.product.manufacturer samsung
+
+    setprop ro.board.platform=msm8974
+
+on post-fs
+    # Private Mode
+    mkdir /mnt/shell/privatemode 0700 system system
+    mkdir /storage/Private 0000 system system
+
+    mkdir /data/misc/vpnclientd 0770 system system
+
+    mkdir /data/misc/wifi_sns_patch 0770 wifi system
+    mkdir /data/misc/wifi_hostapd 0771 wifi system
+
+    # Samsung Pay (spaying your bitches since '15)
+    mkdir /efs/pfw_data 0760 spay spay
+
+on post-fs-data
+    mkdir /data/adb 0700 root root
+
+    #create uibc dir
+    mkdir /dev/socket/uibc 0777 media system
+    chown media system /dev/socket/uibc
+    chmod 0775 /dev/socket/uibc
+
+    # DRK permission
+    mkdir /efs/prov_data 0770 radio system
+    chown radio system /efs/prov_data/dev_root
+    chmod 0770 /efs/prov_data/dev_root
+    chown radio system /efs/prov_data/dev_root/dev_root.dat
+    chmod 0640 /efs/prov_data/dev_root/dev_root.dat
+    rm /efs/prov/prov.b00
+    rm /efs/prov/prov.b01
+    rm /efs/prov/prov.b02
+    rm /efs/prov/prov.b03
+    rm /efs/prov/prov.mdt
+
+    # Permissions for Charging
+    mkdir /efs/Battery 0775 radio system
+    chown radio system /efs/Battery
+    chmod 0775 /efs/Battery
+
+    # Private Mode
+    mkdir /data/privatemode 0770 system system
+    chown system system /data/privatemode
+    restorecon /data/privatemode
+
+    # Mobicore
+    mkdir /efs/TEE 0770 radio system
+
+    # MST/NFC Switch
+    chown spay system /dev/mst_ctrl
+    chmod 0660 /dev/mst_ctrl
+
+    #MST Factory Test
+    chown system system /sys/class/mstldo/mst_drv/transmit
+    chmod 0770 /sys/class/mstldo/mst_drv/transmit
+
+    # Create directory used by display clients
+    mkdir /data/misc/display 0770 system graphics
+
+# Private Mode
+service privatemode /system/bin/sdcard /data/privatemode /mnt/shell/privatemode 1000 1000
+    class late_start
+    oneshot
+
+# Strongswan VPN
+service charon /system/bin/charon
+    class main
+    socket charon stream 600 system system
+    #charon will setuid to vpn after getting necessary resources.
+    group vpn net_admin inet shell
+    disabled
+    oneshot
+
+service ril-daemon /system/bin/rild
+    class main
+    socket rild stream 660 root radio
+    socket rild-debug stream 660 radio system
+    socket rild-cas stream 660 casdrm mmb
+    user root
+    group radio cache inet misc audio log qcom_diag vpn system
+
+service vold /system/bin/vold
+    class core
+    socket vold stream 0660 root mount
+    ioprio be 2
+## Frigatebird
+    socket frigate stream 0660 system system
+    socket epm stream 0660 system system
+    socket ppm stream 0660 system system
+## Samsung ODE >>>
+    socket dir_enc_report stream 0660 root mount
+## Samsung ODE <<<
+
+# SEC_SELINUX to support spota
+on property:selinux.sec.restorecon=1
+    restorecon_recursive /data/security/spota
+    restorecon_recursive /data/security/aasa
+
+# WTL_EDM
+service createsystemfile /system/bin/createsystemfile
+    class main
+    user system
+    group system
+    disabled
+    oneshot
+
+# otp
+service otp /system/bin/otp_server
+    user system
+    group system
+    disabled
+
+on property:persist.security.tlc.otp=1
+    start otp
+    setprop persist.security.tlc.otp 0
+
+# dcm
+service dcm /system/bin/tlc_server DCM
+    user system
+    group system
+    disabled
+
+on property:persist.security.tlc.dcm=1
+    start dcm
+    setprop persist.security.tlc.dcm 0
+
+# ccm
+service ccm /system/bin/tlc_server CCM
+    user system
+    group system 
+    disabled
+
+on property:persist.security.tlc.ccm=1  
+    start ccm
+    setprop persist.security.tlc.ccm 0
+
+# tui
+service tui /system/bin/tlc_server TUI
+    user system
+    group system
+    disabled
+
+on property:persist.security.tlc.tui=1
+    start tui
+    setprop persist.security.tlc.tui 0
+
+service vpnclientd /system/bin/vpnclientd
+    socket vpnclientd seqpacket 0600 system system
+    user system
+    group system net_admin inet net_raw
+    disabled
+
+on property:service.vpnclientd.enable=1
+    start vpnclientd
+
+on property:service.vpnclientd.enable=0
+    stop vpnclientd
+
+on property:radio.atfwd.start=false
+    stop atfwd
+
+service irsc_util /system/bin/irsc_util "/etc/sec_config"
+    class main
+    user root
+    oneshot
+
+service btsnoop /system/bin/btsnoop
+   user bluetooth
+   group bluetooth net_bt_admin sdcard_rw sdcard_r media_rw
+   class late_start
+   disabled
+   oneshot
+

@@ -1,6 +1,6 @@
 #!/bin/bash
 # idleKernel ramdisk rebuild script by jcadduono
-# This rebuild script is for Touchwiz Lollipop only
+# This rebuild script is for Note 5 Touchwiz ports only
 
 ################### BEFORE STARTING ################
 #
@@ -36,11 +36,11 @@ VER=6.5
 
 # kernel version string appended to 3.4.x-idleKernel-hlte-
 # (shown in Settings -> About device)
-KERNEL_VERSION=$VARIANT-$VER
+KERNEL_VERSION=$VARIANT-$VER-note5port
 
 [ -z $PERMISSIVE ] && \
 # should we boot with SELinux mode set to permissive? (1 = permissive, 0 = enforcing)
-PERMISSIVE=0
+PERMISSIVE=1
 
 # output directory of flashable kernel
 OUT_DIR=$RDIR

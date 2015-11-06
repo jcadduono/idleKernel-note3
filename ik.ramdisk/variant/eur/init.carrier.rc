@@ -10,6 +10,9 @@ on init
   mkdir /preload 0771 system system
   
 on boot
+    setprop ro.product.model SM-N9005
+    setprop ro.product.name hltexx
+
 # permission for Input Device(Touchkey).
     chmod 0660 /sys/class/input/input2/enabled
     chown system system /sys/class/input/input2/enabled
