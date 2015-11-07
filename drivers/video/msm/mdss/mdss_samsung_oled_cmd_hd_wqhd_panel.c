@@ -5031,7 +5031,7 @@ static irqreturn_t err_fg_irq_handler(int irq, void *handle)
 {
 	struct msm_fb_data_type *mfd = msd.mfd;
 
-	if(err_fg_working || !(mfd->panel_power_on) || mdss_fb_get_first_cmt_flag()) return IRQ_HANDLED;
+	if(err_fg_working || !(mfd->panel_power_on)) return IRQ_HANDLED;
 
 	pr_info("%s handler + irq(%d) state(%d)", __func__, irq, gpio_get_value(err_fg_gpio));
 	err_fg_working = 1;

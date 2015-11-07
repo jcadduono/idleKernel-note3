@@ -336,8 +336,6 @@ struct mdss_panel_info {
 	u32 yres;
 	u32 physical_width;
 	u32 physical_height;
-	u32 width;
-	u32 height;
 	u32 bpp;
 	u32 type;
 	u32 wait_cycle;
@@ -617,7 +615,6 @@ int mdss_panel_get_boot_cfg(void);
  */
 bool mdss_is_ready(void);
 
-int mdss_panel_force_update(struct mdss_panel_data *pdata);
 int load_565rle_image(char *filename);
 int load_samsung_boot_logo(void);
 #if defined(CONFIG_LCD_CONNECTION_CHECK)

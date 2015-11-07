@@ -87,30 +87,6 @@ struct mdp_csc_cfg mdp_csc_convert[MDSS_MDP_MAX_CSC] = {
 	},
 };
 
-#if defined(CONFIG_MDNIE_TFT_MSM8X26) || defined (CONFIG_FB_MSM_MDSS_S6E8AA0A_HD_PANEL) || defined(CONFIG_MDNIE_VIDEO_ENHANCED)
-struct mdp_pcc_cfg_data pcc_reverse = {
-	.block = MDP_LOGICAL_BLOCK_DISP_0,
-	.ops = MDP_PP_OPS_WRITE | MDP_PP_OPS_ENABLE,
-	.r = { 0x00007ff8, 0xffff8000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
-			0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000},
-	.g = { 0x00007ff8, 0x00000000, 0xffff8000, 0x00000000, 0x00000000, 0x00000000,
-			0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000},
-	.b = { 0x00007ff8, 0x00000000, 0x00000000, 0xffff8000, 0x00000000, 0x00000000,
-			0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000},
-};
-
-struct mdp_pcc_cfg_data pcc_normal = {
-	.block = MDP_LOGICAL_BLOCK_DISP_0,
-	.ops = MDP_PP_OPS_WRITE | MDP_PP_OPS_DISABLE,
-	.r = { 0x00000000, 0x00008000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
-			0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000},
-	.g = { 0x00000000, 0x00000000, 0x00008000, 0x00000000, 0x00000000, 0x00000000,
-			0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000},
-	.b = { 0x00000000, 0x00000000, 0x00000000, 0x00008000, 0x00000000, 0x00000000,
-			0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000},
-};
-#endif
-
 /*
  * To program a linear LUT we need to make the slope to be 1/16 to enable
  * conversion from 12bit to 8bit. Also in cases where post blend values might
@@ -1094,11 +1070,11 @@ static int mdss_mdp_scale_setup(struct mdss_mdp_pipe *pipe)
 			    (chroma_sample == MDSS_MDP_CHROMA_H1V2)))
 				chroma_shift_y = 1; /* 2x upsample chroma */
 
-			if (src_h <= pipe->dst.h) {
+			if (src_h <= pipe->dst.h)
 				scale_config |= /* G/Y, A */
 					(filter_mode << 10) |
 					(MDSS_MDP_SCALE_FILTER_BIL << 18);
-			} else
+			else
 				scale_config |= /* G/Y, A */
 					(MDSS_MDP_SCALE_FILTER_PCMN << 10) |
 					(MDSS_MDP_SCALE_FILTER_PCMN << 18);
@@ -3658,7 +3634,6 @@ int mdss_mdp_hist_intr_setup(struct mdss_intr *intr, int type)
 		return -EINVAL;
 	}
 
-	return ret; // not used.
 	mdss_mdp_clk_ctrl(MDP_BLOCK_POWER_ON, false);
 	spin_lock_irqsave(&intr->lock, flag);
 
@@ -5432,34 +5407,6 @@ int mdss_mdp_calib_mode(struct msm_fb_data_type *mfd,
 	mutex_unlock(&mdss_pp_mutex);
 	return 0;
 }
-
-#if defined(CONFIG_MDNIE_TFT_MSM8X26) || defined (CONFIG_FB_MSM_MDSS_S6E8AA0A_HD_PANEL) || defined(CONFIG_MDNIE_VIDEO_ENHANCED)
-void mdss_negative_color(int is_negative_on)
-{
-	u32 copyback;
-	int i;
-	struct mdss_mdp_ctl *ctl;
-	struct mdss_mdp_ctl *ctl_d = NULL;
-	struct mdss_data_type *mdata;
-
-	mdata = mdss_mdp_get_mdata();
-	for (i = 0; i < mdata->nctl; i++) {
-		ctl = mdata->ctl_off + i;
-		if ((ctl->power_on) && (ctl->mfd) && (ctl->mfd->index == 0)) {
-			ctl_d = ctl;
-			break;
-		}
-	}
-	if (ctl_d) {
-		if(is_negative_on)
-			mdss_mdp_pcc_config(&pcc_reverse, &copyback);
-		else
-			mdss_mdp_pcc_config(&pcc_normal, &copyback);
-	} else {
-		pr_info("%s:ctl_d is NULL ", __func__);
-	}
-}
-#endif
 
 int mdss_mdp_calib_config_buffer(struct mdp_calib_config_buffer *cfg,
 						u32 *copyback)

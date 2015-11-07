@@ -559,7 +559,6 @@ unsigned long mdss_mdp_get_clk_rate(u32 clk_idx);
 int mdss_mdp_vsync_clk_enable(int enable);
 void mdss_mdp_clk_ctrl(int enable, int isr);
 struct mdss_data_type *mdss_mdp_get_mdata(void);
-void mdss_mdp_underrun_dump_info(struct msm_fb_data_type *);
 int mdss_mdp_secure_display_ctrl(unsigned int enable);
 
 int mdss_mdp_overlay_init(struct msm_fb_data_type *mfd);

@@ -285,13 +285,7 @@ static inline void mdss_fb_update_notify_update(struct msm_fb_data_type *mfd)
 	}
 }
 #ifdef CONFIG_FB_MSM_CAMERA_CSC
-#if defined(CONFIG_SEC_KS01_PROJECT)|| defined(CONFIG_SEC_ATLANTIC_PROJECT)
-extern u8 prev_csc_update;
-#endif
 extern u8 csc_update;
-#if !defined(CONFIG_SEC_KS01_PROJECT) && !defined(CONFIG_SEC_ATLANTIC_PROJECT)
-extern u8 pre_csc_update;
-#endif
 #endif
 
 #if defined (CONFIG_FB_MSM_MDSS_DBG_SEQ_TICK)
@@ -326,7 +320,6 @@ enum TE_SETTING {
 
 extern int boot_mode_lpm, boot_mode_recovery;
 int mdss_fb_get_phys_info(unsigned long *start, unsigned long *len, int fb_num);
-int mdss_fb_get_first_cmt_flag(void);
 void mdss_fb_set_backlight(struct msm_fb_data_type *mfd, u32 bkl_lvl);
 void mdss_fb_update_backlight(struct msm_fb_data_type *mfd);
 void mdss_fb_wait_for_fence(struct msm_sync_pt_data *sync_pt_data);
@@ -334,9 +327,6 @@ void mdss_fb_signal_timeline(struct msm_sync_pt_data *sync_pt_data);
 struct sync_fence *mdss_fb_sync_get_fence(struct sw_sync_timeline *timeline,
 				const char *fence_name, int val);
 int mdss_fb_register_mdp_instance(struct msm_mdp_interface *mdp);
-#if defined(CONFIG_MDNIE_TFT_MSM8X26) || defined (CONFIG_FB_MSM_MDSS_S6E8AA0A_HD_PANEL) || defined(CONFIG_MDNIE_VIDEO_ENHANCED)
-void mdss_negative_color(int is_negative_on);
-#endif
 int mdss_fb_dcm(struct msm_fb_data_type *mfd, int req_state);
 int mdss_fb_suspres_panel(struct device *dev, void *data);
 #endif /* MDSS_FB_H */
