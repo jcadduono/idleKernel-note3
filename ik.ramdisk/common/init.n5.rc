@@ -16,7 +16,7 @@ on boot
     setprop ro.product.brand samsung
     setprop ro.product.manufacturer samsung
 
-    setprop ro.board.platform=msm8974
+    setprop ro.board.platform msm8974
 
 on post-fs
     # Private Mode

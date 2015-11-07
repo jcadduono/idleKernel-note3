@@ -4,60 +4,17 @@
 # This is a common source of Android security bugs.
 #
 
-on early-boot
-    chown bluetooth net_bt_stack /dev/ttyHS0
-    chmod 0660 /dev/ttyHS0
-
 on boot
+    # Set model info
     setprop ro.product.model SM-N900T
     setprop ro.product.name hltetmo
 
-# permission for Input Device(Touchkey).
-    chmod 0660 /sys/class/input/input2/enabled
-    chown system system /sys/class/input/input2/enabled
-    chown radio system /sys/class/sec/sec_touchkey/touch_sensitivity
-    chown radio system /sys/class/sec/sec_touchkey/touchkey_firm_update
-    chown system radio /sys/class/sec/sec_touchkey/glove_mode
-    chown system radio /sys/class/sec/sec_touchkey/flip_mode
-    chown system radio /sys/class/sec/sec_touchkey/boost_level
-
-# IPSec for VOLTE
+    # IPSec for VOLTE
     chown root system /dev/socket
-	chmod 0775 /dev/socket
+    chmod 0775 /dev/socket
 
-# permission for Input Device(Wacom).
-    chmod 0660 /sys/class/input/input3/enabled
-    chown system system /sys/class/input/input3/enabled
-    chown system radio /sys/class/sec/sec_epen/epen_firm_update
-    chown system radio /sys/class/sec/sec_epen/epen_rotation
-    chown system radio /sys/class/sec/sec_epen/epen_hand
-    chown system radio /sys/class/sec/sec_epen/epen_reset
-    chown system radio /sys/class/sec/sec_epen/epen_reset_result
-    chown system radio /sys/class/sec/sec_epen/epen_checksum
-    chown system radio /sys/class/sec/sec_epen/epen_checksum_result
-    chown system radio /sys/class/sec/sec_epen/epen_saving_mode
-    chown system radio /sys/class/sec/sec_epen/boost_level
-
-# permissions for bluetooth.
-    setprop ro.bt.bdaddr_path "/efs/bluetooth/bt_addr"
-    chown bluetooth net_bt_stack ro.bt.bdaddr_path
-    chmod 0660 /sys/class/rfkill/rfkill0/state
-    chown bluetooth net_bt_stack /sys/class/rfkill/rfkill0/state
-    chown bluetooth net_bt_stack /sys/class/rfkill/rfkill0/type
-
-# bluetooth LPM
-    chmod 0660 /proc/bluetooth/sleep/lpm
-    chmod 0220 /proc/bluetooth/sleep/btwrite
-    chown bluetooth net_bt_stack /proc/bluetooth/sleep/lpm
-    chown bluetooth net_bt_stack /proc/bluetooth/sleep/btwrite
-    chmod 0600 /dev/btlock
-    chown bluetooth bluetooth /dev/btlock
-
-# SSWAP
-    write /proc/sys/vm/swappiness 130
-
-# Define TCP buffer sizes for various networks
-#   ReadMin, ReadInitial, ReadMax, WriteMin, WriteInitial, WriteMax,
+    # Define TCP buffer sizes for various networks
+    # ReadMin, ReadInitial, ReadMax, WriteMin, WriteInitial, WriteMax,
     setprop net.tcp.buffersize.default 4096,87380,704512,4096,16384,110208
     setprop net.tcp.buffersize.wifi    524288,1048576,4525824,524288,1048576,4525824
     setprop net.tcp.buffersize.lte     524288,1048576,2560000,524288,1048576,2560000
@@ -69,51 +26,14 @@ on boot
     setprop net.tcp.buffersize.edge    8192,26280,704512,4096,16384,110208
     setprop net.tcp.buffersize.gprs    8192,30000,704512,4096,8760,110208
 
-# Assign TCP buffer thresholds to be ceiling value of technology maximums
-# Increased technology maximums should be reflected here.
-    write /proc/sys/net/core/rmem_max  1048576
-    write /proc/sys/net/core/wmem_max  2097152
+    # Assign TCP buffer thresholds to be ceiling value of technology maximums
+    # Increased technology maximums should be reflected here.
+    write /proc/sys/net/core/rmem_max 1048576
+    write /proc/sys/net/core/wmem_max 2097152
 
 on fs
-
-# Support Preload install apks
+    # Support Preload install apks
     mkdir /preload 0771 system system
-
-#For Absolute Persistence Partition
-
-     mkdir /persdata 0755 system system
-     mkdir /persdata/absolute 0750 system system
-
-     wait /dev/block/platform/msm_sdcc.1/by-name/persdata
-     check_fs /dev/block/platform/msm_sdcc.1/by-name/persdata ext4
-     mount ext4 /dev/block/platform/msm_sdcc.1/by-name/persdata /persdata/absolute nosuid nodev barrier=1
-
-     chown system system /persdata
-     chmod 0755 /persdata
-     chown system system /persdata/absolute
-     chmod 0750 /persdata/absolute
-
-# bluetooth dhcp config
-service dhcpcd_bt-pan /system/bin/dhcpcd -ABKL
-    class main
- disabled
- oneshot
-
-service iprenew_bt-pan /system/bin/dhcpcd -n
-    class late_start
- disabled
- oneshot
-
-# service for TZPR provisioning version check app
-service scranton_RD /system/bin/scranton_RD
-    class main
-    user root
-    disabled
-    oneshot
-
-# start for TZPR provisioning version check app
-on property:sys.qseecomd.enable=true
-    start scranton_RD
 
 # umount service
 service umount_service /system/bin/umount /preload
@@ -128,22 +48,6 @@ on property:persist.sys.storage_preload=1
 on property:persist.sys.storage_preload=0
     start umount_service
 
-# TODO: replace it with device's DEXPREOPT_BOOT_JARS
-# bootchecker
-service bootchecker /system/bin/bootchecker
-    class late_start
-    user system
-    group system log
-    oneshot
-
-# SSWAP
-service swapon /sbin/sswap -s
-    class core
-    user root
-    group root
-    seclabel u:r:sswap:s0
-    oneshot
-
 # IPSec for VOLTE
 service ipsec-daemon /system/bin/IPSecService
     class main
@@ -151,8 +55,8 @@ service ipsec-daemon /system/bin/IPSecService
     user system
     group system net_raw inet net_admin
 
-# AT Distributor for factory test
-service at_distributor /system/bin/at_distributor
-    class late_start
-    user root
-    group radio misc log
+# bluetooth dhcp config
+service dhcpcd_bt-pan /system/bin/dhcpcd -ABKL
+    class main
+    disabled
+    oneshot
