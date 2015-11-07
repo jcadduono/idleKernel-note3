@@ -170,9 +170,6 @@ static inline int mdss_irq_dispatch(u32 hw_ndx, int irq, void *ptr)
 
 	spin_lock(&mdss_lock);
 	hw = mdss_irq_handlers[hw_ndx];
-#if 0//defined (CONFIG_FB_MSM_MDSS_DSI_DBG)
-	xlog(__func__, (u32)hw, hw_ndx, 0, 0, 0, 0xeeee);
-#endif
 	spin_unlock(&mdss_lock);
 
 	if (hw)
@@ -185,10 +182,6 @@ static irqreturn_t mdss_irq_handler(int irq, void *ptr)
 {
 	struct mdss_data_type *mdata = ptr;
 	u32 intr = MDSS_MDP_REG_READ(MDSS_REG_HW_INTR_STATUS);
-
-#if 0//defined (CONFIG_FB_MSM_MDSS_DSI_DBG)
-	xlog(__func__,  intr, (u32) mdata, 0, 0, 0, 0xffff);
-#endif
 
 	if (!mdata)
 		return IRQ_NONE;
@@ -380,9 +373,6 @@ static void mdss_mdp_bus_scale_unregister(struct mdss_data_type *mdata)
 
 unsigned long clk_rate_dbg;
 u64 bus_ab_quota_dbg, bus_ib_quota_dbg;
-#if defined(CONFIG_MACH_MILLET3G_CHN_OPEN)
-#define MDSS_MDP_BUS_FUDGE_FACTOR_IB(val) (((val) * 5) / 4)
-#endif
 
 int mdss_mdp_bus_scale_set_quota(u64 ab_quota, u64 ib_quota)
 {
@@ -427,22 +417,14 @@ int mdss_mdp_bus_scale_set_quota(u64 ab_quota, u64 ib_quota)
 			}
 
 			vect = &bw_table->usecase[new_uc_idx].vectors[i];
-#if defined(CONFIG_MACH_MILLET3G_CHN_OPEN)
-		vect->ab = ab_quota;
-		vect->ib = MDSS_MDP_BUS_FUDGE_FACTOR_IB(ib_quota);
-		
-		bus_ab_quota_dbg = ab_quota;
-		bus_ib_quota_dbg = MDSS_MDP_BUS_FUDGE_FACTOR_IB(ib_quota);
-		
-#else
-		vect->ab = ab_quota;
-		vect->ib = ib_quota;
+			vect->ab = ab_quota;
+			vect->ib = ib_quota;
 
-		bus_ab_quota_dbg = ab_quota;
-		bus_ib_quota_dbg = ib_quota;
-#endif
-		pr_debug("uc_idx=%d path_idx=%d ab=%llu ib=%llu\n",
-				new_uc_idx, i, vect->ab, vect->ib);
+			bus_ab_quota_dbg = ab_quota;
+			bus_ib_quota_dbg = ib_quota;
+
+			pr_debug("uc_idx=%d path_idx=%d ab=%llu ib=%llu\n",
+					new_uc_idx, i, vect->ab, vect->ib);
 		}
 	}
 	mdss_res->curr_bw_uc_idx = new_uc_idx;
@@ -805,7 +787,6 @@ EXPORT_SYMBOL(mdss_bus_bandwidth_ctrl);
 void mdss_mdp_clk_ctrl(int enable, int isr)
 {
 	struct mdss_data_type *mdata = mdss_mdp_get_mdata();
-	static int mdp_clk_cnt;
 	int changed = 0;
 
 	mutex_lock(&mdp_clk_lock);
@@ -1041,7 +1022,6 @@ int mdss_iommu_init(struct mdss_data_type *mdata)
 		layout.partitions = iomap->partitions;
 		layout.npartitions = iomap->npartitions;
 		layout.is_secure = (i == MDSS_IOMMU_DOMAIN_SECURE);
-		//layout.domain_flags = 0;
 
 		iomap->domain_idx = msm_register_domain(&layout);
 		if (IS_ERR_VALUE(iomap->domain_idx))
@@ -1155,6 +1135,10 @@ int mdss_hw_init(struct mdss_data_type *mdata)
 	mdss_mdp_clk_ctrl(MDP_BLOCK_POWER_ON, false);
 	mdata->mdp_rev = MDSS_MDP_REG_READ(MDSS_MDP_REG_HW_VERSION);
 	pr_info_once("MDP Rev=%x\n", mdata->mdp_rev);
+
+	/* disable hw underrun recovery */
+	writel_relaxed(0x0, mdata->mdp_base +
+			MDSS_MDP_REG_VIDEO_INTF_UNDERFLOW_CTL);
 
 	if (mdata->hw_settings) {
 		struct mdss_hw_settings *hws = mdata->hw_settings;
@@ -2261,9 +2245,6 @@ static int mdss_mdp_parse_dt_smp(struct platform_device *pdev)
 	rc = of_property_read_u32(pdev->dev.of_node,
 		"qcom,mdss-smp-mb-per-pipe", data);
 	mdata->smp_mb_per_pipe = (!rc ? data[0] : 0);
-#if defined(CONFIG_SEC_MATISSE_PROJECT)
-	mdata->smp_mb_per_pipe = 2;
-#endif
 
 	rc = 0;
 	arr = of_get_property(pdev->dev.of_node,

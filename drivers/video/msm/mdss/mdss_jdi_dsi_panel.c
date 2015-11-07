@@ -1295,8 +1295,8 @@ static int mdss_panel_parse_dt(struct device_node *np,
 
 	rc = of_property_read_u32_array(np, "qcom,mdss-pan-size", res, 2);
 	if (rc == 0) {
-		pinfo->width = res[0];
-		pinfo->height = res[1];
+		pinfo->physical_width = res[0];
+		pinfo->physical_height = res[1];
 	}
 
 	rc = of_property_read_u32_array(np, "qcom,mdss-pan-active-res", res, 2);
