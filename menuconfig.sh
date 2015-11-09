@@ -5,7 +5,31 @@
 RDIR=$(pwd)
 
 cd $RDIR
-mkdir -p build
-ARCH=arm make -C $RDIR O=build ik_defconfig VARIANT_DEFCONFIG=ik_defconfig menuconfig
-echo "look in build directory for .config file with changes, swap arch/arm/configs/ik_defconfig"
-
+echo "Cleaning build..."
+rm -rf build
+mkdir build
+ARCH=arm make -s -i -C $RDIR O=build ik_defconfig VARIANT_DEFCONFIG=ik_defconfig menuconfig
+echo "Showing differences between old config and new config"
+echo "-----------------------------------------------------"
+command -v colordiff >/dev/null 2>&1 && {
+	diff -Bwu --label "old config" arch/arm/configs/ik_defconfig --label "new config" build/.config | colordiff
+} || {
+	diff -Bwu --label "old config" arch/arm/configs/ik_defconfig --label "new config" build/.config
+	echo "-----------------------------------------------------"
+	echo "Consider installing the colordiff package to make diffs easier to read"
+}
+echo "-----------------------------------------------------"
+echo -n "Are you satisfied with these changes? Y/N: "
+read option
+case $option in
+y|Y)
+	cp build/.config arch/arm/configs/ik_defconfig
+	echo "Copied new config to arch/arm/configs/ik_defconfig"
+	;;
+*)
+	echo "That's unfortunate"
+	;;
+esac
+echo "Cleaning build..."
+rm -rf build
+echo "Done."
