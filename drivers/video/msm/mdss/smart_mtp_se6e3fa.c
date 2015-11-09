@@ -2529,7 +2529,7 @@ static void gamma_init_H_revI(struct SMART_DIM *pSmart, char *str, int size)
 	int cnt;
 	int table_index;
 
-	pr_info("%s : start !!\n",__func__);
+	pr_info_once("%s : start !!\n",__func__);
 	/*calculate candela level */
 	if (pSmart->brightness_level > AOR_FIX_CD) {
 		/* 300CD ~ 190CD */
@@ -2814,7 +2814,7 @@ static void gamma_init_H_revJ(struct SMART_DIM *pSmart, char *str, int size)
 	int cnt;
 	int table_index;
 
-	pr_info("%s : start !!\n",__func__);
+	pr_info_once("%s : start !!\n",__func__);
 	/*calculate candela level */
 	if (pSmart->brightness_level > AOR_FIX_CD) {
 		/* 350CD ~ 190CD */
@@ -3376,7 +3376,7 @@ static void gamma_init_F_revE(
 	int cnt;
 	int table_index;
 
-	pr_info("%s : start!!\n",__func__);
+	pr_info_once("%s : start!!\n",__func__);
 
 	/*calculate candela level */
 	if (pSmart->brightness_level > AOR_FIX_CD) {
@@ -3663,7 +3663,7 @@ static void gamma_init_F_revF_G(
 	int cnt;
 	int table_index;
 
-	pr_info("%s : start!!\n",__func__);
+	pr_info_once("%s : start!!\n",__func__);
 
 	/*calculate candela level */
 	if (pSmart->brightness_level > AOR_FIX_CD) {
