@@ -27,6 +27,13 @@ config FB_MSM_MDSS_SHARP_HD_PANEL
         ---help---
         The MDSS SHARP LCD Panel support
 
+config FB_MSM_MDSS_KCAL_CTRL
+	depends on FB_MSM_MDSS
+	bool "MDSS color control"
+	---help---
+	  Enable sysfs for post-processing control of mdss-mdp5 display
+	  controllers in MDSS.
+
 config BACKLIGHT_KTD2801
 	bool "Backlight IC KTD2801"
 	default n
