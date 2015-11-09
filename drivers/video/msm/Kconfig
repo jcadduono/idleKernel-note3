@@ -5,7 +5,6 @@ source "drivers/video/msm/mhl_v2/Kconfig"
 config FB_MSM
 	tristate "MSM Framebuffer support"
 	depends on FB && ARCH_MSM
-	select FB_BACKLIGHT if FB_MSM_BACKLIGHT
 	select NEW_LEDS
 	select LEDS_CLASS
 	select FB_CFB_FILLRECT
@@ -17,12 +16,6 @@ config FB_MSM
 	  Support for MSM Framebuffer.
 
 if FB_MSM
-
-config FB_MSM_BACKLIGHT
-	bool "Support for backlight control"
-	default y
-	---help---
-	  Say Y here if you want to control the backlight of your display.
 
 config FB_MSM_LOGO
 	bool "MSM Frame Buffer Logo"
