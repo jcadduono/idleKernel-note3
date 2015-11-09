@@ -1,6 +1,7 @@
 #!/bin/bash
 # idleKernel for Samsung Galaxy Note 3 build script by jcadduono
 # This build script is for SlimRom only
+# This build script builds all variants in /ik.ramdisk/variant/
 
 ################### BEFORE STARTING ################
 #
@@ -10,7 +11,7 @@
 # Download it here: http://forum.xda-developers.com/showthread.php?t=2098133
 #
 # once you've set up the config section how you like it, you can simply run
-# ./build.sh
+# ./build_all.sh
 # while inside the /idleKernel-note3/ directory.
 #
 ###################### CONFIG ######################
@@ -18,36 +19,13 @@
 # root directory of idleKernel git repo (default is this script's location)
 RDIR=$(pwd)
 
-[ -z $VARIANT ] && \
-# device variant/carrier, possible options:
-#	can = N900W8	(Canadian, same as T-Mobile)
-#	eur = N9005	(Snapdragon International / hltexx / Europe)
-#	spr = N900P	(Sprint)
-#	tmo = N900T	(T-Mobile, same as Canadian)
-#	kor = N900K/L/S	(Unified Korean / KT Corporation, LG Telecom, South Korea Telecom)
-# not currently possible options (missing SlimRom support!):
-#	att = N900A	(AT&T)
-#	usc = N900R4	(US Cellular)
-#	vzw = N900V	(Verizon)
-VARIANT=can
-
 [ -z $VER ] && \
 # version number
 VER=6.5
 
-# kernel version string appended to 3.4.x-idleKernel-hlte-
-# (shown in Settings -> About device)
-KERNEL_VERSION=$VARIANT-$VER-slim5.1
-
-[ -z $PERMISSIVE ] && \
-# should we boot with SELinux mode set to permissive? (1 = permissive, 0 = enforcing)
-PERMISSIVE=0
-
 # output directory of flashable kernel
-OUT_DIR=$RDIR
-
-# output filename of flashable kernel
-OUT_NAME=idleKernel-hlte-$KERNEL_VERSION
+OUT_DIR_ENFORCING="/media/vboxshared/builds/slim5.1/v"$VER"_"$(date +'%Y_%m_%d')
+OUT_DIR_PERMISSIVE="/media/vboxshared/builds/slim5.1/selinux_permissive/v"$VER"_"$(date +'%Y_%m_%d')
 
 # should we make a TWRP flashable zip? (1 = yes, 0 = no)
 MAKE_ZIP=1
@@ -61,23 +39,20 @@ TOOLCHAIN=/home/jc/build/toolchain/arm-cortex_a15-linux-gnueabihf-linaro_4.9.4-2
 # amount of cpu threads to use in kernel make process
 THREADS=5
 
+SET_KERNEL_VERSION()
+{
+	# kernel version string appended to 3.4.x-idleKernel-hlte-
+	# (shown in Settings -> About device)
+	KERNEL_VERSION=$VARIANT-$VER-slim5.1
+
+	# output filename of flashable kernel
+	OUT_NAME=idleKernel-hlte-$KERNEL_VERSION
+}
+
 ############## SCARY NO-TOUCHY STUFF ###############
 
 export ARCH=arm
 export CROSS_COMPILE=$TOOLCHAIN/bin/arm-eabi-
-export LOCALVERSION=$KERNEL_VERSION
-
-if ! [ -f $RDIR"/arch/arm/configs/variant_hlte_"$VARIANT ] ; then
-	echo "Device variant/carrier $VARIANT not found in arm configs!"
-	exit -1
-fi
-
-if ! [ -d $RDIR"/ik.ramdisk/variant/$VARIANT/" ] ; then
-	echo "Device variant/carrier $VARIANT not found in ik.ramdisk/variant!"
-	exit -1
-fi
-
-[ $PERMISSIVE -eq 1 ] && SELINUX="permissive" || SELINUX="enforcing"
 
 KDIR=$RDIR/build/arch/arm/boot
 
@@ -89,8 +64,10 @@ CLEAN_BUILD()
 	echo "Removing old boot.img..."
 	rm -f ik.zip/boot.img
 	echo "Removing old zip/tar.md5 files..."
-	rm -f $OUT_DIR/$OUT_NAME.zip
-	rm -f $OUT_DIR/$OUT_NAME.tar.md5
+	rm -f $OUT_DIR_ENFORCING/$OUT_NAME.zip
+	rm -f $OUT_DIR_ENFORCING/$OUT_NAME.tar.md5
+	rm -f $OUT_DIR_PERMISSIVE/$OUT_NAME.zip
+	rm -f $OUT_DIR_PERMISSIVE/$OUT_NAME.tar.md5
 }
 
 BUILD_KERNEL()
@@ -152,11 +129,32 @@ CREATE_TAR()
 	cd $RDIR
 }
 
-if CLEAN_BUILD && BUILD_KERNEL && BUILD_RAMDISK && BUILD_BOOT_IMG; then
-	if [ $MAKE_ZIP -eq 1 ]; then CREATE_ZIP; fi
-	if [ $MAKE_TAR -eq 1 ]; then CREATE_TAR; fi
-	echo "Finished!"
-else
-	echo "Error!"
-	exit -1
-fi
+mkdir -p $OUT_DIR_ENFORCING
+mkdir -p $OUT_DIR_PERMISSIVE
+
+for V in $RDIR/ik.ramdisk/variant/*
+do
+	VARIANT=${V#$RDIR/ik.ramdisk/variant/}
+	SET_KERNEL_VERSION
+	export LOCALVERSION=$KERNEL_VERSION
+	if ! [ -f $RDIR"/arch/arm/configs/variant_hlte_"$VARIANT ] ; then
+		echo "Device variant/carrier $VARIANT not found in arm configs!"
+		continue
+	elif CLEAN_BUILD && BUILD_KERNEL && BUILD_RAMDISK; then
+		OUT_DIR=$OUT_DIR_ENFORCING
+		SELINUX="enforcing"
+		BUILD_BOOT_IMG
+		if [ $MAKE_ZIP -eq 1 ]; then CREATE_ZIP; fi
+		if [ $MAKE_TAR -eq 1 ]; then CREATE_TAR; fi
+		OUT_DIR=$OUT_DIR_PERMISSIVE
+		SELINUX="permissive"
+		BUILD_BOOT_IMG
+		if [ $MAKE_ZIP -eq 1 ]; then CREATE_ZIP; fi
+		if [ $MAKE_TAR -eq 1 ]; then CREATE_TAR; fi
+	else
+		echo "Error!"
+		exit -1
+	fi
+done;
+
+echo "Finished!"
