@@ -2909,7 +2909,7 @@ static int mdss_dsi_panel_on(struct mdss_panel_data *pdata)
 		pr_err("%s: Invalid input data\n", __func__);
 		return -EINVAL;
 	}
-	cpufreq_screen_on = true;
+
 	ctrl = container_of(pdata, struct mdss_dsi_ctrl_pdata,
 			panel_data);
 
@@ -3064,21 +3064,10 @@ static int mdss_dsi_panel_off(struct mdss_panel_data *pdata)
 	mipi_samsung_disp_send_cmd(PANEL_DISP_OFF, true);
 
 	pr_info("mdss_dsi_panel_off --\n");
-	cpufreq_screen_on = false;
 
 #if defined(CONFIG_DUAL_LCD)
 	msd.lcd_panel_cmds = 0;
 #endif
-
-	// HACK - restart mpdecision at regular screen off interval
-	screenoff_cnt++;
-	if (unlikely(screenoff_cnt > MPDECISION_RESTART)) {
-		struct task_struct *tsk;
-		pr_info("[imoseyon] mpdecision restarting: %d\n", screenoff_cnt);
-		screenoff_cnt = 0;
-		for_each_process(tsk)
-			if (!strcmp(tsk->comm,"mpdecision")) send_sig(SIGKILL, tsk, 0);
-        }
 
 	return 0;
 }
@@ -4298,28 +4287,44 @@ static DEVICE_ATTR(tuning, 0664, tuning_show, tuning_store);
 #endif
 static int samsung_dsi_panel_event_handler(int event)
 {
-	pr_debug("SS DSI Event Handler");
 	switch (event) {
 		case MDSS_EVENT_FRAME_UPDATE:
 			if(msd.dstat.wait_disp_on) {
 				mipi_samsung_disp_send_cmd(PANEL_DISPLAY_ON, true);
 				msd.dstat.wait_disp_on = 0;
+				pr_info("[jc] [dsi event] %d: FRAME_UPDATE + wait_disp_on\n", event);
 			}
 			break;
 #if defined(CONFIG_MDNIE_LITE_TUNING) \
 	&& !defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_WVGA_S6E88A0_PT_PANEL)
 		case MDSS_EVENT_MDNIE_DEFAULT_UPDATE:
 			is_negative_on();
+			pr_info("[jc] [dsi event] %d: MDNIE_DEFAULT_UPDATE + is_negative_on()\n", event);
 			break;
 #endif
+		case MDSS_EVENT_SUSPEND:
+			cpufreq_screen_on = false;
+			// HACK - restart mpdecision at regular screen off interval
+			screenoff_cnt++;
+			if (unlikely(screenoff_cnt > MPDECISION_RESTART)) {
+				struct task_struct *tsk;
+				pr_info("[imoseyon] mpdecision restarting (screenoff_cnt = %d, resetting to 0)\n", screenoff_cnt);
+				screenoff_cnt = 0;
+				for_each_process(tsk)
+					if (!strcmp(tsk->comm,"mpdecision")) send_sig(SIGKILL, tsk, 0);
+			}
+			pr_info("[jc] [dsi event] %d: SUSPEND (cpufreq_screen_on = %d, screenoff_cnt = %d)\n", event, cpufreq_screen_on, screenoff_cnt);
+			break;
+		case MDSS_EVENT_RESUME:
+			cpufreq_screen_on = true;
+			pr_info("[jc] [dsi event] %d: RESUME (cpufreq_screen_on = %d)\n", event, cpufreq_screen_on);
+			break;
 		case MDSS_EVENT_RESET:
 			break;
 		default:
-			pr_info("[imoseyon] %s : unknown event %d\n", __func__, event);
+			pr_info("[jc] [dsi event] %d: unknown panel event\n", event);
 			break;
-
 	}
-
 	return 0;
 }
 static int mdss_dsi_panel_blank(struct mdss_panel_data *pdata, int blank)
@@ -4493,12 +4498,13 @@ int mdss_dsi_panel_init(struct device_node *node, struct mdss_dsi_ctrl_pdata *ct
 #if defined(CONFIG_BACKLIGHT_CLASS_DEVICE)
 	struct backlight_device *bd = NULL;
 #endif
-	pr_debug("%s:%d", __func__, __LINE__);
-
-	screenoff_cnt = 0;
 
 	if (!node)
 		return -ENODEV;
+
+	cpufreq_screen_on = true;
+	screenoff_cnt = 0;
+	pr_info("[jc] [panel init] cpufreq_screen_on = %d, screenoff_cnt = %d\n", cpufreq_screen_on, screenoff_cnt);
 
 	panel_name = of_get_property(node, "label", NULL);
 	if (!panel_name)
