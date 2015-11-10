@@ -2478,8 +2478,7 @@ static int mipi_samsung_disp_send_cmd(
 			else
 				flag = 0;
 
-			if(msd.dstat.bright_level)
-				msd.dstat.recent_bright_level = msd.dstat.bright_level;
+			msd.dstat.recent_bright_level = msd.dstat.bright_level;
 #if defined(HBM_RE) || defined(CONFIG_HBM_PSRE)
 			if(msd.dstat.auto_brightness == 6) {
 				cmd_size = make_brightcontrol_hbm_set(msd.dstat.bright_level);
@@ -2556,8 +2555,7 @@ static int mipi_samsung_disp_send_cmd(
 #if defined(FORCE_500CD)
 		case PANEl_FORCE_500CD:
 			cmd_desc = brightness_packet;
-			if(msd.dstat.bright_level)
-				msd.dstat.recent_bright_level = msd.dstat.bright_level;
+			msd.dstat.recent_bright_level = msd.dstat.bright_level;
 			cmd_size = make_force_500cd_set(msd.dstat.bright_level);
 			break;
 #endif
@@ -2997,11 +2995,8 @@ static int mdss_dsi_panel_on(struct mdss_panel_data *pdata)
 #if defined(CONFIG_DUAL_LCD)
 	mipi_samsung_disp_send_cmd(PANEL_BRIGHT_CTRL, true);
 #else
-	if(msd.dstat.recent_bright_level)
-	{
-		msd.dstat.bright_level = msd.dstat.recent_bright_level;
-		mipi_samsung_disp_send_cmd(PANEL_BRIGHT_CTRL, true);
-	}
+	msd.dstat.bright_level = msd.dstat.recent_bright_level;
+	mipi_samsung_disp_send_cmd(PANEL_BRIGHT_CTRL, true);
 #endif
 
 #if defined(CONFIG_DUAL_LCD)
@@ -4535,6 +4530,7 @@ int mdss_dsi_panel_init(struct device_node *node, struct mdss_dsi_ctrl_pdata *ct
 	mutex_init(&msd.lock);
 
 	msd.dstat.on = 0;
+	msd.dstat.recent_bright_level = 255;
 
 	//cont_splash_enabled = of_property_read_bool(node,
 	//		"qcom,cont-splash-enabled");
