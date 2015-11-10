@@ -4536,8 +4536,8 @@ int mdss_dsi_panel_init(struct device_node *node, struct mdss_dsi_ctrl_pdata *ct
 
 	msd.dstat.on = 0;
 
-	cont_splash_enabled = of_property_read_bool(node,
-			"qcom,cont-splash-enabled");
+	//cont_splash_enabled = of_property_read_bool(node,
+	//		"qcom,cont-splash-enabled");
 	if (!cont_splash_enabled) {
 		pr_info("%s:%d Continuous splash flag not found.\n",
 				__func__, __LINE__);
