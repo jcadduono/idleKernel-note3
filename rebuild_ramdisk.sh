@@ -87,10 +87,12 @@ BUILD_RAMDISK()
 	mkdir -p build/ramdisk
 	cp -ar ik.ramdisk/common/* build/ramdisk
 	cp -ar ik.ramdisk/variant/$VARIANT/* build/ramdisk
-	echo "Building ramdisk.img..."
 	cd $RDIR/build/ramdisk
-	mkdir -pm 755 dev proc sys system
+	mkdir -pm 755 dev proc sys system/lib/modules
 	mkdir -pm 771 carrier data
+	echo "Copying kernel modules to ramdisk..."
+	find $RDIR/build -name *.ko -not -path */ramdisk/* -exec cp {} system/lib/modules \;
+	echo "Building ramdisk.img..."
 	find | fakeroot cpio -o -H newc | xz --check=crc32 --lzma2=dict=2MiB > $KDIR/ramdisk.cpio.xz
 	cd $RDIR
 }
