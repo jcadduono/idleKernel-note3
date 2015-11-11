@@ -56,47 +56,8 @@
 #define FORCE_500CD
 #endif
 
-#if defined(CONFIG_FB_MSM_MDSS_SAMSUNG_OCTA_VIDEO_720P_PT_PANEL)
-#define TEMPERATURE_ELVSS_S6E8AA4
-#define SMART_ACL
-#define HBM_RE
-#define NOT_USING_ACL_CONT
-#endif
-#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_FULL_HD_PT_PANEL)
-//#define TEMPERATURE_ELVSS
-#define HBM_RE
-#endif
-
-#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_WVGA_S6E88A0_PT_PANEL)
-#define NOT_USING_ACL_CONT
-#endif
-
-#if defined(CONFIG_FB_MSM_MDSS_MAGNA_OCTA_VIDEO_720P_PT_PANEL)\
-		&& !defined(CONFIG_FB_MSM_MDSS_MAGNA_LDI_EA8061)
-#define VIRTUAL_GAMMA
-#endif
-
 #if defined(CONFIG_MACH_KS01SKT) || defined(CONFIG_MACH_KS01KTT) || defined(CONFIG_MACH_KS01LGT) \
        || defined(CONFIG_MACH_HLTESKT) || defined(CONFIG_MACH_HLTELGT) || defined(CONFIG_MACH_HLTEKTT)
-#define octa_manufacture_date
-#endif
-
-#if defined(CONFIG_FB_MSM_MIPI_MAGNA_OCTA_VIDEO_720P_PT_PANEL)
-#define SMART_ACL
-#define NOT_USING_ACL_CONT
-#endif
-
-#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_HD_PANEL)
-#define SMART_ACL
-#define NOT_USING_ACL_CONT
-#define HBM_RE
-#endif
-
-#if defined(CONFIG_FB_MSM_MDSS_MAGNA_OCTA_VIDEO_720P_PANEL)
-#define TEMPERATURE_ELVSS
-#define SMART_ACL
-#define NOT_USING_ACL_CONT
-#define HBM_RE
 #define octa_manufacture_date
 #endif
 
@@ -109,19 +70,11 @@ char mdate_buffer[10];
 
 #define MPDECISION_RESTART 20
 static int screenoff_cnt;
-
 unsigned int Lpanel_colors = 2;
 extern void panel_load_colors(unsigned int val);
 extern bool cpufreq_screen_on;
-
 static struct dsi_buf dsi_panel_tx_buf;
 static struct dsi_buf dsi_panel_rx_buf;
-
-#if defined(CONFIG_FB_MSM_MDSS_MAGNA_OCTA_VIDEO_720P_PT_PANEL)
-static struct dsi_cmd magna_read_pos_cmds;
-static struct dsi_cmd magna_read_run_cmds;
-#endif
-
 static struct dsi_cmd nv_mdnie_read_cmds;
 static struct dsi_cmd nv_mtp_read_cmds;
 static struct dsi_cmd nv_mtp_read_register_set_cmds;
@@ -134,14 +87,7 @@ static struct dsi_cmd hbm_etc_cmds_evt1_list;
 static struct dsi_cmd hbm_etc_cmds_evt1_second_list;
 static struct dsi_cmd hbm_etc_cmds_evt1_H_revI_list;
 static struct dsi_cmd hbm_etc_cmds_evt1_H_revJ_list;
-
 static struct dsi_cmd hbm_etc_cmds_list;
-#if defined(CONFIG_FB_MSM_MDSS_SAMSUNG_OCTA_VIDEO_720P_PT_PANEL)\
-	|| defined(CONFIG_FB_MSM_MDSS_MAGNA_OCTA_VIDEO_720P_PANEL)\
-	|| defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_HD_PANEL)
-static struct dsi_cmd nv_mtp_hbm3_read_cmds;
-static struct dsi_cmd hbm_hbm_off_elvss_cmds;
-#endif
 #elif defined(CONFIG_HBM_PSRE)
 static struct dsi_cmd nv_mtp_hbm_read_cmds;
 static struct dsi_cmd nv_mtp_hbm2_read_cmds;
@@ -164,13 +110,6 @@ static struct dsi_cmd write_ldi_fps_cmds;
 static struct dsi_cmd read_vddm_ref_cmds;
 static struct dsi_cmd write_vddm_offset_cmds;
 #endif
-
-#if defined(CONFIG_FB_MSM_MDSS_MAGNA_OCTA_VIDEO_720P_PANEL)\
-	|| defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_HD_PANEL)
-static struct dsi_cmd test_key_enable_cmds;
-static struct dsi_cmd test_key_disable_cmds;
-#endif
-
 static struct dsi_cmd manufacture_id_cmds;
 static struct dsi_cmd display_qcom_on_cmds;
 static struct dsi_cmd display_qcom_off_cmds;
@@ -179,10 +118,8 @@ static struct dsi_cmd display_off_cmd;
 static struct dsi_cmd display_blank_cmd;
 static struct dsi_cmd display_unblank_cmd;
 static struct dsi_cmd acl_off_cmd;
-#if !defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_WVGA_S6E88A0_PT_PANEL)
 static struct dsi_cmd touchsensing_on_cmd;
 static struct dsi_cmd touchsensing_off_cmd;
-#endif
 #if defined(PARTIAL_UPDATE)
 static struct dsi_cmd partialdisp_on_cmd;
 static struct dsi_cmd partialdisp_off_cmd;
@@ -190,6 +127,7 @@ static struct dsi_cmd partialdisp_off_cmd;
 #if defined(FORCE_500CD)
 static struct dsi_cmd force_500;
 #endif
+
 /*
 contains the list of acl commands
 available for different brightness levels
@@ -202,7 +140,7 @@ static struct dsi_cmd gamma_cmds_list;
 #if !defined(NOT_USING_ACL_CONT)
 static struct dsi_cmd aclcont_cmds_list;
 #endif
-#if defined(TEMPERATURE_ELVSS_S6E3FA0) || defined(TEMPERATURE_ELVSS_S6E8AA4)
+#if defined(TEMPERATURE_ELVSS_S6E3FA0)
 static struct dsi_cmd elvss_lowtemp_cmds_list;
 #endif
 #if defined(TEMPERATURE_ELVSS)
@@ -242,9 +180,6 @@ static struct  panel_hrev panel_supp_cdp[]= {
 	{"samsung amoled 1080p video mode dsi S6E3FA0 panel", PANEL_1080P_OCTA_S6E3FA0},
 	{"samsung amoled 1080p command mode dsi S6E3FA0 panel", PANEL_1080P_OCTA_S6E3FA0_CMD},
 	{"samsung amoled 1080p command mode dsi S6E3FA1 panel", PANEL_1080P_YOUM_S6E3FA1_CMD},
-#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_WVGA_S6E88A0_PT_PANEL)
-	{"samsung amoled WVGA video mode dsi S6E88A0 panel", PANEL_WVGA_OCTA_S6E88A0},
-#endif
 	{"magna amoled 720p video mode dsi D53D6EA8061V panel", PANEL_720P_OCTA_D53D6EA8061V},
 	{"samsung amoled 720p video mode dsi S6E8AA0A01 panel", PANEL_720P_OCTA_S6E8AA0},
 	{"samsung amoled 720p video mode dsi EA8061 panel", PANEL_720P_OCTA_EA8061_VIDEO},
@@ -316,9 +251,7 @@ static int mipi_samsung_disp_send_cmd(
 		enum mipi_samsung_cmd_list cmd,
 		unsigned char lock);
 
-#if !defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_WVGA_S6E88A0_PT_PANEL)
 extern void mdss_dsi_panel_touchsensing(int enable);
-#endif
 
 int set_panel_rev(unsigned int id)
 {
@@ -350,7 +283,6 @@ int set_panel_rev(unsigned int id)
 			msd.id3 = EVT1_H_REV_J;
 			msd.panel_350cd = 1;
 			break;
-
 		/* F YOUM panel */
 		case 0x10:
 			pr_info("%s : 0x10 EVT0_F_REV_A \n",__func__);
@@ -372,14 +304,9 @@ int set_panel_rev(unsigned int id)
 			msd.panel_350cd = 1;
 			break;
 		case 0x43:
-#if defined(CONFIG_FB_MSM_MDSS_SAMSUNG_OCTA_VIDEO_720P_PT_PANEL)
-			pr_info("%s : 0x43 Fresco_kor_magna panel \n",__func__);
-			msd.panel_350cd = 0;
-#else
 			pr_info("%s : 0x43 EVT2_Fresco_REV_G \n",__func__);
 			msd.id3 = EVT2_FRESCO_REV_G;
 			msd.panel_350cd = 1;
-#endif
 			break;
 		case 0x82:
 			pr_info("%s : 0x82 EVT0_EA8061V_REV_A \n",__func__);
@@ -397,15 +324,9 @@ int set_panel_rev(unsigned int id)
 			msd.panel_350cd = 1;
 			break;
 		case 0x47:
-#if defined(CONFIG_SEC_HESTIA_PROJECT)
-			pr_info("%s : 0x47 used for HESTIA EVT2_EA8061_Hestia_REV_I \n",__func__);
-			msd.id3 = EVT2_EA8061_HESTIA_REV_I;
-			msd.panel_350cd = 1;
-#else
 			pr_info("%s : 0x47 need to check \n",__func__);
 			msd.id3 = 0;
 			msd.panel_350cd = 0;
-#endif
 			break;
 		case 0x48:
 			pr_info("%s : 0x48 EVT2_EA8061_Hestia_REV_J \n",__func__);
@@ -447,19 +368,19 @@ void mdss_dsi_panel_pwm_cfg(struct mdss_dsi_ctrl_pdata *ctrl)
 	}
 
 	ret = gpio_request(ctrl->pwm_pmic_gpio, "disp_pwm");
-		if (ret) {
-			pr_err("%s: pwm_pmic_gpio=%d request failed\n", __func__,
-					ctrl->pwm_pmic_gpio);
-			return;
-		}
+	if (ret) {
+		pr_err("%s: pwm_pmic_gpio=%d request failed\n", __func__,
+				ctrl->pwm_pmic_gpio);
+		return;
+	}
 
-		ctrl->pwm_bl = pwm_request(ctrl->pwm_lpg_chan, "lcd-bklt");
-		if (ctrl->pwm_bl == NULL || IS_ERR(ctrl->pwm_bl)) {
-				pr_err("%s: lpg_chan=%d pwm request failed", __func__,
-					ctrl->pwm_lpg_chan);
-				gpio_free(ctrl->pwm_pmic_gpio);
-				ctrl->pwm_pmic_gpio = -1;
-		}
+	ctrl->pwm_bl = pwm_request(ctrl->pwm_lpg_chan, "lcd-bklt");
+	if (ctrl->pwm_bl == NULL || IS_ERR(ctrl->pwm_bl)) {
+			pr_err("%s: lpg_chan=%d pwm request failed", __func__,
+				ctrl->pwm_lpg_chan);
+			gpio_free(ctrl->pwm_pmic_gpio);
+			ctrl->pwm_pmic_gpio = -1;
+	}
 }
 
 static void mdss_dsi_panel_bklt_pwm(struct mdss_dsi_ctrl_pdata *ctrl, int level)
@@ -526,9 +447,6 @@ u32 mdss_dsi_dcs_read(struct mdss_dsi_ctrl_pdata *ctrl,
 
 void mdss_dsi_samsung_panel_reset(struct mdss_panel_data *pdata, int enable)
 {
-#if defined(CONFIG_FB_MSM_MDSS_MAGNA_OCTA_VIDEO_720P_PANEL)
-	int rc =0;
-#endif
 	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
 
 	if (pdata == NULL) {
@@ -539,18 +457,10 @@ void mdss_dsi_samsung_panel_reset(struct mdss_panel_data *pdata, int enable)
 	ctrl_pdata = container_of(pdata, struct mdss_dsi_ctrl_pdata,
 				panel_data);
 
-
 	if (!gpio_is_valid(ctrl_pdata->disp_en_gpio)) {
 		pr_debug("%s:%d, enable line not configured\n",
 			   __func__, __LINE__);
 	}
-
-#if defined(CONFIG_FB_MSM_MIPI_MAGNA_OCTA_VIDEO_720P_PT_PANEL)
-	if (!gpio_is_valid(ctrl_pdata->disp_en_gpio2)) {
-		pr_debug("%s:%d, enable line2 not configured\n",
-			   __func__, __LINE__);
-	}
-#endif
 
 	if (!gpio_is_valid(ctrl_pdata->rst_gpio)) {
 		pr_debug("%s:%d, reset line not configured\n",
@@ -560,53 +470,6 @@ void mdss_dsi_samsung_panel_reset(struct mdss_panel_data *pdata, int enable)
 	pr_debug("%s: enable = %d\n", __func__, enable);
 
 	if (enable) {
-#if defined(CONFIG_FB_MSM_MDSS_MAGNA_OCTA_VIDEO_720P_PANEL)
-		if (gpio_is_valid(ctrl_pdata->expander_enble_gpio)) {
-			gpio_set_value((ctrl_pdata->expander_enble_gpio), 1);
-			mdelay(5);
-		}
-		if (gpio_is_valid(ctrl_pdata->rst_gpio)) {
-			rc = gpio_tlmm_config(GPIO_CFG(ctrl_pdata->rst_gpio, 0,
-				GPIO_CFG_OUTPUT,GPIO_CFG_NO_PULL,GPIO_CFG_2MA),
-				GPIO_CFG_ENABLE);
-			if (rc)
-				pr_err("request rst_gpio failed, rc=%d\n",rc);
-		}
-#endif
-#if defined(CONFIG_FB_MSM_MDSS_MAGNA_OCTA_VIDEO_720P_PANEL)||\
-	defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_HD_PANEL)
-		if (gpio_is_valid(ctrl_pdata->disp_en_gpio)) {
-			gpio_tlmm_config(GPIO_CFG(ctrl_pdata->disp_en_gpio, 0,
-				GPIO_CFG_OUTPUT,GPIO_CFG_NO_PULL,GPIO_CFG_2MA),
-				GPIO_CFG_ENABLE);
-			gpio_set_value((ctrl_pdata->disp_en_gpio), 1);
-			wmb();
-		}
-		if (gpio_is_valid(ctrl_pdata->rst_gpio)) {
-			gpio_set_value((ctrl_pdata->rst_gpio), 0);
-			mdelay(3);
-			wmb();
-			gpio_set_value((ctrl_pdata->rst_gpio), 1);
-			mdelay(10);
-			wmb();
-		}
-#elif defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_FULL_HD_PT_PANEL)
-		if (gpio_is_valid(ctrl_pdata->disp_en_gpio)) {
-			gpio_set_value((ctrl_pdata->disp_en_gpio), 1);
-			wmb();
-		}
-		if (gpio_is_valid(ctrl_pdata->rst_gpio)) {
-			gpio_set_value((ctrl_pdata->rst_gpio), 1);
-			msleep(20);
-			wmb();
-			gpio_set_value((ctrl_pdata->rst_gpio), 0);
-			udelay(200);
-			wmb();
-			gpio_set_value((ctrl_pdata->rst_gpio), 1);
-			msleep(20);
-			wmb();
-		}
-#else
 		if (gpio_is_valid(ctrl_pdata->rst_gpio)) {
 			gpio_set_value((ctrl_pdata->rst_gpio), 1);
 			msleep(20);
@@ -622,16 +485,8 @@ void mdss_dsi_samsung_panel_reset(struct mdss_panel_data *pdata, int enable)
 			gpio_set_value((ctrl_pdata->disp_en_gpio), 1);
 			wmb();
 		}
-#endif
-#if defined(CONFIG_FB_MSM_MIPI_MAGNA_OCTA_VIDEO_720P_PT_PANEL)
-		if (gpio_is_valid(ctrl_pdata->disp_en_gpio2)) {
-			gpio_set_value((ctrl_pdata->disp_en_gpio2), 1);
-			wmb();
-		}
-#endif
 #if defined(CONFIG_LCD_CRACK_RECOVERY)
-		if(gpio_is_valid(lcd_crack_gpio))
-		{
+		if (gpio_is_valid(lcd_crack_gpio)) {
 			rc = gpio_tlmm_config(GPIO_CFG(lcd_crack_gpio, 0,
 					GPIO_CFG_INPUT,GPIO_CFG_NO_PULL,GPIO_CFG_2MA),
 					GPIO_CFG_ENABLE);
@@ -649,45 +504,13 @@ void mdss_dsi_samsung_panel_reset(struct mdss_panel_data *pdata, int enable)
 			pr_debug("%s: Reset panel done\n", __func__);
 		}
 	} else {
-#if defined(CONFIG_FB_MSM_MDSS_MAGNA_OCTA_VIDEO_720P_PANEL)\
-	|| defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_HD_PANEL)
-		if (gpio_is_valid(ctrl_pdata->rst_gpio)) {
-			gpio_tlmm_config(GPIO_CFG(ctrl_pdata->rst_gpio, 0,
-				GPIO_CFG_OUTPUT,GPIO_CFG_NO_PULL,GPIO_CFG_2MA),
-				GPIO_CFG_DISABLE);
-		gpio_set_value((ctrl_pdata->rst_gpio), 0);
-		}
-		if (gpio_is_valid(ctrl_pdata->disp_en_gpio)) {
-			if(ctrl_pdata->disp_en_gpio == 115)
-				gpio_tlmm_config(GPIO_CFG(ctrl_pdata->disp_en_gpio, 0,
-					GPIO_CFG_OUTPUT,GPIO_CFG_NO_PULL,GPIO_CFG_2MA),
-					GPIO_CFG_DISABLE);
-			else
-				gpio_tlmm_config(GPIO_CFG(ctrl_pdata->disp_en_gpio, 0,
-					GPIO_CFG_OUTPUT,GPIO_CFG_PULL_DOWN,GPIO_CFG_2MA),
-					GPIO_CFG_DISABLE);
-			gpio_set_value((ctrl_pdata->disp_en_gpio), 0);
-		}
-#else
 		if (gpio_is_valid(ctrl_pdata->disp_en_gpio)) {
 			gpio_set_value((ctrl_pdata->disp_en_gpio), 0);
 		}
-#endif
-	if (gpio_is_valid(ctrl_pdata->rst_gpio))
-		gpio_set_value((ctrl_pdata->rst_gpio), 0);
-#if defined(CONFIG_FB_MSM_MIPI_MAGNA_OCTA_VIDEO_720P_PT_PANEL)
-		if (gpio_is_valid(ctrl_pdata->disp_en_gpio2)) {
-			gpio_set_value((ctrl_pdata->disp_en_gpio2), 0);
-		}
-#endif
-
-#if defined(CONFIG_FB_MSM_MDSS_MAGNA_OCTA_VIDEO_720P_PANEL)
-		if (gpio_is_valid(ctrl_pdata->expander_enble_gpio))
-			gpio_set_value((ctrl_pdata->expander_enble_gpio), 0);
-#endif
+		if (gpio_is_valid(ctrl_pdata->rst_gpio))
+			gpio_set_value((ctrl_pdata->rst_gpio), 0);
 #if defined(CONFIG_LCD_CRACK_RECOVERY)
-		if(gpio_is_valid(lcd_crack_gpio))
-		{
+		if (gpio_is_valid(lcd_crack_gpio)) {
 			rc = gpio_tlmm_config(GPIO_CFG(lcd_crack_gpio, 0,
 					GPIO_CFG_INPUT,GPIO_CFG_PULL_DOWN,GPIO_CFG_2MA),
 					GPIO_CFG_DISABLE);
@@ -764,39 +587,9 @@ static ssize_t mipi_samsung_disp_lcdtype_show(struct device *dev,
 {
 	char temp[100];
 	switch (msd.panel) {
-#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_WVGA_S6E88A0_PT_PANEL)
-		case PANEL_WVGA_OCTA_S6E88A0:
-			snprintf(temp, 20, "SMD_AMS367AV01");
-					break;
-#endif
-		case PANEL_1080P_OCTA_S6E8FA0:
-			snprintf(temp, 20, "SDC_AMS499QP01");
-					break;
 		case PANEL_1080P_OCTA_S6E3FA0:
 		case PANEL_1080P_OCTA_S6E3FA0_CMD:
 			snprintf(temp, 20, "SDC_AMS568AT01");
-					break;
-		case PANEL_1080P_YOUM_S6E3FA1_CMD:
-			snprintf(temp, 20, "SDC_AMB568AU01");
-					break;
-		case PANEL_720P_OCTA_D53D6EA8061V:
-			snprintf(temp, 20, "SDC_D53D6EA8061V");
-					break;
-		case PANEL_720P_OCTA_S6E8AA0:
-			snprintf(temp, 20, "SDC_AMS480GY01");
-					break;
-		case PANEL_720P_OCTA_D53D6EA8061V_VIDEO:
-			snprintf(temp, 20, "SDC_200283");
-					break;
-		case PANEL_HD_OCTA_D53D6EA8061_VIDEO:
-			if (msd.manufacture_id)
-				snprintf(temp, 20, "SDC_%x\n",msd.manufacture_id);
-					break;
-		case PANEL_720P_OCTA_S6E8AA4_VIDEO:
-			snprintf(temp, 20, "SDC_AMS549BU05");
-					break;
-		case PANEL_QHD_OCTA_S6E88A0_VIDEO:
-			snprintf(temp, 20, "SDC_AMS517CY01");
 					break;
 		default :
 			snprintf(temp, strnlen(msd.panel_name, 100),
@@ -1005,7 +798,7 @@ end:
 	return acl_control;
 }
 
-#if defined(TEMPERATURE_ELVSS_S6E3FA0) || defined(TEMPERATURE_ELVSS_S6E8AA4)
+#if defined(TEMPERATURE_ELVSS_S6E3FA0)
 // ELVSS TEMPERATURE COMPENSATION for S6E3FA0
 static struct dsi_cmd get_elvss_tempcompen_control_set(void)
 {
@@ -1049,20 +842,12 @@ static struct dsi_cmd get_elvss_tempcompen_control_set(void)
 	int cmd_idx = 0;
 
 	/* Get the command desc */
-#if defined(CONFIG_FB_MSM_MDSS_MAGNA_OCTA_VIDEO_720P_PANEL)
-	if(msd.dstat.temperature_value <= 0)
-		elvss_tempcompen_cmds_list.cmd_desc[cmd_idx].payload[1] = msd.dstat.temperature_value + 0x80;
-	else
-		elvss_tempcompen_cmds_list.cmd_desc[cmd_idx].payload[1] = msd.dstat.temperature_value;
-#else
 	elvss_tempcompen_cmds_list.cmd_desc[cmd_idx].payload[6] = msd.dstat.temperature_value;
-#endif
 	elvss_tempcompen_control.cmd_desc = &(elvss_tempcompen_cmds_list.cmd_desc[cmd_idx]);
 	elvss_tempcompen_control.num_of_cmds = 1;
 
 	return elvss_tempcompen_control;
 }
-
 #endif
 /*
 	This function takes acl_map_table and uses cd_idx,
@@ -1087,41 +872,18 @@ static struct dsi_cmd get_elvss_control_set(int cd_idx)
 
 	/* Get the command desc */
 	if(msd.dstat.acl_on || msd.dstat.siop_status) {
-#if defined(CONFIG_FB_MSM_MDSS_MAGNA_OCTA_VIDEO_720P_PANEL)
-	if ((msd.id3 == EVT2_EA8061V_REV_D) || (msd.id3 == EVT2_EA8061V_REV_E) )
-		smart_acl_elvss_cmds_list.cmd_desc[cmd_idx].payload[1] = 0x4C;
-#endif
 		cmd_idx = smart_acl_elvss_map_table.cmd_idx[cd_idx];
 		payload = smart_acl_elvss_cmds_list.cmd_desc[cmd_idx].payload;
-#if defined(TEMPERATURE_ELVSS_S6E8AA4)
-		elvss_lowtemp_cmds_list.cmd_desc[2].payload[2] = smart_acl_elvss_cmds_list.cmd_desc[cmd_idx].payload[2];
-#endif
 		elvss_control.cmd_desc = &(smart_acl_elvss_cmds_list.cmd_desc[cmd_idx]);
 		pr_info("ELVSS for SMART_ACL cd_idx=%d, cmd_idx=%d\n", cd_idx, cmd_idx);
 	} else {
-#if defined(CONFIG_FB_MSM_MDSS_MAGNA_OCTA_VIDEO_720P_PANEL)
-	if ((msd.id3 == EVT2_EA8061V_REV_D) || (msd.id3 == EVT2_EA8061V_REV_E) )
-		elvss_cmds_list.cmd_desc[cmd_idx].payload[1] = 0x5C;
-#endif
 		cmd_idx = elvss_map_table.cmd_idx[cd_idx];
 		payload = elvss_cmds_list.cmd_desc[cmd_idx].payload;
-#if defined(TEMPERATURE_ELVSS_S6E8AA4)
-		elvss_lowtemp_cmds_list.cmd_desc[2].payload[2] = elvss_cmds_list.cmd_desc[cmd_idx].payload[2];
-#endif
 		elvss_control.cmd_desc = &(elvss_cmds_list.cmd_desc[cmd_idx]);
 		pr_info("ELVSS for normal cd_idx=%d, cmd_idx=%d\n", cd_idx, cmd_idx);
 	}
 
-	/*HBM off : B6H(ELVSS SET) 21st para <- default set : Get value in mdss_dsi_panel_dimming_init() */
-#if defined(HBM_RE) && defined(CONFIG_FB_MSM_MDSS_SAMSUNG_OCTA_VIDEO_720P_PT_PANEL)
-		if(msd.dstat.hbm_mode) {
-			elvss_control.cmd_desc = hbm_hbm_off_elvss_cmds.cmd_desc;
-			elvss_control.num_of_cmds = hbm_hbm_off_elvss_cmds.num_of_cmds;
-		}
-#endif
-
 #if defined(TEMPERATURE_ELVSS)
-#if !defined(CONFIG_FB_MSM_MDSS_MAGNA_OCTA_VIDEO_720P_PANEL)
 	// ELVSS lOW TEMPERATURE
 	if (msd.dstat.auto_brightness != 6) // if HBM is not set
 	{
@@ -1132,7 +894,6 @@ static struct dsi_cmd get_elvss_control_set(int cd_idx)
 
 		}
 	}
-#endif
 #endif
 	elvss_control.num_of_cmds = 1;
 	msd.dstat.curr_elvss_idx = cmd_idx;
@@ -1175,12 +936,10 @@ static struct dsi_cmd get_elvss_control_set(int cd_idx)
 	/* Get the command desc */
 #if defined(TEMPERATURE_ELVSS)
 	// ELVSS lOW TEMPERATURE
-	if (msd.dstat.auto_brightness != 6) // will be changed to 7
-	{
-		if (msd.dstat.temperature <= -20)
-		{
+	if (msd.dstat.auto_brightness != 6) { // will be changed to 7
+		if (msd.dstat.temperature <= -20) {
 			elvss_control.cmd_desc = &(elvss_lowtemp_cmds_list.cmd_desc[cmd_idx]);
-		}else {
+		} else {
 #endif
 	elvss_control.cmd_desc = &(elvss_cmds_list.cmd_desc[cmd_idx]);
 #if defined(TEMPERATURE_ELVSS)
@@ -1235,23 +994,6 @@ static int update_bright_packet(int cmd_count, struct dsi_cmd *cmd_set)
 	return cmd_count;
 }
 
-#if defined(CONFIG_FB_MSM_MDSS_MAGNA_OCTA_VIDEO_720P_PANEL)\
-	|| defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_HD_PANEL)
-static struct dsi_cmd get_testKey_set(int enable)/*F0 or F0 F1*/
-{
-	struct dsi_cmd testKey = {0,};
-
-	if (enable)
-		testKey.cmd_desc = &(test_key_enable_cmds.cmd_desc[0]);
-	else
-		testKey.cmd_desc = &(test_key_disable_cmds.cmd_desc[0]);
-
-	testKey.num_of_cmds = test_key_disable_cmds.num_of_cmds;
-
-	return testKey;
-}
-#endif
-
 #if defined(HBM_RE) || defined(CONFIG_HBM_PSRE)
 static struct dsi_cmd get_hbm_etc_control_set(void)
 {
@@ -1284,27 +1026,7 @@ static struct dsi_cmd get_hbm_etc_control_set(void)
 		etc_hbm_control.cmd_desc = &(hbm_etc_cmds_evt1_H_revJ_list.cmd_desc[0]);
 		etc_hbm_control.num_of_cmds = hbm_etc_cmds_evt1_H_revJ_list.num_of_cmds;
 	}
-#elif defined(CONFIG_FB_MSM_MIPI_SAMSUNG_YOUM_CMD_FULL_HD_PT_PANEL)
-	if ((msd.id3 == EVT0_F_REV_A) || (msd.id3 == EVT0_F_REV_E) ||
-		(msd.id3 == EVT0_F_REV_F) || (msd.id3 == EVT2_F_REV_G)) {
-		pr_info("%s for F\n",__func__);
-		etc_hbm_control.cmd_desc = &(hbm_etc_cmds_evt0_second_list.cmd_desc[0]);
-		etc_hbm_control.num_of_cmds = hbm_etc_cmds_evt0_second_list.num_of_cmds;
-	}
-#else
-#if defined(TEMPERATURE_ELVSS_S6E8AA4)
-		if (msd.dstat.temperature > 0) {
-			pr_debug("%s temp > 0 \n",__func__);
-			hbm_etc_cmds_list.cmd_desc[0].payload[1] = 0x88;
-		} else {
-			pr_debug("%s temp <= 0 \n",__func__);
-			hbm_etc_cmds_list.cmd_desc[0].payload[1] = 0x8C;
-		}
 #endif
-	etc_hbm_control.cmd_desc = &(hbm_etc_cmds_list.cmd_desc[0]);
-	etc_hbm_control.num_of_cmds = hbm_etc_cmds_list.num_of_cmds;
-#endif
-
 	return etc_hbm_control;
 }
 
@@ -1324,10 +1046,6 @@ static int make_brightcontrol_hbm_set(int bl_level)
 
 	struct dsi_cmd hbm_etc_control = {0,};
 	struct dsi_cmd gamma_control = {0,};
-#if defined(CONFIG_FB_MSM_MDSS_MAGNA_OCTA_VIDEO_720P_PANEL)\
-	|| defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_HD_PANEL)
-	struct dsi_cmd testKey = {0,};
-#endif
 
 	int cmd_count = 0;
 
@@ -1335,11 +1053,6 @@ static int make_brightcontrol_hbm_set(int bl_level)
 		pr_err("%s : already hbm mode! return .. \n", __func__);
 		return 0;
 	}
-#if defined(CONFIG_FB_MSM_MDSS_MAGNA_OCTA_VIDEO_720P_PANEL)\
-	|| defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_HD_PANEL)
-	testKey = get_testKey_set(1);
-	cmd_count = update_bright_packet(cmd_count, &testKey);
-#endif
 
 	/*gamma*/
 	gamma_control = get_hbm_gamma_control_set();
@@ -1348,11 +1061,6 @@ static int make_brightcontrol_hbm_set(int bl_level)
 	hbm_etc_control = get_hbm_etc_control_set();
 	cmd_count = update_bright_packet(cmd_count, &hbm_etc_control);
 
-#if defined(CONFIG_FB_MSM_MDSS_MAGNA_OCTA_VIDEO_720P_PANEL)\
-	|| defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_HD_PANEL)
-	testKey = get_testKey_set(0);
-	cmd_count = update_bright_packet(cmd_count, &testKey);
-#endif
 	/* for non hbm mode : reset */
 	msd.dstat.curr_elvss_idx = -1;
 	msd.dstat.curr_acl_idx = -1;
@@ -1361,8 +1069,8 @@ static int make_brightcontrol_hbm_set(int bl_level)
 
 	LCD_DEBUG("bright_level: HBM %d\n", cmd_count);
 	return cmd_count;
-
 }
+#endif
 
 #if defined(FORCE_500CD)
 static struct dsi_cmd get_force_500cd_control_set(void)
@@ -1402,10 +1110,9 @@ static int make_force_500cd_set(int bl_level)
 
 	LCD_DEBUG("bright_level: Force 500Cd %d\n", cmd_count);
 	return cmd_count;
-
 }
 #endif
-#endif
+
 static int make_brightcontrol_set(int bl_level)
 {
 
@@ -1416,7 +1123,7 @@ static int make_brightcontrol_set(int bl_level)
 #if !defined(NOT_USING_ACL_CONT)
 	struct dsi_cmd aclcont_control = {0, 0, 0, 0, 0};
 #endif
-#if defined(TEMPERATURE_ELVSS_S6E3FA0) || defined(TEMPERATURE_ELVSS_S6E8AA4)
+#if defined(TEMPERATURE_ELVSS_S6E3FA0)
 	struct dsi_cmd temperature_elvss_control = {0, 0, 0, 0, 0};
 #endif
 
@@ -1425,11 +1132,6 @@ static int make_brightcontrol_set(int bl_level)
 #endif
 	int cmd_count = 0, cd_idx = 0, cd_level =0;
 	/* level2 enable */
-#if defined(CONFIG_FB_MSM_MDSS_MAGNA_OCTA_VIDEO_720P_PANEL)\
-	|| defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_HD_PANEL)
-	struct dsi_cmd testKey = get_testKey_set(1);
-	cmd_count = update_bright_packet(cmd_count, &testKey);
-#endif
 
 	cd_idx = get_cmd_idx(bl_level);
 	cd_level = get_candela_value(bl_level);
@@ -1456,7 +1158,7 @@ static int make_brightcontrol_set(int bl_level)
 	elvss_control = get_elvss_control_set(cd_idx);
 	cmd_count = update_bright_packet(cmd_count, &elvss_control);
 
-#if defined(TEMPERATURE_ELVSS_S6E3FA0) || defined(TEMPERATURE_ELVSS_S6E8AA4)
+#if defined(TEMPERATURE_ELVSS_S6E3FA0)
 	// ELVSS TEMPERATURE COMPENSATION
 	// ELVSS for Temperature set cmd should be sent after normal elvss set cmd
 	temperature_elvss_control = get_elvss_tempcompen_control_set();
@@ -1475,20 +1177,8 @@ static int make_brightcontrol_set(int bl_level)
 	/*gamma*/
 	gamma_control = get_gamma_control_set(cd_level);
 	cmd_count = update_bright_packet(cmd_count, &gamma_control);
-#if defined(CONFIG_FB_MSM_MDSS_MAGNA_OCTA_VIDEO_720P_PANEL)\
-	|| defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_HD_PANEL)
-	testKey = get_testKey_set(0);
-	cmd_count = update_bright_packet(cmd_count, &testKey);
-#endif
-#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_WVGA_S6E88A0_PT_PANEL) || defined(CONFIG_FB_MSM_MDSS_SAMSUNG_OCTA_VIDEO_720P_PT_PANEL)
-	LCD_DEBUG("bright_level: %d, candela_idx: %d( %d cd ), "\
-		"cmd_count(aid,acl,elvss,gamma)::(%d,%d,%d,%d)%d\n",
-#elif defined(CONFIG_FB_MSM_MIPI_MAGNA_OCTA_VIDEO_720P_PT_PANEL)\
-	|| defined(CONFIG_FB_MSM_MDSS_MAGNA_OCTA_VIDEO_720P_PANEL)\
-	|| defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_HD_PANEL)
-	LCD_DEBUG("bright_level: %d, candela_idx: %d( %d cd ), "\
-		"cmd_count(aid,acl,elvss,temperature,gamma)::(%d,%d,%d,%d)%d\n",
-#elif defined(TEMPERATURE_ELVSS_S6E3FA0)
+
+#if defined(TEMPERATURE_ELVSS_S6E3FA0)
 	LCD_DEBUG("bright_level: %d, candela_idx: %d( %d cd ), "\
 		"cmd_count(aid,acl,acl_ctrl,elvss,temperature,gamma)::(%d,%d,%d,%d,%d,%d)%d\n",
 #else
@@ -1526,18 +1216,6 @@ static ssize_t mipi_samsung_disp_acl_store(struct device *dev,
 		pr_info("%s: Invalid argument!!", __func__);
 
 	if (mfd->panel_power_on) {
-#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_WVGA_S6E88A0_PT_PANEL)
-		if (acl_set) {
-			msd.dstat.acl_on = true;
-		} else {
-			msd.dstat.acl_on = false;
-			msd.dstat.curr_acl_idx = -1;
-		}
-
-		pr_info("%s: acl on : acl %d", __func__, msd.dstat.acl_on);
-
-		mipi_samsung_disp_send_cmd(PANEL_BRIGHT_CTRL, true);
-#else
 		if (acl_set && !(msd.dstat.acl_on||msd.dstat.siop_status)) {
 			msd.dstat.acl_on = true;
 			pr_info("%s: acl on  : acl %d, siop %d", __func__,
@@ -1551,10 +1229,6 @@ static ssize_t mipi_samsung_disp_acl_store(struct device *dev,
 					msd.dstat.acl_on, msd.dstat.siop_status);
 			if(msd.dstat.auto_brightness == 6)
 				pr_info("%s: HBM mode No ACL off!!", __func__);
-#ifdef CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_FULL_HD_PT_PANEL
-			else
-				mipi_samsung_disp_send_cmd(PANEL_ACL_OFF, true);
-#endif
 #ifdef SMART_ACL
 			/* If SMART_ACL enabled, elvss table shoud be set again */
 			mipi_samsung_disp_send_cmd(PANEL_BRIGHT_CTRL, true);
@@ -1565,8 +1239,7 @@ static ssize_t mipi_samsung_disp_acl_store(struct device *dev,
 			pr_info("%s: skip but acl update!! acl %d, siop %d", __func__,
 				msd.dstat.acl_on, msd.dstat.siop_status);
 		}
-#endif
-	}else {
+	} else {
 		pr_info("%s: panel is off state. updating state value.\n",
 			__func__);
 		msd.dstat.acl_on = acl_set;
@@ -1613,11 +1286,6 @@ static ssize_t mipi_samsung_disp_siop_store(struct device *dev,
 	struct msm_fb_data_type *mfd = msd.mfd;
 	int siop_set;
 
-#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_WVGA_S6E88A0_PT_PANEL)
-	msd.dstat.siop_status = false;
-	return size;
-#endif
-
 	siop_set = msd.dstat.siop_status;
 	if (sysfs_streq(buf, "1"))
 		siop_set = true;
@@ -1639,10 +1307,6 @@ static ssize_t mipi_samsung_disp_siop_store(struct device *dev,
 			msd.dstat.curr_acl_idx = -1;
 			if(msd.dstat.auto_brightness == 6)
 				pr_info("%s: HBM mode No ACL off!!", __func__);
-#ifdef CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_FULL_HD_PT_PANEL
-			else
-				mipi_samsung_disp_send_cmd(PANEL_ACL_OFF, false);
-#endif
 #ifdef SMART_ACL
 			/* If SMART_ACL enabled, elvss table shoud be set again */
 			mipi_samsung_disp_send_cmd(PANEL_BRIGHT_CTRL, false);
@@ -1767,22 +1431,11 @@ static ssize_t mipi_samsung_auto_brightness_show(struct device *dev,
 	return rc;
 }
 
-#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_FULL_HD_PT_PANEL)
-static unsigned int mipi_samsung_manufacture_id(struct mdss_panel_data *pdata);
-static int mdss_dsi_panel_dimming_init(struct mdss_panel_data *pdata);
-#endif
-
 static ssize_t mipi_samsung_auto_brightness_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t size)
 {
 	static int first_auto_br = 0;
 
-#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_FULL_HD_PT_PANEL)
-	if (!msd.manufacture_id) {
-		msd.manufacture_id = mipi_samsung_manufacture_id(msd.pdata);
-		mdss_dsi_panel_dimming_init(msd.pdata);
-	}
-#endif
 	if (sysfs_streq(buf, "0"))
 		msd.dstat.auto_brightness = 0;
 	else if (sysfs_streq(buf, "1"))
@@ -1809,40 +1462,19 @@ static ssize_t mipi_samsung_auto_brightness_store(struct device *dev,
 		return size;
 	}
 
-#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_WVGA_S6E88A0_PT_PANEL)
-	if (msd.dstat.on == 1 && msd.mfd->resume_state == MIPI_RESUME_STATE) {
-		pr_info("%s %d %d\n", __func__, msd.dstat.auto_brightness, msd.dstat.bright_level);
-		mipi_samsung_disp_send_cmd(PANEL_BRIGHT_CTRL, true);
-	} else {
-		pr_info("%s : panel is off state!! on=%d, state=%d\n", __func__, msd.dstat.on, msd.mfd->resume_state);
-	}
-#elif defined(CONFIG_FB_MSM_MDSS_MAGNA_OCTA_VIDEO_720P_PANEL)
 	if (msd.mfd->resume_state == MIPI_RESUME_STATE) {
 		mipi_samsung_disp_send_cmd(PANEL_BRIGHT_CTRL, true);
-#if defined(CONFIG_MDNIE_LITE_TUNING)
-		mDNIe_Set_Mode(); // LOCAL CE tuning
-#endif
-		pr_info("%s %d %d\n", __func__, msd.dstat.auto_brightness, msd.dstat.bright_level);
 	} else {
 		pr_info("%s : panel is off state!!\n", __func__);
 	}
-#else
-	if (msd.mfd->resume_state == MIPI_RESUME_STATE) {
-		mipi_samsung_disp_send_cmd(PANEL_BRIGHT_CTRL, true);
-		pr_info("%s %d %d\n", __func__, msd.dstat.auto_brightness, msd.dstat.bright_level);
-	} else {
-		pr_info("%s : panel is off state!!\n", __func__);
-	}
-#endif
 
 	return size;
 }
 
-#if defined(TEMPERATURE_ELVSS) || defined(TEMPERATURE_ELVSS_S6E3FA0) || defined(TEMPERATURE_ELVSS_S6E8AA4)
+#if defined(TEMPERATURE_ELVSS) || defined(TEMPERATURE_ELVSS_S6E3FA0)
 static ssize_t mipi_samsung_temperature_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
-
 	// range between -60 and 0
 	return sprintf(buf, "%d\n", msd.dstat.temperature);
 }
@@ -1868,7 +1500,6 @@ static ssize_t mipi_samsung_temperature_store(struct device *dev,
 
 	if(msd.mfd->resume_state == MIPI_RESUME_STATE) {
 		mipi_samsung_disp_send_cmd(PANEL_BRIGHT_CTRL, true);
-		pr_info("mipi_samsung_temperature_store %d\n", msd.dstat.bright_level);
 		pr_info("%s msd.dstat.temperature : %d msd.dstat.temperature_value : 0x%x", __func__,
 				msd.dstat.temperature, msd.dstat.temperature_value);
 	} else {
@@ -1946,7 +1577,6 @@ static ssize_t mipi_samsung_force_500cd_store(struct device *dev,
 	sscanf(buf, "%d " , &input);
 	pr_info("%s: input = %d\n", __func__, input);
 
-
 	if (msd.dstat.on) {
 		if(input) {
 			pr_info("Force 500Cd Enable\n");
@@ -1971,7 +1601,6 @@ static struct lcd_ops mipi_samsung_disp_props = {
 	.set_power = NULL,
 };
 
-
 static DEVICE_ATTR(lcd_power, S_IRUGO | S_IWUSR,
 			mipi_samsung_disp_get_power,
 			mipi_samsung_disp_set_power);
@@ -1993,7 +1622,7 @@ static DEVICE_ATTR(backlight, S_IRUGO | S_IWUSR | S_IWGRP,
 			mipi_samsung_backlight_show,
 			mipi_samsung_backlight_store);
 
-#if defined(TEMPERATURE_ELVSS) || defined( TEMPERATURE_ELVSS_S6E3FA0) || defined(TEMPERATURE_ELVSS_S6E8AA4)
+#if defined(TEMPERATURE_ELVSS) || defined( TEMPERATURE_ELVSS_S6E3FA0)
 static DEVICE_ATTR(temperature, S_IRUGO | S_IWUSR | S_IWGRP,
 			mipi_samsung_temperature_show,
 			mipi_samsung_temperature_store);
@@ -2018,7 +1647,6 @@ static DEVICE_ATTR(manufacture_date, S_IRUGO,
 static DEVICE_ATTR(force_500cd, S_IRUGO | S_IWUSR | S_IWGRP,
 			mipi_samsung_force_500cd_show,
 			mipi_samsung_force_500cd_store);
-
 #endif
 
 #endif
@@ -2098,30 +1726,30 @@ void mdss_dsi_cmds_send(struct mdss_dsi_ctrl_pdata *ctrl, struct dsi_cmd_desc *c
 
 u32 mdss_dsi_cmd_receive(struct mdss_dsi_ctrl_pdata *ctrl, struct dsi_cmd_desc *cmd, int rlen)
 {
-    struct dcs_cmd_req cmdreq;
+	struct dcs_cmd_req cmdreq;
 	char *buf;
 
 	buf = kmalloc(sizeof(rlen), GFP_KERNEL);
-    memset(&cmdreq, 0, sizeof(cmdreq));
-    cmdreq.cmds = cmd;
-    cmdreq.cmds_cnt = 1;
-    cmdreq.flags = CMD_REQ_RX | CMD_REQ_COMMIT;
+	memset(&cmdreq, 0, sizeof(cmdreq));
+	cmdreq.cmds = cmd;
+	cmdreq.cmds_cnt = 1;
+	cmdreq.flags = CMD_REQ_RX | CMD_REQ_COMMIT;
 	cmdreq.rbuf = buf;
-    cmdreq.rlen = rlen;
-    cmdreq.cb = NULL; /* call back */
-    /*
-	 * This mutex is to sync up with dynamic FPS changes
-	 * so that DSI lockups shall not happen
-	 */
+	cmdreq.rlen = rlen;
+	cmdreq.cb = NULL; /* call back */
+	/*
+	* This mutex is to sync up with dynamic FPS changes
+	* so that DSI lockups shall not happen
+	*/
 	BUG_ON(msd.ctrl_pdata == NULL);
 	mutex_lock(&msd.ctrl_pdata->dfps_mutex);
-    mdss_dsi_cmdlist_put(ctrl, &cmdreq);
-    mutex_unlock(&msd.ctrl_pdata->dfps_mutex);
-    /*
-     * blocked here, untill call back called
-     */
-    kfree(buf);
-    return ctrl->rx_buf.len;
+	mdss_dsi_cmdlist_put(ctrl, &cmdreq);
+	mutex_unlock(&msd.ctrl_pdata->dfps_mutex);
+	/*
+	* blocked here, untill call back called
+	*/
+	kfree(buf);
+	return ctrl->rx_buf.len;
 }
 
 static int samsung_nv_read(struct dsi_cmd_desc *desc, char *destBuffer,
@@ -2191,21 +1819,10 @@ static int mipi_samsung_read_nv_mem(struct mdss_panel_data *pdata, struct dsi_cm
 {
 	int nv_size = 0;
 	int nv_read_cnt = 0;
-	int i = 0, j = 0;
+	int i = 0, j = 5;
 
-#if defined(CONFIG_FB_MSM_MDSS_SAMSUNG_OCTA_VIDEO_720P_PT_PANEL) \
-	|| defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_FULL_HD_PT_PANEL) \
-	|| defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_CMD_FULL_HD_PT_PANEL)
-	j = 5; // do not repeat
-#elif defined(CONFIG_FB_MSM_MDSS_MAGNA_OCTA_VIDEO_720P_PANEL)\
-	||defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_HD_PANEL)
-	j = 3;
-#endif
-
-#if !defined(CONFIG_FB_MSM_MDSS_MAGNA_OCTA_VIDEO_720P_PANEL)
 	mipi_samsung_disp_send_cmd(PANEL_NV_MTP_READ_REGISTER_SET_CMDS, true);
 	mipi_samsung_disp_send_cmd(PANEL_MTP_ENABLE, true);
-#endif
 
 	for (i = 0; i < nv_read_cmds->num_of_cmds; i++)
 		nv_size += nv_read_cmds->read_size[i];
@@ -2224,9 +1841,7 @@ static int mipi_samsung_read_nv_mem(struct mdss_panel_data *pdata, struct dsi_cm
 		if (count != read_size)
 			pr_err("Error reading LCD NV data !!!!\n");
 	}
-#if !defined(CONFIG_FB_MSM_MDSS_MAGNA_OCTA_VIDEO_720P_PANEL)
 	mipi_samsung_disp_send_cmd(PANEL_MTP_DISABLE, true);
-#endif
 
 	return nv_read_cnt;
 }
@@ -2274,43 +1889,6 @@ int read_ldi_status(void)
 EXPORT_SYMBOL(read_ldi_status);
 #endif
 
-#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_YOUM_CMD_FULL_HD_PT_PANEL)
-int reading_id = 0;
-#endif
-
-#if defined(CONFIG_FB_MSM_MDSS_MAGNA_OCTA_VIDEO_720P_PT_PANEL)\
-		&& !defined(CONFIG_FB_MSM_MDSS_MAGNA_LDI_EA8061)
-static int mipi_magna_ea8061_read(struct dsi_cmd_desc *cmd, int rlen)
-{
-	magna_read_pos_cmds.cmd_desc[0].payload[1] = cmd->payload[0];
-	mdss_dsi_cmds_send(msd.ctrl_pdata, magna_read_pos_cmds.cmd_desc, 1, 0);
-	return mdss_dsi_cmd_receive(msd.ctrl_pdata, &magna_read_run_cmds.cmd_desc[0], rlen);
-}
-
-static unsigned int mipi_samsung_manufacture_id(struct mdss_panel_data *pdata)
-{
-	struct dsi_buf *rp, *tp;
-
-	unsigned int id = 0 ;
-
-	return 0xFF1043; // kyNam_140116_ after Read in kernel, LCD is Over-brightness.
-
-	if (!manufacture_id_cmds.num_of_cmds)
-		return 0;
-
-	tp = &dsi_panel_tx_buf;
-	rp = &dsi_panel_rx_buf;
-
-	mipi_magna_ea8061_read( &manufacture_id_cmds.cmd_desc[0], manufacture_id_cmds.read_size[0] );
-	id = *((unsigned int *)msd.ctrl_pdata->rx_buf.data);
-	gv_manufacture_id = id;
-
-	pr_info("%s: manufacture_id=%x\n", __func__, id);
-	return id;
-}
-
-#else
-
 static unsigned int mipi_samsung_manufacture_id(struct mdss_panel_data *pdata)
 {
 	struct dsi_buf *rp, *tp;
@@ -2320,9 +1898,6 @@ static unsigned int mipi_samsung_manufacture_id(struct mdss_panel_data *pdata)
 	if (!manufacture_id_cmds.num_of_cmds)
 		return 0;
 
-#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_YOUM_CMD_FULL_HD_PT_PANEL)
-	reading_id = 1;
-#endif
 	tp = &dsi_panel_tx_buf;
 	rp = &dsi_panel_rx_buf;
 
@@ -2350,46 +1925,23 @@ static unsigned int mipi_samsung_manufacture_id(struct mdss_panel_data *pdata)
 	gv_manufacture_id = id;
 
 	pr_info("%s: manufacture_id=%x\n", __func__, id);
-#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_YOUM_CMD_FULL_HD_PT_PANEL)
-	reading_id = 0;
-#endif
 
-#if defined(CONFIG_FB_MSM_MDSS_SAMSUNG_OCTA_VIDEO_720P_PT_PANEL)
-	if(id != lcd_id)
-	{
-		pr_err("%s : manufacture id %x->%x\n", __func__, id, lcd_id);
-		id = lcd_id;
-	}
-#endif
 	if (set_panel_rev(id) < 0)
 		pr_err("%s : can't find panel id.. \n", __func__);
 
 	return id;
 }
-#endif
+
 static void mdss_dsi_panel_bl_ctrl(struct mdss_panel_data *pdata,
 							u32 bl_level)
 {
 	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
 
-#if !defined(CONFIG_FB_MSM_MIPI_MAGNA_OCTA_VIDEO_720P_PT_PANEL) \
-	&& !defined(CONFIG_FB_MSM_MDSS_MAGNA_OCTA_VIDEO_720P_PANEL) \
-	&& !defined(CONFIG_FB_MSM_MDSS_SAMSUNG_OCTA_VIDEO_720P_PT_PANEL) \
-	&& !defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_FULL_HD_PT_PANEL)\
-	&& !defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_HD_PANEL)
 	mipi_samsung_disp_send_cmd(PANEL_MTP_ENABLE, true);
-#endif
 
 	/*Dont need to send backlight command if display off*/
 	if (msd.mfd->resume_state != MIPI_RESUME_STATE)
-#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_WVGA_S6E88A0_PT_PANEL)
-	{
-		msd.dstat.bright_level = bl_level;
 		return;
-	}
-#else
-		return;
-#endif
 
 	ctrl_pdata = container_of(pdata, struct mdss_dsi_ctrl_pdata,
 				panel_data);
@@ -2415,13 +1967,7 @@ static void mdss_dsi_panel_bl_ctrl(struct mdss_panel_data *pdata,
 			break;
 	}
 
-#if !defined(CONFIG_FB_MSM_MIPI_MAGNA_OCTA_VIDEO_720P_PT_PANEL) \
-	&& !defined(CONFIG_FB_MSM_MDSS_MAGNA_OCTA_VIDEO_720P_PANEL) \
-	&& !defined(CONFIG_FB_MSM_MDSS_SAMSUNG_OCTA_VIDEO_720P_PT_PANEL) \
-	&& !defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_FULL_HD_PT_PANEL)\
-	&& !defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_HD_PANEL)
 	mipi_samsung_disp_send_cmd(PANEL_MTP_DISABLE, true);
-#endif
 }
 
 static int mipi_samsung_disp_send_cmd(
@@ -2468,7 +2014,6 @@ static int mipi_samsung_disp_send_cmd(
 			cmd_desc = display_blank_cmd.cmd_desc;
 			cmd_size = display_blank_cmd.num_of_cmds;
 			break;
-
 		case PANEL_BRIGHT_CTRL:
 			cmd_desc = brightness_packet;
 
@@ -2490,6 +2035,8 @@ static int mipi_samsung_disp_send_cmd(
 #else
 			cmd_size = make_brightcontrol_set(msd.dstat.bright_level);
 #endif
+			pr_info("[jc] [backlight]: bright_level = %d\n", msd.dstat.bright_level);
+
 			if (msd.mfd->resume_state != MIPI_RESUME_STATE) {
 				pr_info("%s : panel is off state!!\n", __func__);
 				goto unknown_command;
@@ -2518,7 +2065,6 @@ static int mipi_samsung_disp_send_cmd(
 			cmd_desc = acl_off_cmd.cmd_desc;
 			cmd_size = acl_off_cmd.num_of_cmds;
 			break;
-#if !defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_WVGA_S6E88A0_PT_PANEL)
 		case PANEL_TOUCHSENSING_ON:
 			cmd_desc = touchsensing_on_cmd.cmd_desc;
 			cmd_size = touchsensing_on_cmd.num_of_cmds;
@@ -2527,7 +2073,6 @@ static int mipi_samsung_disp_send_cmd(
 			cmd_desc = touchsensing_off_cmd.cmd_desc;
 			cmd_size = touchsensing_off_cmd.num_of_cmds;
 			break;
-#endif
 #ifdef LDI_FPS_CHANGE
 		case PANEL_LDI_FPS_CHANGE:
 			cmd_desc = write_ldi_fps_cmds.cmd_desc;
@@ -2551,7 +2096,6 @@ static int mipi_samsung_disp_send_cmd(
 			cmd_size = partialdisp_off_cmd.num_of_cmds;
 			break;
 #endif
-
 #if defined(FORCE_500CD)
 		case PANEl_FORCE_500CD:
 			cmd_desc = brightness_packet;
@@ -2608,7 +2152,6 @@ unknown_command:
 	return -EINVAL;
 }
 
-#if !defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_WVGA_S6E88A0_PT_PANEL)
 void mdss_dsi_panel_touchsensing(int enable)
 {
 	if(!msd.dstat.on)
@@ -2616,19 +2159,12 @@ void mdss_dsi_panel_touchsensing(int enable)
 		pr_err("%s: No panel on! %d\n", __func__, enable);
 		return;
 	}
-#if defined(CONFIG_MACH_KS01SKT) || defined(CONFIG_MACH_KS01KTT)\
-		|| defined(CONFIG_MACH_KS01LGT) || defined(CONFIG_MACH_JACTIVESKT)\
-		|| defined(CONFIG_MACH_JS01LTEDCM) || defined(CONFIG_MACH_JS01LTESBM)
-	if(enable)
-		mipi_samsung_disp_send_cmd(PANEL_TOUCHSENSING_ON, true);
-#else
 	if(enable)
 		mipi_samsung_disp_send_cmd(PANEL_TOUCHSENSING_ON, true);
 	else
 		mipi_samsung_disp_send_cmd(PANEL_TOUCHSENSING_OFF, true);
-#endif
 }
-#endif
+
 static int mdss_dsi_panel_registered(struct mdss_panel_data *pdata)
 {
 	struct mdss_dsi_ctrl_pdata *ctrl_pdata = NULL;
@@ -2676,24 +2212,6 @@ static int mdss_dsi_panel_dimming_init(struct mdss_panel_data *pdata)
 
 	if (!msd.dstat.is_smart_dim_loaded) {
 		switch (msd.panel) {
-#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_WVGA_S6E88A0_PT_PANEL)
-			case PANEL_WVGA_OCTA_S6E88A0:
-				msd.sdimconf = smart_S6E88A0_get_conf();
-				break;
-#elif defined(CONFIG_FB_MSM_MDSS_MAGNA_OCTA_VIDEO_720P_PT_PANEL)\
-	|| defined(CONFIG_FB_MSM_MDSS_SAMSUNG_OCTA_VIDEO_720P_PT_PANEL)
-			case PANEL_720P_OCTA_S6E8AA4_VIDEO:
-				msd.sdimconf = smart_S6E8AA4_get_conf();
-				break;
-			case PANEL_720P_OCTA_EA8061_VIDEO:
-#if defined(CONFIG_FB_MSM_MDSS_SAMSUNG_OCTA_VIDEO_720P_PT_PANEL)
-				msd.sdimconf = smart_S6E8AA4_get_conf();
-				break;
-#else
-				msd.sdimconf = smart_S6E8FA0_get_conf();
-				break;
-#endif
-#else
 			case PANEL_1080P_OCTA_S6E8FA0:
 			case PANEL_720P_OCTA_D53D6EA8061V:
 			case PANEL_720P_OCTA_S6E8AA0:
@@ -2707,14 +2225,11 @@ static int mdss_dsi_panel_dimming_init(struct mdss_panel_data *pdata)
 			case PANEL_1080P_YOUM_S6E3FA1_CMD:
 				msd.sdimconf = smart_S6E3FA0_get_conf();
 				break;
-#endif
 		}
 
 		/* Just a safety check to ensure smart dimming data is initialised well */
 		BUG_ON(msd.sdimconf == NULL);
-#if defined(CONFIG_FB_MSM_MDSS_MAGNA_OCTA_VIDEO_720P_PANEL)
-	mipi_samsung_disp_send_cmd(PANEL_MTP_ENABLE, true);
-#endif
+
 		/* Set the mtp read buffer pointer and read the NVM value*/
 		mipi_samsung_read_nv_mem(pdata, &nv_mtp_read_cmds, msd.sdimconf->mtp_buffer);
 
@@ -2768,14 +2283,6 @@ static int mdss_dsi_panel_dimming_init(struct mdss_panel_data *pdata)
 		msd.dstat.is_smart_dim_loaded = true;
 
 #if defined(HBM_RE)
-#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_HD_PANEL)
-		mipi_samsung_read_nv_mem(pdata, &nv_mtp_hbm_read_cmds, hbm_buffer);
-		memcpy(&hbm_gamma_cmds_list.cmd_desc[1].payload[1], hbm_buffer, 21);
-		mipi_samsung_read_nv_mem(pdata, &nv_mtp_hbm2_read_cmds, hbm_buffer);
-		memcpy(&hbm_etc_cmds_list.cmd_desc[3].payload[18], hbm_buffer, 1);
-		mipi_samsung_read_nv_mem(pdata, &nv_mtp_hbm3_read_cmds, hbm_buffer);
-		memcpy(&hbm_hbm_off_elvss_cmds.cmd_desc[5].payload[18], hbm_buffer, 1);
-#else
 		/* Read mtp (C8h 34th ~ 40th) for HBM */
 		mipi_samsung_read_nv_mem(pdata, &nv_mtp_hbm_read_cmds, hbm_buffer);
 		memcpy(&hbm_gamma_cmds_list.cmd_desc[0].payload[1], hbm_buffer, 6);
@@ -2796,7 +2303,6 @@ static int mdss_dsi_panel_dimming_init(struct mdss_panel_data *pdata)
 		/* for rev I panel */
 		mipi_samsung_read_nv_mem(pdata, &nv_mtp_hbm2_read_cmds, hbm_buffer);
 		memcpy(&hbm_gamma_cmds_list.cmd_desc[0].payload[7], hbm_buffer, 15);
-#endif
 #elif defined(CONFIG_HBM_PSRE)
 		/* Read mtp (B5h 13th ~ 18th) for HBM Write Gamma ( CAh 1st ~ 6th )*/
 		mipi_samsung_read_nv_mem(pdata, &nv_mtp_hbm_read_cmds, hbm_buffer);
@@ -2841,12 +2347,7 @@ static int mdss_dsi_panel_dimming_init(struct mdss_panel_data *pdata)
 		 * Since dimming is loaded, we can assume that device is out of suspend state
 		 * and can accept backlight commands.
 		 */
-#if defined(CONFIG_FB_MSM_MDSS_SAMSUNG_OCTA_VIDEO_720P_PT_PANEL)
-	if(!msd.dstat.recovery_boot_mode)
 		msd.mfd->resume_state = MIPI_RESUME_STATE;
-#else
-		msd.mfd->resume_state = MIPI_RESUME_STATE;
-#endif
 	}
 
 #if defined(CONFIG_MDNIE_LITE_TUNING)
@@ -2859,40 +2360,13 @@ static int mdss_dsi_panel_dimming_init(struct mdss_panel_data *pdata)
 		msd.dstat.is_mdnie_loaded = true;
 	}
 #endif
-#if defined(CONFIG_FB_MSM_MDSS_MAGNA_OCTA_VIDEO_720P_PANEL)
-	mipi_samsung_disp_send_cmd(PANEL_MTP_DISABLE, true);
-#endif
 	return 0;
 }
-
-
-#if defined(CONFIG_MIPI_LCD_S6E3FA0_FORCE_VIDEO_MODE)
-void force_dsi_video_mode(struct mdss_panel_common_pdata *panel_data){
-	int i = 0;
-
-	struct mipi_panel_info *mipi;
-
-	mipi  = &pinfo->mipi;
-
-	/* Configure Panel for VIDEO mode (F2 Command) */
-	for(;i <  display_qcom_on_cmds.num_of_cmds; i++){
-		if (display_qcom_on_cmds.cmd_desc[i].payload[0] == 0xF2) {
-			display_qcom_on_cmds.cmd_desc[i].payload[1] = 0x02;
-			break;
-		}
-	}
-	pinfo->mipi.mode = DSI_VIDEO_MODE;
-	mipi->dst_format = DSI_VIDEO_DST_FORMAT_RGB888;
-	LCD_DEBUG("<<<<<<<<<<<VIDEO MODE Enforced for S6E8FA0>>>>>>>>\n");
-}
-#endif
 
 #if defined(CONFIG_DUAL_LCD)
 struct mdss_panel_data *mdss_dsi_switching = NULL;
 #endif
-#if defined(CONFIG_MDNIE_LITE_TUNING) \
-	&& !defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_WVGA_S6E88A0_PT_PANEL) \
-	&& !defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_FULL_HD_PT_PANEL)
+#if defined(CONFIG_MDNIE_LITE_TUNING)
 static bool dsi_first_init = true;
 #endif
 
@@ -2906,7 +2380,7 @@ static int mdss_dsi_panel_on(struct mdss_panel_data *pdata)
 #endif
 
 	if (pdata == NULL) {
-		pr_err("%s: Invalid input data\n", __func__);
+		pr_err("%s: invalid input data\n", __func__);
 		return -EINVAL;
 	}
 
@@ -2933,8 +2407,7 @@ static int mdss_dsi_panel_on(struct mdss_panel_data *pdata)
 }
 #endif
 
-	pr_info("mdss_dsi_panel_on DSI_MODE = %d ++\n",mipi->mode);
-	pr_debug("%s: ctrl=%p ndx=%d\n", __func__, ctrl, ctrl->ndx);
+	pr_info("%s: DSI_MODE = %d ++\n", __func__, mipi->mode);
 
 	if (!msd.manufacture_id)
 		msd.manufacture_id = mipi_samsung_manufacture_id(pdata);
@@ -2944,7 +2417,7 @@ static int mdss_dsi_panel_on(struct mdss_panel_data *pdata)
 #ifdef LDI_FPS_CHANGE
 	/* Restore current ldi_fps register value to OTP value because of ldi reset */
 	current_ldi_fps = current_ldi_fps_otp;
-	pr_info("%s:ldi_fps register value = 0x%x\n", __func__, current_ldi_fps);
+	pr_info("%s: ldi_fps register value = 0x%x\n", __func__, current_ldi_fps);
 #endif
 
 	mipi_samsung_disp_send_cmd(PANEL_READY_TO_ON, true);
@@ -2960,52 +2433,25 @@ static int mdss_dsi_panel_on(struct mdss_panel_data *pdata)
 	msd.dstat.curr_acl_idx = -1;
 	msd.dstat.curr_aid_idx = -1;
 	msd.dstat.hbm_mode = 0;
-#if !defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_WVGA_S6E88A0_PT_PANEL)
 	msd.dstat.on = 1;
-#endif
 	msd.dstat.wait_disp_on = 1;
 	msd.mfd->resume_state = MIPI_RESUME_STATE;
 #ifdef LDI_ADJ_VDDM_OFFSET
 	mipi_samsung_disp_send_cmd(PANEL_LDI_SET_VDDM_OFFSET, true);
 #endif
-
 #if defined(CONFIG_MDNIE_LITE_TUNING)
-#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_WVGA_S6E88A0_PT_PANEL) \
-	|| defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_FULL_HD_PT_PANEL)
-	is_negative_on();
-#else
 	if (!dsi_first_init)
 		is_negative_on();
 	else
 		dsi_first_init = false;
 #endif
-#endif
-
 #if defined(PARTIAL_UPDATE)
 	if (partial_disp_range[0] || partial_disp_range[1])
 		mipi_samsung_disp_send_cmd(PANEL_PARTIAL_ON, true);
 #endif
-
-#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_WVGA_S6E88A0_PT_PANEL)
-	mipi_samsung_disp_send_cmd(PANEL_DISPLAY_ON, true);
-#endif
-
-	pr_info("mdss_dsi_panel_on--\n");
-
-#if defined(CONFIG_DUAL_LCD)
-	mipi_samsung_disp_send_cmd(PANEL_BRIGHT_CTRL, true);
-#else
-	msd.dstat.bright_level = msd.dstat.recent_bright_level;
-	mipi_samsung_disp_send_cmd(PANEL_BRIGHT_CTRL, true);
-#endif
-
 #if defined(CONFIG_DUAL_LCD)
 	msd.lcd_panel_cmds = 0;
 #endif
-#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_WVGA_S6E88A0_PT_PANEL)
-	msd.dstat.on = 1;
-#endif
-
 #if defined(CONFIG_ESD_ERR_FG_RECOVERY)
 	if(err_fg_enable)
 	{
@@ -3020,6 +2466,8 @@ static int mdss_dsi_panel_on(struct mdss_panel_data *pdata)
 		enable_irq(gpio_to_irq(lcd_crack_gpio));
 	}
 #endif
+	pr_info("%s: done\n", __func__);
+
 	return 0;
 }
 
@@ -3034,14 +2482,12 @@ static int mdss_dsi_panel_off(struct mdss_panel_data *pdata)
 #endif
 
 	if (pdata == NULL) {
-		pr_err("%s: Invalid input data\n", __func__);
+		pr_err("%s: invalid input data\n", __func__);
 		return -EINVAL;
 	}
 
-	pr_info("mdss_dsi_panel_off ++\n");
 	ctrl = container_of(pdata, struct mdss_dsi_ctrl_pdata,
 				panel_data);
-	pr_debug("%s: ctrl=%p ndx=%d\n", __func__, ctrl, ctrl->ndx);
 
 	mipi  = &pdata->panel_info.mipi;
 
@@ -3063,11 +2509,10 @@ static int mdss_dsi_panel_off(struct mdss_panel_data *pdata)
 
 	mipi_samsung_disp_send_cmd(PANEL_DISP_OFF, true);
 
-	pr_info("mdss_dsi_panel_off --\n");
-
 #if defined(CONFIG_DUAL_LCD)
 	msd.lcd_panel_cmds = 0;
 #endif
+	pr_info("%s: done\n", __func__);
 
 	return 0;
 }
@@ -3214,107 +2659,106 @@ error:
 static int mdss_samsung_parse_panel_cmd(struct device_node *np,
 		struct dsi_cmd *commands, char *keystring)
 {
+	const char *data;
+	int type, len = 0, i = 0;
+	char *bp;
+	struct dsi_ctrl_hdr *dchdr;
+	int is_read = 0;
 
-		const char *data;
-		int type, len = 0, i = 0;
-		char *bp;
-		struct dsi_ctrl_hdr *dchdr;
-		int is_read = 0;
+	data = of_get_property(np, keystring, &len);
+	if (!data) {
+		pr_err("%s:%d, Unable to read %s",
+			__func__, __LINE__, keystring);
+		return -ENOMEM;
+	}
 
-		data = of_get_property(np, keystring, &len);
-		if (!data) {
-			pr_err("%s:%d, Unable to read %s",
-				__func__, __LINE__, keystring);
-			return -ENOMEM;
+	commands->cmds_buff = kzalloc(sizeof(char) * len, GFP_KERNEL);
+	if (!commands->cmds_buff)
+		return -ENOMEM;
+
+	memcpy(commands->cmds_buff, data, len);
+	commands->cmds_len = len;
+
+	/* scan dcs commands */
+	bp = commands->cmds_buff;
+	while (len > sizeof(*dchdr)) {
+		dchdr = (struct dsi_ctrl_hdr *)bp;
+		dchdr->dlen = ntohs(dchdr->dlen);
+
+	if (dchdr->dlen >200)
+		goto error2;
+
+		bp += sizeof(*dchdr);
+		len -= sizeof(*dchdr);
+		bp += dchdr->dlen;
+		len -= dchdr->dlen;
+		commands->num_of_cmds++;
+
+		type = dchdr->dtype;
+		if (type == DTYPE_GEN_READ ||
+			type == DTYPE_GEN_READ1 ||
+			type == DTYPE_GEN_READ2 ||
+			type == DTYPE_DCS_READ)	{
+			/* Read command :last byte contain read size, read start */
+			bp += 2;
+			len -= 2;
+			is_read = 1;
 		}
+	}
 
-		commands->cmds_buff = kzalloc(sizeof(char) * len, GFP_KERNEL);
-		if (!commands->cmds_buff)
-			return -ENOMEM;
+	if (len != 0) {
+		pr_err("%s: dcs OFF command byte Error, len=%d", __func__, len);
+		commands->cmds_len = 0;
+		commands->num_of_cmds = 0;
+		goto error2;
+	}
 
-		memcpy(commands->cmds_buff, data, len);
-		commands->cmds_len = len;
-
-		/* scan dcs commands */
-		bp = commands->cmds_buff;
-		while (len > sizeof(*dchdr)) {
-			dchdr = (struct dsi_ctrl_hdr *)bp;
-			dchdr->dlen = ntohs(dchdr->dlen);
-
-		if (dchdr->dlen >200)
+	if (is_read) {
+		/*
+			Allocate an array which will store the number
+			for bytes to read for each read command
+		*/
+		commands->read_size = kzalloc(sizeof(char) * \
+				commands->num_of_cmds, GFP_KERNEL);
+		if (!commands->read_size) {
+			pr_err("%s:%d, Unable to read NV cmds",
+				__func__, __LINE__);
 			goto error2;
-
-			bp += sizeof(*dchdr);
-			len -= sizeof(*dchdr);
-			bp += dchdr->dlen;
-			len -= dchdr->dlen;
-			commands->num_of_cmds++;
-
-			type = dchdr->dtype;
-			if (type == DTYPE_GEN_READ ||
-				type == DTYPE_GEN_READ1 ||
-				type == DTYPE_GEN_READ2 ||
-				type == DTYPE_DCS_READ)	{
-				/* Read command :last byte contain read size, read start */
-				bp += 2;
-				len -= 2;
-				is_read = 1;
-			}
 		}
-
-		if (len != 0) {
-			pr_err("%s: dcs OFF command byte Error, len=%d", __func__, len);
-			commands->cmds_len = 0;
-			commands->num_of_cmds = 0;
-			goto error2;
-		}
-
-		if (is_read) {
-			/*
-				Allocate an array which will store the number
-				for bytes to read for each read command
-			*/
-			commands->read_size = kzalloc(sizeof(char) * \
-					commands->num_of_cmds, GFP_KERNEL);
-			if (!commands->read_size) {
-				pr_err("%s:%d, Unable to read NV cmds",
-					__func__, __LINE__);
-				goto error2;
-			}
-			commands->read_startoffset = kzalloc(sizeof(char) * \
-					commands->num_of_cmds, GFP_KERNEL);
-			if (!commands->read_startoffset) {
-				pr_err("%s:%d, Unable to read NV cmds",
-					__func__, __LINE__);
-				goto error1;
-			}
-		}
-
-		commands->cmd_desc = kzalloc(commands->num_of_cmds
-					* sizeof(struct dsi_cmd_desc),
-						GFP_KERNEL);
-		if (!commands->cmd_desc)
+		commands->read_startoffset = kzalloc(sizeof(char) * \
+				commands->num_of_cmds, GFP_KERNEL);
+		if (!commands->read_startoffset) {
+			pr_err("%s:%d, Unable to read NV cmds",
+				__func__, __LINE__);
 			goto error1;
-
-		bp = commands->cmds_buff;
-		len = commands->cmds_len;
-		for (i = 0; i < commands->num_of_cmds; i++) {
-			dchdr = (struct dsi_ctrl_hdr *)bp;
-			len -= sizeof(*dchdr);
-			bp += sizeof(*dchdr);
-			commands->cmd_desc[i].dchdr = *dchdr;
-			commands->cmd_desc[i].payload = bp;
-			bp += dchdr->dlen;
-			len -= dchdr->dlen;
-			if (is_read)
-			{
-				commands->read_size[i] = *bp++;
-				commands->read_startoffset[i] = *bp++;
-				len -= 2;
-			}
 		}
+	}
 
-		return 0;
+	commands->cmd_desc = kzalloc(commands->num_of_cmds
+				* sizeof(struct dsi_cmd_desc),
+					GFP_KERNEL);
+	if (!commands->cmd_desc)
+		goto error1;
+
+	bp = commands->cmds_buff;
+	len = commands->cmds_len;
+	for (i = 0; i < commands->num_of_cmds; i++) {
+		dchdr = (struct dsi_ctrl_hdr *)bp;
+		len -= sizeof(*dchdr);
+		bp += sizeof(*dchdr);
+		commands->cmd_desc[i].dchdr = *dchdr;
+		commands->cmd_desc[i].payload = bp;
+		bp += dchdr->dlen;
+		len -= dchdr->dlen;
+		if (is_read)
+		{
+			commands->read_size[i] = *bp++;
+			commands->read_startoffset[i] = *bp++;
+			len -= 2;
+		}
+	}
+
+	return 0;
 
 error1:
 	kfree(commands->read_size);
@@ -3394,7 +2838,6 @@ int mdss_panel_get_dst_fmt(u32 bpp, char mipi_mode, u32 pixel_packing,
 static void mdss_panel_parse_te_params(struct device_node *np,
 				       struct mdss_panel_info *panel_info)
 {
-
 	u32 tmp;
 	int rc = 0;
 	/*
@@ -3426,6 +2869,7 @@ static void mdss_panel_parse_te_params(struct device_node *np,
 	panel_info->te.refx100 = (!rc ? tmp : 6000);
 }
 #endif
+
 static int mdss_dsi_parse_dcs_cmds(struct device_node *np,
 		struct dsi_panel_cmds *pcmds, char *cmd_key, char *link_key)
 {
@@ -3884,14 +3328,6 @@ static int mdss_panel_parse_dt(struct device_node *np,
 				"samsung,panel-nv-mtp-read-hbm2-cmds");
 	mdss_samsung_parse_panel_cmd(np, &hbm_etc_cmds_list,
 					"samsung,panel-etc-hbm-cmds");
-#if defined(CONFIG_FB_MSM_MDSS_SAMSUNG_OCTA_VIDEO_720P_PT_PANEL)\
-	|| defined(CONFIG_FB_MSM_MDSS_MAGNA_OCTA_VIDEO_720P_PANEL)\
-	|| defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_HD_PANEL)
-	mdss_samsung_parse_panel_cmd(np, &nv_mtp_hbm3_read_cmds,
-				"samsung,panel-nv-mtp-read-hbm3-cmds");
-	mdss_samsung_parse_panel_cmd(np, &hbm_hbm_off_elvss_cmds,
-					"samsung,panel-hbm-off-elvss-cmds");
-#endif
 	mdss_samsung_parse_panel_cmd(np, &hbm_etc_cmds_evt0_second_list,
 					"samsung,panel-etc-hbm-evt0-second-cmds");
 	mdss_samsung_parse_panel_cmd(np, &hbm_etc_cmds_evt1_list,
@@ -3944,12 +3380,6 @@ static int mdss_panel_parse_dt(struct device_node *np,
 	mdss_samsung_parse_panel_cmd(np, &write_vddm_offset_cmds,
 				"samsung,panel-ldi-vddm-offset-write-cmds");
 #endif
-#if defined(CONFIG_FB_MSM_MDSS_MAGNA_OCTA_VIDEO_720P_PT_PANEL)
-	mdss_samsung_parse_panel_cmd(np, &magna_read_pos_cmds,
-				"magna,panel-read-pos-cmds");
-	mdss_samsung_parse_panel_cmd(np, &magna_read_run_cmds,
-				"magna,panel-read-run-cmds");
-#endif
 	mdss_samsung_parse_panel_cmd(np, &display_on_cmd,
 				"qcom,panel-display-on-cmds");
 	mdss_samsung_parse_panel_cmd(np, &display_off_cmd,
@@ -3967,7 +3397,7 @@ static int mdss_panel_parse_dt(struct device_node *np,
 	mdss_samsung_parse_panel_cmd(np, &aclcont_cmds_list,
 				"samsung,panel-aclcont-cmds-list");
 #endif
-#if defined(TEMPERATURE_ELVSS_S6E3FA0) || defined(TEMPERATURE_ELVSS_S6E8AA4)
+#if defined(TEMPERATURE_ELVSS_S6E3FA0)
 	mdss_samsung_parse_panel_cmd(np, &elvss_lowtemp_cmds_list,
 			"samsung,panel-elvss-lowtemp-cmds-list");
 #endif
@@ -4005,7 +3435,7 @@ static int mdss_panel_parse_dt(struct device_node *np,
 				"samsung,panel-smart-acl-elvss-map-table");
 #endif
 #if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_CMD_FULL_HD_PT_PANEL)
-	 mdss_panel_parse_te_params(np, pinfo);
+	mdss_panel_parse_te_params(np, pinfo);
 #endif
 	/* Process the lux value table */
 	mdss_samsung_parse_candella_lux_mapping_table(np, &candela_map_table,
@@ -4014,12 +3444,10 @@ static int mdss_panel_parse_dt(struct device_node *np,
 				"samsung,panel-candella-mapping-table-350");
 
 	/* Process touch sensing */
-#if !defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_WVGA_S6E88A0_PT_PANEL)
 	mdss_samsung_parse_panel_cmd(np, &touchsensing_on_cmd,
 				"qcom,panel-touchsensing-on-cmds");
 	mdss_samsung_parse_panel_cmd(np, &touchsensing_off_cmd,
 				"qcom,panel-touchsensing-off-cmds");
-#endif
 
 #if defined(PARTIAL_UPDATE)
 	mdss_samsung_parse_panel_cmd(np, &partialdisp_on_cmd,
@@ -4031,16 +3459,7 @@ static int mdss_panel_parse_dt(struct device_node *np,
 	mdss_samsung_parse_panel_cmd(np, &force_500,
 				"samsung,panel-force-500cd-cmds");
 #endif
-#if defined(CONFIG_FB_MSM_MDSS_MAGNA_OCTA_VIDEO_720P_PANEL)\
-	|| defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_HD_PANEL)
-	mdss_samsung_parse_panel_cmd(np, &test_key_enable_cmds,
-		"samsung,panel-test-key-enable-cmds");
-	mdss_samsung_parse_panel_cmd(np, &test_key_disable_cmds,
-		"samsung,panel-test-key-disable-cmds");
-#endif
 	return 0;
-
-	return -EINVAL;
 }
 
 #if defined(CONFIG_HAS_EARLYSUSPEND)
@@ -4067,15 +3486,8 @@ static int is_panel_supported(const char *panel_name)
 	if (panel_name == NULL)
 		return -EINVAL;
 
-#if defined(CONFIG_FB_MSM_MIPI_MAGNA_OCTA_VIDEO_720P_PT_PANEL)\
-		|| defined(CONFIG_FB_MSM_MIPI_S6E8AA0A_720P_PT_PANEL)\
-		|| defined(CONFIG_FB_MSM_MDSS_MSM8X26)
-	if(!of_machine_is_compatible("qcom,msm8226-mtp"))
-		return -EINVAL;
-#else
 	if(!of_machine_is_compatible("qcom,msm8974-cdp"))
 		return -EINVAL;
-#endif
 
 	while(panel_supp_cdp[i].name != NULL)	{
 		if(!strcmp(panel_name,panel_supp_cdp[i].name))
@@ -4289,14 +3701,14 @@ static int samsung_dsi_panel_event_handler(int event)
 {
 	switch (event) {
 		case MDSS_EVENT_FRAME_UPDATE:
-			if(msd.dstat.wait_disp_on) {
+			if (msd.dstat.wait_disp_on) {
 				mipi_samsung_disp_send_cmd(PANEL_DISPLAY_ON, true);
+				mipi_samsung_disp_send_cmd(PANEL_BRIGHT_CTRL, true);
 				msd.dstat.wait_disp_on = 0;
-				pr_info("[jc] [dsi event] %d: FRAME_UPDATE + wait_disp_on\n", event);
+				pr_info("[jc] [dsi event] %d: FRAME_UPDATE, wait_disp_on = 1 (sending PANEL_DISPLAY_ON + PANEL_BRIGHT_CTRL)\n", event);
 			}
 			break;
-#if defined(CONFIG_MDNIE_LITE_TUNING) \
-	&& !defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_WVGA_S6E88A0_PT_PANEL)
+#if defined(CONFIG_MDNIE_LITE_TUNING)
 		case MDSS_EVENT_MDNIE_DEFAULT_UPDATE:
 			is_negative_on();
 			pr_info("[jc] [dsi event] %d: MDNIE_DEFAULT_UPDATE + is_negative_on()\n", event);
@@ -4347,7 +3759,7 @@ static struct attribute *panel_sysfs_attributes[] = {
 	&dev_attr_window_type.attr,
 	&dev_attr_power_reduce.attr,
 	&dev_attr_siop_enable.attr,
-#if defined(TEMPERATURE_ELVSS) || defined(TEMPERATURE_ELVSS_S6E3FA0) || defined(TEMPERATURE_ELVSS_S6E8AA4)
+#if defined(TEMPERATURE_ELVSS) || defined(TEMPERATURE_ELVSS_S6E3FA0)
 	&dev_attr_temperature.attr,
 #endif
 #if defined(PARTIAL_UPDATE)
