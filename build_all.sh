@@ -24,8 +24,7 @@ RDIR=$(pwd)
 VER=6.5
 
 # output directory of flashable kernel
-OUT_DIR_ENFORCING="/media/vboxshared/builds/note5port/v"$VER"_"$(date +'%Y_%m_%d')
-OUT_DIR_PERMISSIVE="/media/vboxshared/builds/note5port/selinux_permissive/v"$VER"_"$(date +'%Y_%m_%d')
+OUT_DIR="/media/vboxshared/builds/note5port/v"$VER"_"$(date +'%Y_%m_%d')
 
 # should we make a TWRP flashable zip? (1 = yes, 0 = no)
 MAKE_ZIP=1
@@ -64,10 +63,8 @@ CLEAN_BUILD()
 	echo "Removing old boot.img..."
 	rm -f ik.zip/boot.img
 	echo "Removing old zip/tar.md5 files..."
-	rm -f $OUT_DIR_ENFORCING/$OUT_NAME.zip
-	rm -f $OUT_DIR_ENFORCING/$OUT_NAME.tar.md5
-	rm -f $OUT_DIR_PERMISSIVE/$OUT_NAME.zip
-	rm -f $OUT_DIR_PERMISSIVE/$OUT_NAME.tar.md5
+	rm -f $OUT_DIR/$OUT_NAME.zip
+	rm -f $OUT_DIR/$OUT_NAME.tar.md5
 }
 
 BUILD_KERNEL()
@@ -129,8 +126,7 @@ CREATE_TAR()
 	cd $RDIR
 }
 
-mkdir -p $OUT_DIR_ENFORCING
-mkdir -p $OUT_DIR_PERMISSIVE
+mkdir -p $OUT_DIR
 
 for V in $RDIR/ik.ramdisk/variant/*
 do
@@ -141,13 +137,6 @@ do
 		echo "Device variant/carrier $VARIANT not found in arm configs!"
 		continue
 	elif CLEAN_BUILD && BUILD_KERNEL && BUILD_RAMDISK; then
-		OUT_DIR=$OUT_DIR_ENFORCING
-		SELINUX="enforcing"
-		BUILD_BOOT_IMG
-		if [ $MAKE_ZIP -eq 1 ]; then CREATE_ZIP; fi
-		if [ $MAKE_TAR -eq 1 ]; then CREATE_TAR; fi
-		OUT_DIR=$OUT_DIR_PERMISSIVE
-		SELINUX="permissive"
 		BUILD_BOOT_IMG
 		if [ $MAKE_ZIP -eq 1 ]; then CREATE_ZIP; fi
 		if [ $MAKE_TAR -eq 1 ]; then CREATE_TAR; fi
