@@ -14,7 +14,7 @@
  * GNU General Public License for more details.
  */
 
-#define pr_fmt(fmt)	"%s: " fmt, __func__
+#define pr_fmt(fmt) "%s: " fmt, __func__
 
 #include <linux/bootmem.h>
 #include <linux/console.h>
@@ -112,7 +112,7 @@ void mdss_fb_no_update_notify_timer_cb(unsigned long data)
 {
 	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)data;
 	if (!mfd) {
-		pr_err("%s mfd NULL\n", __func__);
+		pr_err("mfd NULL\n");
 		return;
 	}
 	mfd->no_update.value = NOTIFY_TYPE_NO_UPDATE;
@@ -122,7 +122,7 @@ void mdss_fb_no_update_notify_timer_cb(unsigned long data)
 void mdss_fb_bl_update_notify(struct msm_fb_data_type *mfd)
 {
 	if (!mfd) {
-		pr_err("%s mfd NULL\n", __func__);
+		pr_err("mfd NULL\n");
 		return;
 	}
 	mutex_lock(&mfd->update.lock);
@@ -152,7 +152,7 @@ static int mdss_fb_notify_update(struct msm_fb_data_type *mfd,
 
 	ret = copy_from_user(&notify, argp, sizeof(unsigned long));
 	if (ret) {
-		pr_err("%s:ioctl failed\n", __func__);
+		pr_err("ioctl failed\n");
 		return ret;
 	}
 
@@ -286,7 +286,7 @@ static ssize_t csc_write_cfg(struct device *dev,
 
 	csc_update = !!(u8)mode;
 
-	pr_info("%s: csc ctrl set to %d \n", __func__, mode);
+	pr_info("csc ctrl set to %d\n", mode);
 
 	return ret;
 }
@@ -310,13 +310,12 @@ int mdp4_reg_csc_fs(struct msm_fb_data_type *mfd)
 	ret = sysfs_create_group(&dev->kobj,
 		&csc_fs_attr_group);
 	if (ret) {
-		pr_err("%s: sysfs group creation failed, ret=%d\n",
-		       __func__, ret);
+		pr_err("sysfs group creation failed, ret=%d\n", ret);
 		return ret;
 	}
 
 	kobject_uevent(&dev->kobj, KOBJ_ADD);
-	pr_info("%s: kobject_uevent(KOBJ_ADD)\n", __func__);
+	pr_info("kobject_uevent(KOBJ_ADD)\n");
 	return ret;
 }
 #endif
@@ -515,7 +514,7 @@ static ssize_t mdss_set_rgb(struct device *dev,
 	if (b < 0 || b > 32768)
 		return -EINVAL;
 
-	pr_info("%s: r=%d g=%d b=%d", __func__, r, g, b);
+	pr_info("r=%d g=%d b=%d", r, g, b);
 
 	memset(&pcc_cfg, 0, sizeof(struct mdp_pcc_cfg_data));
 
@@ -1034,13 +1033,11 @@ static void mdss_fb_scale_bl(struct msm_fb_data_type *mfd, u32 *bl_lvl)
 	pr_debug("input = %d, scale = %d", temp, mfd->bl_scale);
 	if (temp >= mfd->bl_min_lvl) {
 		if (temp > mfd->panel_info->bl_max) {
-			pr_warn("%s: invalid bl level\n",
-				__func__);
+			pr_warn("invalid bl level\n");
 			temp = mfd->panel_info->bl_max;
 		}
 		if (mfd->bl_scale > 1024) {
-			pr_warn("%s: invalid bl scale\n",
-				__func__);
+			pr_warn("invalid bl scale\n");
 			mfd->bl_scale = 1024;
 		}
 		/*
@@ -1171,13 +1168,6 @@ static int mdss_fb_blank_sub(int blank_mode, struct fb_info *info,
 				schedule_delayed_work(&mfd->idle_notify_work,
 					msecs_to_jiffies(mfd->idle_time));
 		}
-
-		mutex_lock(&mfd->bl_lock);
-		if (!mfd->bl_updated) {
-			mfd->bl_updated = 1;
-			mdss_fb_set_backlight(mfd, mfd->bl_level_prev_scaled);
-		}
-		mutex_unlock(&mfd->bl_lock);
 		break;
 
 	case FB_BLANK_VSYNC_SUSPEND:
@@ -1218,8 +1208,8 @@ static int mdss_fb_blank_sub(int blank_mode, struct fb_info *info,
 	/* Notify listeners */
 	sysfs_notify(&mfd->fbi->dev->kobj, NULL, "show_blank_event");
 
-	pr_info("FB_NUM:%d, MDSS_FB_%s -- \n", mfd->panel_info->fb_num,
-			blank_mode ? "BLANK": "UNBLANK");
+	pr_info("done (fb_num = %d, blank_mode = MDSS_FB_%s)\n",
+		mfd->panel_info->fb_num, blank_mode ? "BLANK": "UNBLANK");
 
 	return ret;
 }
@@ -1590,7 +1580,7 @@ static int mdss_fb_alloc_fbmem_iommu(struct msm_fb_data_type *mfd, int dom)
 		of_node_put(fbmem_pnode);
 	}
 
-	pr_debug("%s frame buffer reserve_size=0x%zx\n", __func__, size);
+	pr_debug("frame buffer reserve_size=0x%zx\n", size);
 
 	if (size < PAGE_ALIGN(mfd->fbi->fix.line_length *
 			      mfd->fbi->var.yres_virtual))
@@ -2082,8 +2072,8 @@ static void mdss_fb_power_setting_idle(struct msm_fb_data_type *mfd)
 		if (ret < 0)
 			ret = -ERESTARTSYS;
 		else if (!ret)
-			pr_err("%s wait for power_set_comp timeout %d %d",
-				__func__, ret, mfd->is_power_setting);
+			pr_err("wait for power_set_comp timeout %d %d",
+				ret, mfd->is_power_setting);
 		if (ret <= 0) {
 			mfd->is_power_setting = false;
 			complete_all(&mfd->power_set_comp);
@@ -2450,7 +2440,7 @@ static int __mdss_fb_display_thread(void *data)
 				 kthread_should_stop()));
 
 		if (ret) {
-			pr_info("%s: interrupted", __func__);
+			pr_info("interrupted");
 			continue;
 		}
 
@@ -2918,7 +2908,7 @@ static int mdss_fb_display_commit(struct fb_info *info,
 	ret = copy_from_user(&disp_commit, argp,
 			sizeof(disp_commit));
 	if (ret) {
-		pr_err("%s:copy_from_user failed", __func__);
+		pr_err("copy_from_user failed");
 		return ret;
 	}
 	ret = mdss_fb_pan_display_ex(info, &disp_commit);
@@ -3027,7 +3017,7 @@ static int mdss_fb_ioctl(struct fb_info *info, unsigned int cmd,
 	case MSMFB_LPM_ENABLE:
 		ret = copy_from_user(&dsi_mode, argp, sizeof(dsi_mode));
 		if (ret) {
-			pr_err("%s: MSMFB_LPM_ENABLE ioctl failed\n", __func__);
+			pr_err("MSMFB_LPM_ENABLE ioctl failed\n");
 			goto exit;
 		}
 
