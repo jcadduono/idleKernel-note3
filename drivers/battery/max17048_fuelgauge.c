@@ -143,12 +143,12 @@ static bool max17048_set_modeldata(struct i2c_client *client)
 		config[1] = temp & 0xff;
 		config[0] = (temp & 0xff00) >> 8;
 
-		pr_info("%s : fuelguage : OriginalRCOMP = 0x%x, OriginalAlert = 0x%x\n",
+		pr_debug("%s : fuelguage : OriginalRCOMP = 0x%x, OriginalAlert = 0x%x\n",
 			__func__, config[1], config[0]);
 
 		addr = 0x0E;
 		read_ocv = max17048_read_word(client, addr);
-		pr_info("%s : fuelguage : OCV_DATA = 0x%4x\n", __func__,  read_ocv);
+		pr_debug("%s : fuelguage : OCV_DATA = 0x%4x\n", __func__,  read_ocv);
 		/* 2-5. Verify Model Access unlocked */
 	} while((read_ocv == 0xFFFF) && (i++ < 10));
 
@@ -214,7 +214,7 @@ static bool max17048_set_modeldata(struct i2c_client *client)
 	temp = max17048_read_word(client, addr);
 	read_soc[1] = temp & 0xff;
 	read_soc[0] = (temp & 0xff00) >> 8;
-	pr_info("%s : reg = 0x%4x, SOC_DATA1 = 0x%x, SOC_DATA2 = 0x%x\n",
+	pr_debug("%s : reg = 0x%4x, SOC_DATA1 = 0x%x, SOC_DATA2 = 0x%x\n",
 		__func__, temp, read_soc[1], read_soc[0]);
 
 #if defined(CONFIG_SEC_K_PROJECT)
@@ -243,7 +243,7 @@ static bool max17048_set_modeldata(struct i2c_client *client)
 		config[1] = get_battery_data(fuelgauge).RCOMP0;
 
 	data = (0x1C | (config[1] & 0xff) << 8);
-	pr_info("%s : RCOMP(0x%4x) is applied\n", __func__, data);
+	pr_debug("%s : RCOMP(0x%4x) is applied\n", __func__, data);
 	max17048_write_word(client, addr, swab16(data));
 
 	addr = 0x0E;
@@ -251,7 +251,7 @@ static bool max17048_set_modeldata(struct i2c_client *client)
 
 	read_ocv = 0;
 	read_ocv = max17048_read_word(client, addr);
-	pr_info("%s : OCV_DATA = 0x%4x\n", __func__, read_ocv);
+	pr_debug("%s : OCV_DATA = 0x%4x\n", __func__, read_ocv);
 
 	/* 11. Lock Model Acess */
 	addr = 0x3E;
@@ -387,7 +387,7 @@ static int max17048_get_soc(struct i2c_client *client)
 		soc = (data[0] * 100) + (data[1] * 100 / 256);
 	}
 
-	dev_info(&client->dev,
+	dev_dbg(&client->dev,
 		"%s : raw capacity (%d), data(0x%04x)\n",
 		__func__, soc, (data[0]<<8) | data[1]);
 
@@ -458,7 +458,7 @@ static int max17048_get_current_average(struct i2c_client *client)
 			((value_chg.intval < 1000) ||
 			((value_bat.intval == POWER_SUPPLY_HEALTH_OVERHEAT) ||
 			(value_bat.intval == POWER_SUPPLY_HEALTH_COLD)))) {
-		pr_info("%s: SOC(%d), Vnow(%d), Inow(%d)\n",
+		pr_debug("%s: SOC(%d), Vnow(%d), Inow(%d)\n",
 			__func__, soc, vcell, value_chg.intval);
 		curr_avg = -1;
 	} else {
@@ -698,7 +698,7 @@ static void fg_read_all_regs(struct i2c_client *client)
 			sprintf(str+strlen(str), "\n");
 	}
 
-	dev_info(&client->dev, "%s\n", str);
+	dev_dbg(&client->dev, "%s\n", str);
 	str[0] = '\0';
 	count = 0;
 	for (addr = 0x40; addr <= 0x7F; addr += 2) {
@@ -714,7 +714,7 @@ static void fg_read_all_regs(struct i2c_client *client)
 		if((count % 7) == 0)
 			sprintf(str+strlen(str), "\n");
 	}
-	dev_info(&client->dev, "%s\n", str);
+	dev_dbg(&client->dev, "%s\n", str);
 	str[0] = '\0';
 	count = 0;
 	for (addr = 0x80; addr <= 0x9F; addr += 2) {
@@ -731,7 +731,7 @@ static void fg_read_all_regs(struct i2c_client *client)
 			sprintf(str+strlen(str), "\n");
 	}
 	str[strlen(str)] = '\0';
-	dev_info(&client->dev, "%s\n", str);
+	dev_dbg(&client->dev, "%s\n", str);
 
 	addr1 = 0x3E;
 	data1 = 0x0000;
