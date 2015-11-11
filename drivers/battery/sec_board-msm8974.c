@@ -1704,7 +1704,7 @@ bool sec_bat_check_callback(struct sec_battery_info *battery)
 	struct power_supply *psy;
 	union power_supply_propval value;
 
-	pr_info("%s: battery->pdata->bat_irq_gpio(%d)\n",
+	pr_debug("%s: battery->pdata->bat_irq_gpio(%d)\n",
 			__func__, battery->pdata->bat_irq_gpio);
 	psy = get_power_supply_by_name(("sec-charger"));
 	if (!psy) {
@@ -1714,7 +1714,7 @@ bool sec_bat_check_callback(struct sec_battery_info *battery)
 	} else {
 		if (battery->pdata->bat_irq_gpio > 0) {
 			value.intval = !gpio_get_value(battery->pdata->bat_irq_gpio);
-				pr_info("%s: Battery status(%d)\n",
+				pr_debug("%s: Battery status(%d)\n",
 						__func__, value.intval);
 			if (value.intval == 0) {
 				return value.intval;
@@ -1744,12 +1744,12 @@ bool sec_bat_check_callback(struct sec_battery_info *battery)
 					/* check the adc from vf pin */
 					qpnp_vadc_read(NULL, P_MUX8_1_3, &result);
 					data = ((int)result.physical) / 1000;
-					pr_info("%s: (%dmV) is connected.\n",
-							__func__, data);
 					if(data < SHORT_BATTERY_STANDARD) {
-						pr_info("%s: Short Battery(%dmV) is connected.\n",
+						pr_info("%s: Short Battery (%dmV) is connected.\n",
 								__func__, data);
 						value.intval = 0;
+					} else {
+						pr_info("%s: (%dmV) is connected.\n", __func__, data);
 					}
 					ret = qpnp_pin_config(battery->pdata->bat_irq_gpio, &int_param);
 					if (ret < 0)
