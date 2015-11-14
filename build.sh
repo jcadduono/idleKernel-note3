@@ -111,8 +111,7 @@ BUILD_RAMDISK()
 	echo "Building ramdisk structure..."
 	cd $RDIR
 	mkdir -p build/ramdisk
-	cp -ar ik.ramdisk/common/* build/ramdisk
-	cp -ar ik.ramdisk/variant/$VARIANT/* build/ramdisk
+	cp -ar ik.ramdisk/common/* ik.ramdisk/variant/$VARIANT/* ik.ramdisk/$SELINUX/* build/ramdisk
 	cd $RDIR/build/ramdisk
 	mkdir -pm 755 dev proc sys system kmod
 	mkdir -pm 771 carrier data

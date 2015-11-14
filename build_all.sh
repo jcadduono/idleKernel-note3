@@ -85,9 +85,9 @@ BUILD_RAMDISK()
 {
 	echo "Building ramdisk structure..."
 	cd $RDIR
-	mkdir -p build/ramdisk
-	cp -ar ik.ramdisk/common/* build/ramdisk
-	cp -ar ik.ramdisk/variant/$VARIANT/* build/ramdisk
+	rm -rf build/ramdisk
+	mkdir build/ramdisk
+	cp -ar ik.ramdisk/common/* ik.ramdisk/variant/$VARIANT/* ik.ramdisk/$SELINUX/* build/ramdisk
 	cd $RDIR/build/ramdisk
 	mkdir -pm 755 dev proc sys system kmod
 	mkdir -pm 771 carrier data
@@ -142,14 +142,16 @@ do
 	if ! [ -f $RDIR"/arch/arm/configs/variant_hlte_"$VARIANT ] ; then
 		echo "Device variant/carrier $VARIANT not found in arm configs!"
 		continue
-	elif CLEAN_BUILD && BUILD_KERNEL && BUILD_RAMDISK; then
+	elif CLEAN_BUILD && BUILD_KERNEL; then
 		OUT_DIR=$OUT_DIR_ENFORCING
 		SELINUX="enforcing"
+		BUILD_RAMDISK
 		BUILD_BOOT_IMG
 		if [ $MAKE_ZIP -eq 1 ]; then CREATE_ZIP; fi
 		if [ $MAKE_TAR -eq 1 ]; then CREATE_TAR; fi
 		OUT_DIR=$OUT_DIR_PERMISSIVE
 		SELINUX="permissive"
+		BUILD_RAMDISK
 		BUILD_BOOT_IMG
 		if [ $MAKE_ZIP -eq 1 ]; then CREATE_ZIP; fi
 		if [ $MAKE_TAR -eq 1 ]; then CREATE_TAR; fi

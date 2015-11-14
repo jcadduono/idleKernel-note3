@@ -11,6 +11,7 @@ import /init.${ro.zygote}.rc
 import /init.trace.rc
 import /init.carrier.rc
 import /init.idlekernel.rc
+import /init.selinux.rc
 
 on early-init
     # Set init and its forked children's oom_adj.
