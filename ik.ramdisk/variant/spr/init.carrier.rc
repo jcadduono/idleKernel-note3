@@ -1,0 +1,4 @@
+on post-fs-data
+    # NFC NXP
+    chmod 0660 /dev/pn547
+    chown nfc nfc /dev/pn547
