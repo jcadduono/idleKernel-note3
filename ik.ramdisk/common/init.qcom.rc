@@ -36,32 +36,11 @@ on early-init
 on init
     # Set permissions for persist partition
     mkdir /persist 0771 system system
-    mkdir /mnt/shell/emulated 0700 shell shell
-    mkdir /storage 0550 system sdcard_r
-    mkdir /storage/emulated 0555 root root
-
-    #External storage directories
-    mkdir /mnt/media_rw/sdcard1 0700 media_rw media_rw
-    mkdir /mnt/media_rw/usbdisk 0700 media_rw media_rw
-
-    mkdir /storage/sdcard1 0700 root root
-    mkdir /storage/usbdisk 0700 root root
-
-    export EXTERNAL_STORAGE /storage/emulated/legacy
-    export SECONDARY_STORAGE /storage/sdcard1:/storage/usbdisk
-    export EMULATED_STORAGE_SOURCE /mnt/shell/emulated
-    export EMULATED_STORAGE_TARGET /storage/emulated
 
     # Support legacy paths
-    symlink /storage/emulated/legacy /sdcard
-    symlink /storage/emulated/legacy /mnt/sdcard
-    symlink /storage/emulated/legacy /storage/sdcard0
-    symlink /mnt/shell/emulated/0 /storage/emulated/legacy
-    symlink /storage/sdcard1 /extSdCard
-    symlink /storage/sdcard1 /mnt/extSdCard
-    symlink /storage/sdcard1 /external_sd
-    symlink /storage/usbdisk /usbdisk
-    symlink /storage/usbdisk /mnt/usbdisk
+    symlink /sdcard /mnt/sdcard
+    symlink /sdcard /storage/sdcard0
+
 
 on early-boot
     # set RLIMIT_MEMLOCK to 64MB
@@ -165,10 +144,7 @@ on boot
 
 # msm specific files that need to be created on /data
 on post-fs-data
-    # we will remap this as /mnt/sdcard with the sdcard fuse tool
-    mkdir /data/media 0770 media_rw media_rw
-    chown media_rw media_rw /data/media
-    
+
     mkdir /data/misc/bluetooth 0770 bluetooth bluetooth
 
     # Create the directories used by the Wireless subsystem
@@ -355,11 +331,6 @@ on post-fs-data
     chmod 0660 /dev/pn547
     chown nfc nfc /dev/pn547
 
-    #Create a folder for SRS to be able to create a usercfg file
-    mkdir /data/data/media 0770 media media
-    restorecon_recursive /data/media
-
-
 # GPIO DVS
     chown radio system /sys/class/secgpio_check/secgpio_check_all/secgpio_ctrl
 # sensor
@@ -373,6 +344,7 @@ on post-fs-data
 
 on property:init.svc.wpa_supplicant=stopped
     stop dhcpcd
+
 
 service irsc_util /system/bin/irsc_util "/etc/sec_config"
     class main
@@ -513,6 +485,7 @@ service wifi-crda /system/bin/sh /system/etc/init.crda.sh
    oneshot
 
 on property:sys.boot_completed=1
+    write /sys/block/mmcblk0/queue/scheduler row
 
     # Configure the hardware properly
     write /sys/module/lpm_levels/enable_low_power/l2 4
@@ -587,13 +560,13 @@ on property:sys.boot_completed=0
 
 # CM Performance Profiles
 on property:sys.perf.profile=0
-    write /sys/class/devfreq/qcom,cpubw.34/governor powersave
-    write /sys/class/devfreq/fdb00000.qcom,kgsl-3d0/governor powersave
+    write /sys/class/devfreq/qcom,cpubw.34/governor msm-adreno-tz
+    write /sys/class/devfreq/fdb00000.qcom,kgsl-3d0/governor msm-adreno-tz
     write /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor ondemand
     write /sys/devices/system/cpu/cpu1/cpufreq/scaling_governor ondemand
     write /sys/devices/system/cpu/cpu2/cpufreq/scaling_governor ondemand
     write /sys/devices/system/cpu/cpu3/cpufreq/scaling_governor ondemand
-    write /sys/class/kgsl/kgsl-3d0/devfreq/governor powersave
+    write /sys/class/kgsl/kgsl-3d0/devfreq/governor msm-adreno-tz
     start mpdecision
 
 on property:sys.perf.profile=1
@@ -603,6 +576,7 @@ on property:sys.perf.profile=1
     write /sys/devices/system/cpu/cpu1/cpufreq/scaling_governor interactiveX
     write /sys/devices/system/cpu/cpu2/cpufreq/scaling_governor interactiveX
     write /sys/devices/system/cpu/cpu3/cpufreq/scaling_governor interactiveX
+
     write /sys/class/kgsl/kgsl-3d0/devfreq/governor msm-adreno-tz
     start mpdecision
 
@@ -619,6 +593,7 @@ on property:sys.perf.profile=2
     write /sys/devices/system/cpu/cpu2/cpufreq/scaling_governor performance
     write /sys/devices/system/cpu/cpu3/cpufreq/scaling_governor performance
     write /sys/class/kgsl/kgsl-3d0/devfreq/governor performance
+
 
 service hostapd /system/bin/hostapd -dddd /data/hostapd/hostapd.conf
     class late_start
@@ -639,22 +614,6 @@ on property:persist.data.ds_fmc_app.mode=1
 on property:ro.data.large_tcp_window_size=true
     # Adjust socket buffer to enlarge TCP receive window for high bandwidth (e.g. DO-RevB)
     write /proc/sys/net/ipv4/tcp_adv_win_scale  2
-
-# virtual sdcard daemon running as media_rw (1023)
-service sdcard /system/bin/sdcard -u 1023 -g 1023 -l /data/media /mnt/shell/emulated
-    class late_start
-    oneshot
-
-service fuse_sdcard1 /system/bin/sdcard -u 1023 -g 1023 -d /mnt/media_rw/sdcard1 /storage/sdcard1
-    class late_start
-    disabled
-
-service fuse_usbdisk /system/bin/sdcard -u 1023 -g 1023 /mnt/media_rw/usbdisk /storage/usbdisk
-    class late_start
-    disabled
-
-on property:ro.fuse_sdcard=true
-    start sdcard
 
 service hcidump /system/bin/sh /system/etc/hcidump.sh
     user bluetooth

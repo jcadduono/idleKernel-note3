@@ -1,6 +1,6 @@
 #!/bin/bash
 # idleKernel for Samsung Galaxy Note 3 build script by jcadduono
-# This build script is for AOSP/CyanogenMod only
+# This build script is for AOSP/CyanogenMod Marshmallow only
 
 ################### BEFORE STARTING ################
 #
@@ -25,7 +25,7 @@ RDIR=$(pwd)
 #	spr = N900P	(Sprint)
 #	tmo = N900T	(T-Mobile, same as Canadian)
 #	kor = N900K/L/S	(Unified Korean / KT Corporation, LG Telecom, South Korea Telecom)
-# not currently possible options (missing cm12.1 support!):
+# not currently possible options (missing cm13.0 support!):
 #	att = N900A	(AT&T)
 #	usc = N900R4	(US Cellular)
 #	vzw = N900V	(Verizon)
@@ -37,7 +37,7 @@ VER=6.5
 
 # kernel version string appended to 3.4.x-idleKernel-hlte-
 # (shown in Settings -> About device)
-KERNEL_VERSION=$VARIANT-$VER-cm12.1
+KERNEL_VERSION=$VARIANT-$VER-cm13.0
 
 [ -z $PERMISSIVE ] && \
 # should we boot with SELinux mode set to permissive? (1 = permissive, 0 = enforcing)

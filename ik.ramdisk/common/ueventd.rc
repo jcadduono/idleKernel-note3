@@ -16,12 +16,10 @@ subsystem adf
 # Anyone can read the logs, but if they're not in the "logs"
 # group, then they'll only see log entries for their UID.
 /dev/log/*                0666   root       log
+/dev/pmsg0                0222   root       log
 
-# the msm hw3d client device node is world writable/readable
+# the msm hw3d client device node is world writable/readable.
 /dev/msm_hw3dc            0666   root       root
-
-# the DIAG device node is not world writable/readable.
-/dev/diag                 0660   system     qcom_diag
 
 # gpu driver for adreno200 is globally accessible
 /dev/kgsl                 0666   root       root
@@ -30,6 +28,7 @@ subsystem adf
 /dev/dri/*                0666   root       graphics
 
 # these should not be world writable
+/dev/diag                 0660   system     qcom_diag
 /dev/diag_arm9            0660   radio      radio
 /dev/android_adb          0660   adb        adb
 /dev/android_adb_enable   0660   adb        adb
@@ -39,7 +38,7 @@ subsystem adf
 /dev/alarm                0664   system     radio
 /dev/rtc0                 0640   system     system
 /dev/tty0                 0660   root       system
-/dev/graphics/*           0660   system     graphics
+/dev/graphics/*           0660   root       graphics
 /dev/msm_hw3dm            0660   system     graphics
 /dev/input/*              0660   root       input
 /dev/eac                  0660   root       audio
@@ -96,41 +95,6 @@ subsystem adf
 /sys/devices/virtual/usb_composite/*   enable      0664  root   system
 /sys/devices/system/cpu/cpu*   cpufreq/scaling_max_freq   0664  system system
 /sys/devices/system/cpu/cpu*   cpufreq/scaling_min_freq   0664  system system
-/sys/devices/system/cpu/cpu*   cpufreq/scaling_governor   0664  system system
 
-/sys/devices/system/cpu/cpufreq ondemand/boostfreq   0664    system  system
-/sys/devices/system/cpu/cpufreq ondemand/boostpulse  0664    system  system
-/sys/devices/system/cpu/cpufreq ondemand/boosttime   0664    system  system
-/sys/devices/system/cpu/cpufreq ondemand/down_differential   0664    system  system
-/sys/devices/system/cpu/cpufreq ondemand/down_differential_multi_core   0664    system  system
-/sys/devices/system/cpu/cpufreq ondemand/ignore_nice_load   0664    system  system
-/sys/devices/system/cpu/cpufreq ondemand/input_boost   0664    system  system
-/sys/devices/system/cpu/cpufreq ondemand/io_is_busy      0664    system  system
-/sys/devices/system/cpu/cpufreq ondemand/optimal_freq   0664    system  system
-/sys/devices/system/cpu/cpufreq ondemand/powersave_bias  0664    system  system
-/sys/devices/system/cpu/cpufreq ondemand/sampling_down_factor    0664    system  system
-/sys/devices/system/cpu/cpufreq ondemand/sampling_rate   0664    system  system
-/sys/devices/system/cpu/cpufreq ondemand/sampling_rate_min   0664    system  system
-/sys/devices/system/cpu/cpufreq ondemand/sync_freq   0664    system  system
-/sys/devices/system/cpu/cpufreq ondemand/up_threshold   0664    system  system
-/sys/devices/system/cpu/cpufreq ondemand/up_threshold_any_cpu_load   0664    system  system
-/sys/devices/system/cpu/cpufreq ondemand/up_threshold_multi_core   0664    system  system
-
-/sys/devices/system/cpu/cpufreq interactive/above_hispeed_delay 0664    system  system
-/sys/devices/system/cpu/cpufreq interactive/align_windows 0664    system  system
-/sys/devices/system/cpu/cpufreq interactive/boost  0664    system  system
-/sys/devices/system/cpu/cpufreq interactive/boostpulse  0664    system  system
-/sys/devices/system/cpu/cpufreq interactive/boostpulse_duration  0664    system  system
-/sys/devices/system/cpu/cpufreq interactive/go_hispeed_load 0664    system  system
-/sys/devices/system/cpu/cpufreq interactive/hispeed_freq    0664    system  system
-/sys/devices/system/cpu/cpufreq interactive/io_is_busy      0664    system  system
-/sys/devices/system/cpu/cpufreq interactive/max_freq_hysteresis 0664    system  system
-/sys/devices/system/cpu/cpufreq interactive/min_sample_rate 0664    system  system
-/sys/devices/system/cpu/cpufreq interactive/min_sample_time 0664    system  system
-/sys/devices/system/cpu/cpufreq interactive/sampling_down_factor 0664    system  system
-/sys/devices/system/cpu/cpufreq interactive/sync_freq 0664    system  system
-/sys/devices/system/cpu/cpufreq interactive/target_loads 0664    system  system
-/sys/devices/system/cpu/cpufreq interactive/timer_rate  0664    system  system
-/sys/devices/system/cpu/cpufreq interactive/timer_slack      0664    system  system
-/sys/devices/system/cpu/cpufreq interactive/up_threshold_any_cpu_freq      0664    system  system
-/sys/devices/system/cpu/cpufreq interactive/up_threshold_any_cpu_load      0664    system  system
+# DVB API device nodes
+/dev/dvb*                 0660   root       system

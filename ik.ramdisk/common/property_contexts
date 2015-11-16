@@ -21,6 +21,7 @@ runtime.                u:object_r:system_prop:s0
 hw.                     u:object_r:system_prop:s0
 sys.                    u:object_r:system_prop:s0
 sys.powerctl            u:object_r:powerctl_prop:s0
+sys.usb.ffs.            u:object_r:ffs_prop:s0
 service.                u:object_r:system_prop:s0
 wlan.                   u:object_r:system_prop:s0
 dhcp.                   u:object_r:dhcp_prop:s0
@@ -41,7 +42,8 @@ persist.service.bdroid. u:object_r:bluetooth_prop:s0
 persist.security.       u:object_r:system_prop:s0
 
 # selinux non-persistent properties
-selinux.                u:object_r:security_prop:s0
+selinux.restorecon_recursive   u:object_r:restorecon_prop:s0
+selinux.                       u:object_r:security_prop:s0
 
 # default property context
 *                       u:object_r:default_prop:s0
@@ -62,14 +64,54 @@ ctl.mdnsd               u:object_r:ctl_mdnsd_prop:s0
 ctl.ril-daemon          u:object_r:ctl_rildaemon_prop:s0
 ctl.bugreport           u:object_r:ctl_bugreport_prop:s0
 ctl.dhcpcd_bt-pan       u:object_r:ctl_dhcp_pan_prop:s0
+ctl.console             u:object_r:ctl_console_prop:s0
 ctl.                    u:object_r:ctl_default_prop:s0
 
 # NFC properties
 nfc.                    u:object_r:nfc_prop:s0
+
+# These properties are not normally set by processes other than init.
+# They are only distinguished here for setting by qemu-props on the
+# emulator/goldfish.
+config.                 u:object_r:config_prop:s0
+dalvik.                 u:object_r:dalvik_prop:s0
 #line 1 "device/qcom/sepolicy/common/property_contexts"
 wc_transport.              u:object_r:bluetooth_prop:s0
-usb_uicc.                  u:object_r:uicc_prop:s0
+sys.usb_uicc.              u:object_r:uicc_prop:s0
+dolby.audio.               u:object_r:audio_prop:s0
+persist.bluetooth.         u:object_r:bluetooth_prop:s0
 sys.ims.                   u:object_r:qcom_ims_prop:s0
+hw.fm.                     u:object_r:fm_prop:s0
+sys.usf.                   u:object_r:usf_prop:s0
+qc.sdk.us.                 u:object_r:usf_prop:s0
+radio.atfwd.               u:object_r:radio_prop:s0
+ctl.qmuxd                  u:object_r:ctl_qmuxd_prop:s0
+ctl.netmgrd                u:object_r:ctl_netmgrd_prop:s0
+ctl.port-bridge            u:object_r:ctl_port-bridge_prop:s0
+min_freq_0                 u:object_r:freq_prop:s0
+min_freq_4                 u:object_r:freq_prop:s0
+ctl.perfd                  u:object_r:perfd_prop:s0
+ctl.iop                    u:object_r:perfd_prop:s0
+qualcomm.bluetooth.        u:object_r:bluetooth_prop:s0
+ctl.ipacm                  u:object_r:ipacm_prop:s0
+ctl.ipacm-diag             u:object_r:ipacm-diag_prop:s0
+ctl.qti                    u:object_r:qti_prop:s0
+ctl.sensors                u:object_r:sensors_prop:s0
+ctl.msm_irqbalance         u:object_r:msm_irqbalance_prop:s0
+camera.                    u:object_r:camera_prop:s0
+persist.camera.            u:object_r:camera_prop:s0
+sf.lcd_density             u:object_r:sf_lcd_density_prop:s0
+opengles.version           u:object_r:opengles_prop:s0
+qualcomm.bt.hci_transport  u:object_r:bluetooth_prop:s0
+ctl.mdm_helper             u:object_r:mdm_helper_prop:s0
+ctl.mpdecision             u:object_r:mpdecision_prop:s0
+qualcomm.perf.cores_online u:object_r:mpdecision_prop:s0
+netd.fstman.               u:object_r:netd_prop:s0
+location.                  u:object_r:location_prop:s0
+persist.rmnet.mux          u:object_r:rmnet_mux_prop:s0
+qemu.hw.mainkeys           u:object_r:qemu_hw_mainkeys_prop:s0
+dbg.coresight.cfg_file     u:object_r:coresight_prop:s0
+ctl.hbtp                   u:object_r:ctl_hbtp_prop:s0
 #line 1 "vendor/cm/sepolicy/property_contexts"
 service.adb.tcp.port          u:object_r:adbtcp_prop:s0
 recovery.perf.mode            u:object_r:recovery_prop:s0
