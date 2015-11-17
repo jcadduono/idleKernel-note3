@@ -38,10 +38,6 @@ VER=6.5
 # (shown in Settings -> About device)
 KERNEL_VERSION=$VARIANT-$VER
 
-[ -z $PERMISSIVE ] && \
-# should we boot with SELinux mode set to permissive? (1 = permissive, 0 = enforcing)
-PERMISSIVE=0
-
 # output directory of flashable kernel
 OUT_DIR=$RDIR
 # output filename of flashable kernel
@@ -65,8 +61,6 @@ if ! [ -d $RDIR"/ik.ramdisk/variant/$VARIANT/" ] ; then
 	exit -1
 fi
 
-[ $PERMISSIVE -eq 1 ] && SELINUX="permissive" || SELINUX="enforcing"
-
 KDIR=$RDIR/build/arch/arm/boot
 
 CLEAN_BUILD()
@@ -85,7 +79,7 @@ BUILD_RAMDISK()
 	echo "Building ramdisk structure..."
 	cd $RDIR
 	mkdir -p build/ramdisk
-	cp -ar ik.ramdisk/common/* ik.ramdisk/variant/$VARIANT/* ik.ramdisk/$SELINUX/* build/ramdisk
+	cp -ar ik.ramdisk/common/* ik.ramdisk/variant/$VARIANT/* build/ramdisk
 	cd $RDIR/build/ramdisk
 	mkdir -pm 755 dev proc sys system kmod
 	mkdir -pm 771 carrier data
@@ -102,7 +96,7 @@ BUILD_BOOT_IMG()
 	$RDIR/scripts/mkqcdtbootimg/mkqcdtbootimg --kernel $KDIR/zImage \
 		--ramdisk $KDIR/ramdisk.cpio.xz \
 		--dt_dir $KDIR \
-		--cmdline "quiet console=null androidboot.hardware=qcom user_debug=23 msm_rtb.filter=0x37 ehci-hcd.park=3 androidboot.selinux=$SELINUX" \
+		--cmdline "quiet console=null androidboot.hardware=qcom user_debug=23 msm_rtb.filter=0x37 ehci-hcd.park=3" \
 		--base 0x00000000 \
 		--pagesize 2048 \
 		--ramdisk_offset 0x02000000 \

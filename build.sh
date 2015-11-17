@@ -79,7 +79,7 @@ if ! [ -d $RDIR"/ik.ramdisk/variant/$VARIANT/" ] ; then
 	exit -1
 fi
 
-[ $PERMISSIVE -eq 1 ] && SELINUX="permissive" || SELINUX="enforcing"
+[ $PERMISSIVE -eq 1 ] && SELINUX="never_enforce" || SELINUX="always_enforce"
 
 KDIR=$RDIR/build/arch/arm/boot
 
@@ -101,7 +101,8 @@ BUILD_KERNEL()
 	cd $RDIR
 	mkdir -p build
 	make -C $RDIR O=build ik_defconfig \
-		VARIANT_DEFCONFIG=variant_hlte_$VARIANT
+		VARIANT_DEFCONFIG=variant_hlte_$VARIANT \
+		SELINUX_DEFCONFIG=selinux_$SELINUX
 	echo "Starting build..."
 	make -C $RDIR O=build -j"$THREADS"
 }
@@ -111,7 +112,7 @@ BUILD_RAMDISK()
 	echo "Building ramdisk structure..."
 	cd $RDIR
 	mkdir -p build/ramdisk
-	cp -ar ik.ramdisk/common/* ik.ramdisk/variant/$VARIANT/* ik.ramdisk/$SELINUX/* build/ramdisk
+	cp -ar ik.ramdisk/common/* ik.ramdisk/variant/$VARIANT/* build/ramdisk
 	cd $RDIR/build/ramdisk
 	mkdir -pm 755 dev proc sys system kmod
 	mkdir -pm 771 carrier data
@@ -128,7 +129,7 @@ BUILD_BOOT_IMG()
 	$RDIR/scripts/mkqcdtbootimg/mkqcdtbootimg --kernel $KDIR/zImage \
 		--ramdisk $KDIR/ramdisk.cpio.xz \
 		--dt_dir $KDIR \
-		--cmdline "quiet console=null androidboot.hardware=qcom user_debug=23 msm_rtb.filter=0x37 ehci-hcd.park=3 androidboot.selinux=$SELINUX" \
+		--cmdline "quiet console=null androidboot.hardware=qcom user_debug=23 msm_rtb.filter=0x37 ehci-hcd.park=3" \
 		--base 0x00000000 \
 		--pagesize 2048 \
 		--ramdisk_offset 0x02000000 \
@@ -155,11 +156,15 @@ CREATE_TAR()
 	cd $RDIR
 }
 
-if CLEAN_BUILD && BUILD_KERNEL && BUILD_RAMDISK && BUILD_BOOT_IMG; then
+DO_BUILD()
+{
+	echo "Starting build for $OUT_NAME, SELINUX = $SELINUX..."
+	CLEAN_BUILD && BUILD_KERNEL && BUILD_RAMDISK && BUILD_BOOT_IMG || {
+		echo "Error!"
+		exit -1
+	}
 	if [ $MAKE_ZIP -eq 1 ]; then CREATE_ZIP; fi
 	if [ $MAKE_TAR -eq 1 ]; then CREATE_TAR; fi
-	echo "Finished!"
-else
-	echo "Error!"
-	exit -1
-fi
+}
+
+DO_BUILD
