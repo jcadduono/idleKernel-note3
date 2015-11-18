@@ -19,6 +19,17 @@ on fs
     chown system system /carrier
     chmod 0771 /carrier
 
+on boot
+    # NFC_BROADCOM
+    chmod 0600 /dev/bcm2079x
+    chown nfc nfc /dev/bcm2079x
+    mkdir /data/bcmnfc
+    mkdir /data/bcmnfc/param
+    chmod 0700 /data/bcmnfc
+    chmod 0700 /data/bcmnfc/param
+    chown nfc nfc /data/bcmnfc
+    chown nfc nfc /data/bcmnfc/param
+
 #InsideSecure VPN Client
 service vpnclientpm /system/bin/vpnclientpm -u 1000 -g 1000 -O /data/data/com.ipsec.service/vpnclientpm.txt -U rmnet,rmnet_usb,wlan,bt-pan,rndis,p2p,eth
     socket vpnclientpm seqpacket 0600 system system
