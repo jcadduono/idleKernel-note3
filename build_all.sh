@@ -24,7 +24,8 @@ RDIR=$(pwd)
 VER=6.5
 
 # output directory of flashable kernel
-OUT_DIR="/media/vboxshared/builds/note5port/v"$VER"_"$(date +'%Y_%m_%d')
+OUT_DIR_ENFORCING="/media/vboxshared/builds/note5port/selinux_enforcing/v"$VER"_"$(date +'%Y_%m_%d')
+OUT_DIR_PERMISSIVE="/media/vboxshared/builds/note5port/v"$VER"_"$(date +'%Y_%m_%d')
 
 # should we make a TWRP flashable zip? (1 = yes, 0 = no)
 MAKE_ZIP=1
@@ -73,7 +74,8 @@ BUILD_KERNEL()
 	cd $RDIR
 	mkdir -p build
 	make -C $RDIR O=build ik_defconfig \
-		VARIANT_DEFCONFIG=variant_hlte_$VARIANT
+		VARIANT_DEFCONFIG=variant_hlte_$VARIANT \
+		SELINUX_DEFCONFIG=selinux_$SELINUX
 	echo "Starting build..."
 	make -C $RDIR O=build -j"$THREADS"
 }
@@ -82,9 +84,9 @@ BUILD_RAMDISK()
 {
 	echo "Building ramdisk structure..."
 	cd $RDIR
-	mkdir -p build/ramdisk
-	cp -ar ik.ramdisk/common/* build/ramdisk
-	cp -ar ik.ramdisk/variant/$VARIANT/* build/ramdisk
+	rm -rf build/ramdisk
+	mkdir build/ramdisk
+	cp -ar ik.ramdisk/common/* ik.ramdisk/variant/$VARIANT/* build/ramdisk
 	cd $RDIR/build/ramdisk
 	mkdir -pm 755 dev proc sys system kmod
 	mkdir -pm 771 carrier data
@@ -101,7 +103,7 @@ BUILD_BOOT_IMG()
 	$RDIR/scripts/mkqcdtbootimg/mkqcdtbootimg --kernel $KDIR/zImage \
 		--ramdisk $KDIR/ramdisk.cpio.xz \
 		--dt_dir $KDIR \
-		--cmdline "quiet console=null androidboot.hardware=qcom user_debug=23 msm_rtb.filter=0x37 ehci-hcd.park=3 androidboot.selinux=$SELINUX" \
+		--cmdline "quiet console=null androidboot.hardware=qcom user_debug=23 msm_rtb.filter=0x37 ehci-hcd.park=3" \
 		--base 0x00000000 \
 		--pagesize 2048 \
 		--ramdisk_offset 0x02000000 \
@@ -128,23 +130,35 @@ CREATE_TAR()
 	cd $RDIR
 }
 
-mkdir -p $OUT_DIR
+DO_BUILD()
+{
+	echo "Starting build for $OUT_NAME, SELINUX = $SELINUX..."
+	CLEAN_BUILD && BUILD_KERNEL && BUILD_RAMDISK && BUILD_BOOT_IMG || {
+		echo "Error!"
+		exit -1
+	}
+	if [ $MAKE_ZIP -eq 1 ]; then CREATE_ZIP; fi
+	if [ $MAKE_TAR -eq 1 ]; then CREATE_TAR; fi
+}
+
+#mkdir -p $OUT_DIR_ENFORCING
+mkdir -p $OUT_DIR_PERMISSIVE
 
 for V in $RDIR/ik.ramdisk/variant/*
 do
 	VARIANT=${V#$RDIR/ik.ramdisk/variant/}
-	SET_KERNEL_VERSION
-	export LOCALVERSION=$KERNEL_VERSION
 	if ! [ -f $RDIR"/arch/arm/configs/variant_hlte_"$VARIANT ] ; then
 		echo "Device variant/carrier $VARIANT not found in arm configs!"
 		continue
-	elif CLEAN_BUILD && BUILD_KERNEL && BUILD_RAMDISK; then
-		BUILD_BOOT_IMG
-		if [ $MAKE_ZIP -eq 1 ]; then CREATE_ZIP; fi
-		if [ $MAKE_TAR -eq 1 ]; then CREATE_TAR; fi
 	else
-		echo "Error!"
-		exit -1
+		SET_KERNEL_VERSION
+		export LOCALVERSION=$KERNEL_VERSION
+		#OUT_DIR=$OUT_DIR_ENFORCING
+		#SELINUX="always_enforce"
+		#DO_BUILD
+		OUT_DIR=$OUT_DIR_PERMISSIVE
+		SELINUX="never_enforce"
+		DO_BUILD
 	fi
 done;
 
