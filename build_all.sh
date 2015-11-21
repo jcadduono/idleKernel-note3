@@ -24,8 +24,8 @@ RDIR=$(pwd)
 VER=6.5
 
 # output directory of flashable kernel
-OUT_DIR_ENFORCING="/media/vboxshared/builds/cm12.1/v"$VER"_"$(date +'%Y_%m_%d')
-OUT_DIR_PERMISSIVE="/media/vboxshared/builds/cm12.1/selinux_permissive/v"$VER"_"$(date +'%Y_%m_%d')
+OUT_DIR_ENFORCING="/media/vboxshared/builds/cm12.1/selinux_enforcing/v"$VER"_"$(date +'%Y_%m_%d')
+OUT_DIR_PERMISSIVE="/media/vboxshared/builds/cm12.1/v"$VER"_"$(date +'%Y_%m_%d')
 
 # should we make a TWRP flashable zip? (1 = yes, 0 = no)
 MAKE_ZIP=1
