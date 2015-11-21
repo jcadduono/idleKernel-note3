@@ -19,5 +19,3 @@ persist.sys.usb.config=mtp
 ro.bootimage.build.date=Thu Nov 5 18:32:11 MST 2015
 ro.bootimage.build.date.utc=1446773531
 ro.bootimage.build.fingerprint=samsung/cm_hlte/hlte:6.0/MDB08M/6ce08d0863:userdebug/test-keys
-# temporarily disable ril until supported by cm13.0
-persist.radio.noril=1
