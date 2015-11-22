@@ -1,0 +1,43 @@
+#!/system/bin/sh
+
+checksu=`ls /data/data`
+[ -z "$checksu" ] && echo "Must be superuser!" && exit
+
+DDIR=/data/data/idlekernel
+VERSION=1.0
+
+DISPLAY_VERSION() {
+	echo "/sbin/setonboot by jcadduono (version $VERSION)"
+}
+
+DISPLAY_USAGE() {
+	echo "Usage: setonboot [OPTION|FILE] [VALUE]"
+	echo "Writes values to sysfs or files on boot completion."
+	echo
+	echo "  -a, apply, save	writes all saved values to files"
+	echo "  -l, list, show 	lists all saved values"
+	echo "  -h, help       	displays this information"
+	echo "  -v, version    	displays version info"
+	echo
+	echo "For more help & to report bugs contact <jc@adduono.com>"
+}
+
+case $1 in
+-a|apply|save)
+	#do some crazy shit
+	echo "Applied on boot values to nodes."
+	;;
+-l|list|show)
+	#do more crazy shit
+	echo "Saved values:"
+	;;
+-h|help)
+	DISPLAY_USAGE
+	;;
+-v|version)
+	DISPLAY_VERSION
+	;;
+*)
+	DISPLAY_USAGE
+	;;
+esac
