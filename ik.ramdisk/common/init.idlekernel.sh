@@ -109,7 +109,9 @@ if [ ! -f $CFILE ]; then
 fi
 echo `cat $CFILE` > $SFILE
 
-stop thermal-engine
+/sbin/setonboot apply &
 /system/xbin/busybox run-parts /system/etc/init.d &
+
+stop thermal-engine
 sleep 2
 start thermal-engine
