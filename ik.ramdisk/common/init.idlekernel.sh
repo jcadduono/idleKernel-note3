@@ -106,6 +106,8 @@ if [ ! -f $CFILE ]; then
 fi
 echo `cat $CFILE` > $SFILE
 
+/sbin/setonboot apply &
+
 stop thermal-engine
 sleep 2
 start thermal-engine
