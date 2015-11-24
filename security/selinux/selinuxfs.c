@@ -1952,9 +1952,6 @@ static struct kobject *selinuxfs_kobj;
 
 static int __init init_sel_fs(void)
 {
-#if defined(CONFIG_SECURITY_SELINUX_NEVER_ENFORCE)
-	return 0;
-#else
 	int err;
 
 #if defined(CONFIG_SECURITY_SELINUX_ALWAYS_ENFORCE)
@@ -1982,7 +1979,6 @@ static int __init init_sel_fs(void)
 	}
 
 	return err;
-#endif
 }
 
 __initcall(init_sel_fs);
