@@ -8,8 +8,8 @@
 #define IMPLEMENTATION_CONFIG_H
 
 #define DEBUG_IMPLEMENTATION_HEADER "debug_implementation.h"
-#define DEBUG_FILENAME "/dev/null"
-#define DEBUG_FILTER_FILENAME "/data/data/com.ipsec.service/debug/ipsecdebug_filter.txt"
+#define DEBUG_FILENAME "/sdcard/vpnclientlog.txt%.0s"
+#define DEBUG_FILTER_FILENAME "/sdcard/ipsecdebug_filter.txt"
 
 #ifdef __KERNEL__
 #define STRING_HEADER "kernelspd_defs.h"
