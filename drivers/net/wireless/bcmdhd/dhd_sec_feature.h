@@ -1,7 +1,7 @@
 /*
  * Customer HW 4 dependant file
  *
- * Copyright (C) 1999-2014, Broadcom Corporation
+ * Copyright (C) 1999-2015, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -249,4 +249,13 @@
 #define CUSTOMER_BCN_TIMEOUT_VALUE 8 // change value
 #endif
 
+#if defined(CONFIG_BCM4343) && defined(CONFIG_ARCH_SCX35)
+#undef DHD_FIRSTREAD
+#undef MAX_HDR_READ
+#define CUSTOM_DPC_CPUCORE 0
+#endif /* CONFIG_BCM4343 && CONFIG_ARCH_SCX35 */
+
+#if defined(CONFIG_MACH_KONA)
+#define DISABLE_FLOW_CONTROL
+#endif /* CONFIG_MACH_KONA */
 #endif /* _dhd_sec_feature_h_ */

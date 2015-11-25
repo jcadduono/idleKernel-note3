@@ -4,7 +4,7 @@
  * Provides type definitions and function prototypes used to link the
  * DHD OS, bus, and protocol modules.
  *
- * Copyright (C) 1999-2014, Broadcom Corporation
+ * Copyright (C) 1999-2015, Broadcom Corporation
  * 
  *      Unless you and Broadcom execute a separate written software license
  * agreement governing use of this software, this software is licensed to you
@@ -24,7 +24,7 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: dhd.h 487900 2014-06-27 10:26:47Z $
+ * $Id: dhd.h 561632 2015-06-05 13:09:58Z $
  */
 
 /****************
@@ -59,10 +59,6 @@ int get_scheduler_policy(struct task_struct *p);
 #include <wlioctl.h>
 #include <wlfc_proto.h>
 
-
-#if defined(WL11U) && !defined(MFP)
-#define MFP /* Applying interaction with MFP by spec HS2.0 REL2 */
-#endif /* WL11U */
 
 #if defined(KEEP_ALIVE)
 /* Default KEEP_ALIVE Period is 55 sec to prevent AP from sending Keep Alive probe frame */
@@ -107,9 +103,8 @@ enum dhd_op_flags {
 #define MAX_CNTL_RX_TIMEOUT 1
 #endif /* MAX_CNTL_RX_TIMEOUT */
 
-#define DHD_SCAN_ASSOC_ACTIVE_TIME	20 /* ms: Embedded default Active setting from DHD */
-#define DHD_SCAN_UNASSOC_ACTIVE_TIME	40 /* ms: Embedded def. Unassoc Active setting from DHD */
-#define DHD_SCAN_UNASSOC_ACTIVE_TIME_PS	30
+#define DHD_SCAN_ASSOC_ACTIVE_TIME	40 /* ms: Embedded default Active setting from DHD */
+#define DHD_SCAN_UNASSOC_ACTIVE_TIME 80 /* ms: Embedded def. Unassoc Active setting from DHD */
 #define DHD_SCAN_PASSIVE_TIME		130 /* ms: Embedded default Passive setting from DHD */
 
 #ifndef POWERUP_MAX_RETRY
@@ -140,14 +135,14 @@ enum dhd_prealloc_index {
 	DHD_PREALLOC_RXBUF,
 	DHD_PREALLOC_DATABUF,
 	DHD_PREALLOC_OSL_BUF,
-#if defined(STATIC_WL_PRIV_STRUCT)
 	DHD_PREALLOC_WIPHY_ESCAN0 = 5,
-#if defined(CUSTOMER_HW4) && defined(DUAL_ESCAN_RESULT_BUFFER)
-	DHD_PREALLOC_WIPHY_ESCAN1,
-#endif /* CUSTOMER_HW4 && DUAL_ESCAN_RESULT_BUFFER */
-#endif /* STATIC_WL_PRIV_STRUCT */
-	DHD_PREALLOC_DHD_INFO = 7
+	DHD_PREALLOC_WIPHY_ESCAN1 = 6,
+	DHD_PREALLOC_DHD_INFO = 7,
+	DHD_PREALLOC_DHD_WLFC_INFO = 8,
+	DHD_PREALLOC_SECTION_MAX = DHD_PREALLOC_DHD_WLFC_INFO
 };
+
+#define PREALLOC_MASK_LEN	4
 
 /* Packet alignment for most efficient SDIO (can change based on platform) */
 #ifndef DHD_SDALIGN
@@ -256,6 +251,7 @@ typedef struct dhd_pub {
 
 	wl_country_t dhd_cspec;		/* Current Locale info */
 	char eventmask[WL_EVENTING_MASK_LEN];
+	char prealloc_malloc_mask[PREALLOC_MASK_LEN];
 	int	op_mode;				/* STA, HostAPD, WFD, SoftAP */
 
 /* Set this to 1 to use a seperate interface (p2p0) for p2p operations.
@@ -337,7 +333,6 @@ typedef struct dhd_pub {
 #if defined(CUSTOMER_HW4)
 	bool dhd_bug_on;
 #endif
-	int  short_dwell_time;
 #ifdef CUSTOM_SET_CPUCORE
 	struct task_struct * current_dpc;
 	struct task_struct * current_rxf;
@@ -350,6 +345,9 @@ typedef struct dhd_pub {
 	bool affinity_isdpc;
 	bool affinity_isrxf;
 #endif /* CUSTOMER_HW4 && ARGOS_CPU_SCHEDULER */
+#ifdef DHD_LOSSLESS_ROAMING
+	uint8 dequeue_prec_map;
+#endif
 } dhd_pub_t;
 #if defined(CUSTOMER_HW4)
 #define MAX_RESCHED_CNT 600
@@ -618,10 +616,6 @@ extern void dhd_os_sdunlock_eventq(dhd_pub_t * pub);
 extern bool dhd_os_check_hang(dhd_pub_t *dhdp, int ifidx, int ret);
 extern int dhd_os_send_hang_message(dhd_pub_t *dhdp);
 extern void dhd_set_version_info(dhd_pub_t *pub, char *fw);
-extern void dhd_set_short_dwell_time(dhd_pub_t *dhd, int set);
-#ifdef CUSTOM_SET_SHORT_DWELL_TIME
-extern void net_set_short_dwell_time(struct net_device *dev, int set);
-#endif
 extern bool dhd_os_check_if_up(dhd_pub_t *pub);
 extern int dhd_os_check_wakelock(dhd_pub_t *pub);
 
@@ -923,9 +917,6 @@ void dhd_arp_offload_add_ip(dhd_pub_t *dhd, uint32 ipaddr, int idx);
 #endif /* ARP_OFFLOAD_SUPPORT */
 #ifdef WLTDLS
 int dhd_tdls_enable(struct net_device *dev, bool tdls_on, bool auto_on, struct ether_addr *mac);
-#ifdef CUSTOMER_HW4
-int dhd_tdls_reset_manual(dhd_pub_t *dhd, struct net_device *dev);
-#endif /* CUSTOMER_HW4 */
 #endif
 /* Neighbor Discovery Offload Support */
 int dhd_ndo_enable(dhd_pub_t * dhd, int ndo_enable);
@@ -955,14 +946,14 @@ extern const uint8 prio2fifo[];
 #endif /* PROP_TXSTATUS */
 
 uint8* dhd_os_prealloc(dhd_pub_t *dhdpub, int section, uint size, bool kmalloc_if_fail);
-void dhd_os_prefree(dhd_pub_t *dhdpub, void *addr, uint size);
+void dhd_os_prefree(dhd_pub_t *dhdpub, int section, void *addr, uint size);
 
 #if defined(CONFIG_DHD_USE_STATIC_BUF)
-#define DHD_OS_PREALLOC(dhdpub, section, size) dhd_os_prealloc(dhdpub, section, size, FALSE)
-#define DHD_OS_PREFREE(dhdpub, addr, size) dhd_os_prefree(dhdpub, addr, size)
+#define DHD_OS_PREALLOC(dhdpub, section, size) dhd_os_prealloc(dhdpub, section, size, TRUE)
+#define DHD_OS_PREFREE(dhdpub, section, addr, size) dhd_os_prefree(dhdpub, section, addr, size)
 #else
 #define DHD_OS_PREALLOC(dhdpub, section, size) MALLOC(dhdpub->osh, size)
-#define DHD_OS_PREFREE(dhdpub, addr, size) MFREE(dhdpub->osh, addr, size)
+#define DHD_OS_PREFREE(dhdpub, section, addr, size) MFREE(dhdpub->osh, addr, size)
 #endif /* defined(CONFIG_DHD_USE_STATIC_BUF) */
 
 #if defined(CUSTOMER_HW4) && defined(USE_WFA_CERT_CONF)
@@ -975,9 +966,13 @@ enum {
 #ifdef USE_WL_TXBF
 	SET_PARAM_TXBF,
 #endif /* USE_WL_TXBF */
+#ifdef PROP_TXSTATUS
+	SET_PARAM_PROPTX,
+	SET_PARAM_PROPTXMODE,
+#endif /* PROP_TXSTATUS */
 	PARAM_LAST_VALUE
 };
-extern int sec_get_param(dhd_pub_t *dhd, int mode);
+extern int sec_get_param_wfa_cert(dhd_pub_t *dhd, int mode, uint* read_val);
 #endif /* CUSTOMER_HW4 && USE_WFA_CERT_CONF */
 
 #endif /* _dhd_h_ */
