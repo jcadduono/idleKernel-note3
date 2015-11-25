@@ -3,10 +3,10 @@
 # specify MF_CHECK, and must come before any filesystems that do specify MF_CHECK
 
 #<src>						<mnt_point>	<type>	<mnt_flags and options>								<fs_mgr_flags>
-/dev/block/platform/msm_sdcc.1/by-name/system	/system		ext4	ro,errors=panic									wait
 /dev/block/platform/msm_sdcc.1/by-name/system	/system		f2fs	ro										wait
-/dev/block/platform/msm_sdcc.1/by-name/userdata	/data		ext4	nosuid,nodev,noatime,noauto_da_alloc,discard,journal_async_commit,errors=panic	wait,check,encryptable=footer
+/dev/block/platform/msm_sdcc.1/by-name/system	/system		ext4	ro,errors=panic									wait
 /dev/block/platform/msm_sdcc.1/by-name/userdata	/data		f2fs	nosuid,nodev,noatime,nodiratime,discard,inline_xattr				wait,encryptable=footer
+/dev/block/platform/msm_sdcc.1/by-name/userdata	/data		ext4	nosuid,nodev,noatime,noauto_da_alloc,discard,journal_async_commit,errors=panic	wait,check,encryptable=footer
 # Note 5 compatibility
 /dev/block/platform/msm_sdcc.1/by-name/persist	/persist	emmc	defaults									defaults
 # VOLD
