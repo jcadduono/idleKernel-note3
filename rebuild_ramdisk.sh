@@ -35,7 +35,7 @@ VARIANT=can
 
 [ -z $VER ] && \
 # version number
-VER=6.5
+VER=6.6
 
 # kernel version string appended to 3.4.x-idleKernel-hlte-
 # (shown in Settings -> About device)

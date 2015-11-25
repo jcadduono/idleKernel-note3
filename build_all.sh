@@ -21,7 +21,7 @@ RDIR=$(pwd)
 
 [ -z $VER ] && \
 # version number
-VER=6.5
+VER=6.6
 
 # output directory of flashable kernel
 OUT_DIR_ENFORCING="/media/vboxshared/builds/note5port/selinux_enforcing/v"$VER"_"$(date +'%Y_%m_%d')
