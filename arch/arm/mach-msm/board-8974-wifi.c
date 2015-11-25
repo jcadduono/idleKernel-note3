@@ -19,8 +19,17 @@
 #define WLAN_STATIC_SCAN_BUF0		5
 #define WLAN_STATIC_SCAN_BUF1		6
 #define WLAN_STATIC_DHD_INFO_BUF	7
+#define WLAN_STATIC_DHD_WLFC_INFO	8
 #define WLAN_SCAN_BUF_SIZE		(64 * 1024)
+
+#if defined(CONFIG_64BIT)
+#define WLAN_DHD_INFO_BUF_SIZE  (24 * 1024)
+#else
 #define WLAN_DHD_INFO_BUF_SIZE	(16 * 1024)
+#endif /* CONFIG_64BIT */
+
+#define WLAN_STATIC_DHD_WLFC_INFO_SIZE		(64 * 1024)
+
 #define PREALLOC_WLAN_SEC_NUM		4
 #define PREALLOC_WLAN_BUF_NUM		160
 #define PREALLOC_WLAN_SECTION_HEADER	24
@@ -51,9 +60,10 @@ static struct wlan_mem_prealloc wlan_mem_array[PREALLOC_WLAN_SEC_NUM] = {
 	{NULL, (WLAN_SECTION_SIZE_3 + PREALLOC_WLAN_SECTION_HEADER)}
 };
 
-void *wlan_static_scan_buf0;
-void *wlan_static_scan_buf1;
-void *wlan_static_dhd_info_buf;
+void *wlan_static_scan_buf0 = NULL;
+void *wlan_static_scan_buf1 = NULL;
+void *wlan_static_dhd_info_buf = NULL;
+void *wlan_static_dhd_wlfc_buf = NULL;
 
 #if defined(CONFIG_BCM4335) || defined(CONFIG_BCM4335_MODULE)
 #define ENABLE_4335BT_WAR
@@ -103,10 +113,22 @@ static void *brcm_wlan_mem_prealloc(int section, unsigned long size)
 
 	if (section == WLAN_STATIC_DHD_INFO_BUF) {
 		if (size > WLAN_DHD_INFO_BUF_SIZE) {
-			pr_err("request DHD_INFO size(%lu) is bigger than static size(%d).\n", size, WLAN_DHD_INFO_BUF_SIZE);
+			pr_err("request DHD_INFO size(%lu) is bigger than"
+				" static size(%d).\n", size,
+				WLAN_DHD_INFO_BUF_SIZE);
 			return NULL;
 		}
 		return wlan_static_dhd_info_buf;
+	}
+
+	if (section == WLAN_STATIC_DHD_WLFC_INFO)  {
+		if (size > WLAN_STATIC_DHD_WLFC_INFO_SIZE) {
+			pr_err("request DHD_WLFC_INFO size(%lu) is bigger than"
+				" static size(%d).\n",
+				size, WLAN_STATIC_DHD_WLFC_INFO_SIZE);
+			return NULL;
+		}
+		return wlan_static_dhd_wlfc_buf;
 	}
 
 	if ((section < 0) || (section > PREALLOC_WLAN_SEC_NUM))
@@ -139,9 +161,9 @@ static int brcm_init_wlan_mem(void)
 	if (!wlan_static_skb[i])
 		goto err_skb_alloc;
 
-	for (i = 0 ; i < PREALLOC_WLAN_SEC_NUM ; i++) {
+	for (i = 0; i < PREALLOC_WLAN_SEC_NUM; i++) {
 		wlan_mem_array[i].mem_ptr =
-				kmalloc(wlan_mem_array[i].size, GFP_KERNEL);
+			kmalloc(wlan_mem_array[i].size, GFP_KERNEL);
 
 		if (!wlan_mem_array[i].mem_ptr)
 			goto err_mem_alloc;
@@ -159,26 +181,33 @@ static int brcm_init_wlan_mem(void)
 	if (!wlan_static_dhd_info_buf)
 		goto err_mem_alloc;
 
-	printk(KERN_INFO"%s: WIFI MEM Allocated\n", __func__);
+	wlan_static_dhd_wlfc_buf = kmalloc(WLAN_STATIC_DHD_WLFC_INFO_SIZE, GFP_KERNEL);
+	if (!wlan_static_dhd_wlfc_buf) {
+		goto err_mem_alloc;
+	}
+
+	pr_err("%s: WIFI MEM Allocated\n", __FUNCTION__);
 	return 0;
 
- err_mem_alloc:
+err_mem_alloc:
+	pr_err("Failed to mem_alloc for WLAN\n");
 	if (wlan_static_scan_buf0)
 		kfree(wlan_static_scan_buf0);
 	if (wlan_static_scan_buf1)
 		kfree(wlan_static_scan_buf1);
 	if (wlan_static_dhd_info_buf)
 		kfree(wlan_static_dhd_info_buf);
+	if (wlan_static_dhd_wlfc_buf)
+		kfree(wlan_static_dhd_wlfc_buf);
 
-	pr_err("Failed to mem_alloc for WLAN\n");
-	for (j = 0 ; j < i ; j++)
+	for (j = 0; j < i; j++)
 		kfree(wlan_mem_array[j].mem_ptr);
 
 	i = WLAN_SKB_BUF_NUM;
 
- err_skb_alloc:
+err_skb_alloc:
 	pr_err("Failed to skb_alloc for WLAN\n");
-	for (j = 0 ; j < i ; j++)
+	for (j = 0; j < i; j++)
 		dev_kfree_skb(wlan_static_skb[j]);
 
 	return -ENOMEM;
@@ -187,7 +216,11 @@ static int brcm_init_wlan_mem(void)
 
 /* MSM8974 WLAN_EN GPIO Number */
 #if defined(CONFIG_SEC_K_PROJECT) || defined(CONFIG_SEC_KACTIVE_PROJECT) || defined(CONFIG_SEC_KSPORTS_PROJECT)
+#if defined(CONFIG_MACH_KACTIVELTE_KOR)
+int GPIO_WL_REG_ON = 431;
+#else
 #define GPIO_WL_REG_ON 308
+#endif
 #elif defined(CONFIG_SEC_PATEK_PROJECT)
 #define GPIO_WL_REG_ON 26
 #elif defined(CONFIG_SEC_S_PROJECT)
@@ -234,7 +267,7 @@ static unsigned config_gpio_wl_reg_on[] = {
 static int brcm_wifi_cd; /* WIFI virtual 'card detect' status */
 static void (*wifi_status_cb)(int card_present, void *dev_id);
 static void *wifi_status_cb_devid;
-static void *wifi_mmc_host;
+static void *wifi_mmc_host = NULL;
 extern void sdio_ctrl_power(struct mmc_host *card, bool onoff);
 
 static unsigned get_gpio_wl_host_wake(void)
@@ -254,6 +287,13 @@ int __init brcm_wifi_init_gpio(void)
 {
 	unsigned gpio_cfg = GPIO_CFG(get_gpio_wl_host_wake(), 0, GPIO_CFG_INPUT,
 		GPIO_CFG_PULL_DOWN, GPIO_CFG_2MA);
+
+#if defined(CONFIG_MACH_KACTIVELTE_KOR)
+	if ( system_rev < 3 ) {
+		GPIO_WL_REG_ON = 308;
+		printk("WLAN: %s: GPIO_WL_REG_ON = %d \n", __func__, GPIO_WL_REG_ON);
+	}
+#endif /* defined(CONFIG_MACH_KACTIVELTE_KOR) */
 
 #if !defined(CONFIG_SEC_KS01_PROJECT) && !defined(CONFIG_SEC_JACTIVE_PROJECT)
 #if !defined(CONFIG_SEC_K_PROJECT) && !defined(CONFIG_SEC_KACTIVE_PROJECT) && !defined(CONFIG_SEC_PATEK_PROJECT)
@@ -361,12 +401,18 @@ static int brcm_wlan_power(int onoff)
 
 #if defined(CONFIG_BCM4339) || defined(CONFIG_BCM4335) || defined(CONFIG_BCM4354)
 	/* Power on/off SDIO host */
-	sdio_ctrl_power((struct mmc_host *)wifi_mmc_host, onoff);
+	//if(wifi_mmc_host)
+		sdio_ctrl_power((struct mmc_host *)wifi_mmc_host, onoff);
+	//else
+	//	printk("%s, wifi_mmc_host is NULL\n",__FUNCTION__);
 #endif /* CONFIG_BCM4339 || CONFIG_BCM4335  || CONFIG_BCM4354 */
 	} else {
 #if defined(CONFIG_BCM4339) || defined(CONFIG_BCM4335) || defined(CONFIG_BCM4354)
 	/* Power on/off SDIO host */
-	sdio_ctrl_power((struct mmc_host *)wifi_mmc_host, onoff);
+	//if(wifi_mmc_host)
+		sdio_ctrl_power((struct mmc_host *)wifi_mmc_host, onoff);
+	//else
+	//	printk("%s, wifi_mmc_host is NULL\n",__FUNCTION__);
 #endif /* CONFIG_BCM4339 || CONFIG_BCM4335  || CONFIG_BCM4354 */
 /*
 		if (gpio_request(GPIO_WL_REG_ON, "WL_REG_ON"))
@@ -414,6 +460,7 @@ int brcm_wifi_status_register(
 	void (*callback)(int card_present, void *dev_id),
 	void *dev_id, void *mmc_host)
 {
+	printk(" Enter %s \n",__FUNCTION__);
 	if (wifi_status_cb)
 		return -EAGAIN;
 	wifi_status_cb = callback;
@@ -426,12 +473,14 @@ int brcm_wifi_status_register(
 
 unsigned int brcm_wifi_status(struct device *dev)
 {
+	printk(" Enter %s \n",__FUNCTION__);
 	printk("%s:%d status %d\n",__func__,__LINE__,brcm_wifi_cd);
 	return brcm_wifi_cd;
 }
 
 static int brcm_wlan_set_carddetect(int val)
 {
+	printk(" Enter %s \n",__FUNCTION__);
 	pr_debug("%s: wifi_status_cb : %p, devid : %p, val : %d\n",
 		__func__, wifi_status_cb, wifi_status_cb_devid, val);
 	brcm_wifi_cd = val;
@@ -570,4 +619,8 @@ int __init brcm_wlan_init(void)
 	return platform_device_register(&brcm_device_wlan);
 #endif
 }
+#if defined(CONFIG_DEFERRED_INITCALLS)
+deferred_initcall(brcm_wlan_init);
+#else
 device_initcall(brcm_wlan_init);
+#endif

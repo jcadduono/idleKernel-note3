@@ -1,21 +1,15 @@
 /*
- * MobiCore Driver Kernel Module.
+ * Copyright (c) 2013-2014 TRUSTONIC LIMITED
+ * All Rights Reserved.
  *
- * This module is written as a Linux device driver.
- * This driver represents the command proxy on the lowest layer, from the
- * secure world to the non secure world, and vice versa.
- * This driver is located in the non secure world (Linux).
- * This driver offers IOCTL commands, for access to the secure world, and has
- * the interface from the secure world to the normal world.
- * The access to the driver is possible with a file descriptor,
- * which has to be created by the fd = open(/dev/mobicore) command.
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License
+ * version 2 as published by the Free Software Foundation.
  *
- * <-- Copyright Giesecke & Devrient GmbH 2009-2012 -->
- * <-- Copyright Trustonic Limited 2013 -->
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
  */
 
 #include <linux/kthread.h>

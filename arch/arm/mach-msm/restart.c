@@ -389,9 +389,6 @@ static void msm_restart_prepare(const char *cmd)
 		} else if (!strncmp(cmd, "peripheral_hw_reset", 19)) {
 			__raw_writel(0x77665507, restart_reason);
 #endif
-		} else if (!strncmp(cmd, "diag", 4)
-				&& !kstrtoul(cmd + 4, 0, &value)) {
-			__raw_writel(0xabcc0000 | value, restart_reason);
 		} else {
 			__raw_writel(0x77665501, restart_reason);
 		}
