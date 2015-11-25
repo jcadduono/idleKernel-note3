@@ -1,0 +1,179 @@
+# Copyright (C) 2012 The Android Open Source Project
+#
+# IMPORTANT: Do not create world writable files or directories.
+# This is a common source of Android security bugs.
+#
+
+on init
+    export EXTERNAL_STORAGE_DOCOMO /storage/extSdCard
+
+on fs
+    # Support Preload install apks
+    mkdir /preload 0771 system system
+
+on post-fs-data
+    # 3LM settings
+    setprop ro.3lm.production 1
+    setprop ro.3LM.extended 1
+    setprop ro.3LM.oem_sd_encryption 1
+    setprop ro.3LM.oem_manifest 3
+
+    # JPN: For MobileTV [ISDBT] \android\device\samsung\hltedcm\init.hltedcm.rc
+    mkdir /data/one-seg 0775 system system
+    chown system system /data/one-seg
+    chmod 0775 /data/one-seg
+
+    # FeliCa
+    mkdir /efs/sec_efs/FeliCaLock 0770 system felicalock
+    copy /efs/FeliCaLock/01 /efs/sec_efs/FeliCaLock/01
+    copy /efs/FeliCaLock/02 /efs/sec_efs/FeliCaLock/02
+    copy /efs/FeliCaLock/03 /efs/sec_efs/FeliCaLock/03
+    copy /efs/FeliCaLock/04 /efs/sec_efs/FeliCaLock/04
+    copy /efs/FeliCaLock/05 /efs/sec_efs/FeliCaLock/05
+    chown felicalock felicalock /efs/sec_efs/FeliCaLock/01
+    chown felicalock felicalock /efs/sec_efs/FeliCaLock/02
+    chown felicalock felicalock /efs/sec_efs/FeliCaLock/03
+    chown felicalock felicalock /efs/sec_efs/FeliCaLock/04
+    chown felicalock felicalock /efs/sec_efs/FeliCaLock/05
+    chmod 0644 /efs/sec_efs/FeliCaLock/01
+    chmod 0600 /efs/sec_efs/FeliCaLock/02
+    chmod 0644 /efs/sec_efs/FeliCaLock/03
+    chmod 0600 /efs/sec_efs/FeliCaLock/04
+    chmod 0600 /efs/sec_efs/FeliCaLock/05
+    rm /efs/FeliCaLock/01
+    rm /efs/FeliCaLock/02
+    rm /efs/FeliCaLock/03
+    rm /efs/FeliCaLock/04
+    rm /efs/FeliCaLock/05
+    rmdir /efs/FeliCaLock/
+
+    # Tmm Add Start
+    mkdir /data/mmb
+    mkdir /data/mmb/MmbCaCasDrmMw 0700 casdrm sdcard_rw
+    mkdir /data/mmb/MmbFcCtlMw 0700 system sdcard_rw
+    mkdir /data/mmb/MmbFcCtlMw/dic 0700 system sdcard_rw
+    mkdir /data/mmb/MmbStCtlMw 0700 system sdcard_rw
+    mkdir /data/mmb/MmbFcMp4Mw 0700 system sdcard_rw
+    mkdir /data/mmb/common 0770 system sdcard_rw
+    mkdir /data/mmb/common/MmbFcCtlMw 0700 system sdcard_rw
+    chown system mmb /data/mmb
+
+    mkdir data/mmb/common/fcctl 0775 system sdcard_rw
+    chown system sdcard_rw data/mmb/common/fcctl
+
+    mkdir data/mmb/common/streccm 0775 system sdcard_rw
+    chown system sdcard_rw data/mmb/common/streccm
+    mkdir data/mmb/common/streccm 0775 system sdcard_rw
+    chown system sdcard_rw data/mmb/common/streccm
+
+    chmod 775 /data/mmb
+    mkdir /data/mmb/MmbFcCtlMwMnt
+    chown system sdcard_rw /data/mmb/MmbFcCtlMwMnt
+    chmod 755 /data/mmb/MmbFcCtlMwMnt
+
+    mkdir /data/data/.drm/.sec_sctime
+    chmod 775 /data/data/.drm/.sec_sctime
+    chown system system /data/data/.drm/.sec_sctime
+
+    chmod 664 /dev/hw_random
+    chmod 640 /dev/tzic
+    chown system mmb /dev/tzic
+
+    chmod 0770 /data/mmb/common/manifest
+    chown root mmb /data/mmb/common/manifest
+    # Tmm Add End
+
+on boot
+    # MSP FactoryApp
+    mkdir /efs/FactoryApp 0775 system system
+
+    # JPN: For MobileTV [ISDBT] \android\device\samsung\hltedcm\init.hltedcm.rc
+    chown system system /dev/isdbt
+    chmod 0660 /dev/isdbt
+
+# Tmm Add Start
+service mmbcacasdrmmw /system/bin/MmbCaCasDrmMw
+    class main
+    socket MmbCaCasDrmMw stream 666
+    user casdrm
+    group mmb system radio sdcard_r shell inet net_raw media media_rw mmbisv
+
+service mmbfcctlmw /system/bin/MmbFcCtlMw
+    class main
+    user system
+    group mmb system log mount sdcard_rw media media_rw sdcard_r shell net_raw mmbisv camera
+
+service mmbstservice /system/bin/MmbStCtlMwService
+    class main
+    user system
+    group mmb system radio audio camera graphics inet net_bt net_bt_admin net_raw sdcard_rw sdcard_r shell media media_rw mmbisv
+
+service mmbmp4 /system/bin/MmbFcMp4MwServer
+    class main
+    user system
+    group mmb sdcard_r shell media media_rw mmbisv camera
+
+service mmbfclicemw /system/bin/MmbFcLiceMwServer
+    class main
+    user system
+    group mmb sdcard_rw inet media media_rw mmbisv
+
+service mmbcmservice /system/bin/MmbStRecCmMwService
+    class late_start
+    user system
+    group mmb system log mount net_raw sdcard_rw sdcard_r shell media media_rw mmbisv
+# Tmm Add End
+
+service oneseg-recovery /system/etc/oneseg_recovery.sh
+    class main
+    seclabel u:r:recovery:s0
+    user system
+    oneshot
+
+# JPN: For MobileTV [ISDBT] \android\device\samsung\hltedcm\init.hltedcm.rc
+service mobileTV /system/bin/broadcastProcessObserver
+    class main
+    user system
+    group system radio audio camera graphics inet net_bt net_bt_admin net_raw sdcard_rw sdcard_r shell media media_rw
+
+# MobileFeliCaSerialConnector
+service mfsc /system/bin/mfsc
+    class core
+    user root
+    group system felicalock nfc
+    oneshot
+
+# MobileFeliCaDaemonProcess
+service mfdp /system/bin/mfdp
+    class core
+    user root
+    group system felicalock nfc
+    oneshot
+
+# docomo virus scan - start daemon
+service mfescand /system/bin/mfescand
+    class main
+    socket mfescand stream 600 system system
+
+# umount service
+service umount_service /system/bin/umount /preload
+    disabled
+    oneshot
+
+# bluetooth dhcp config
+service dhcpcd_bt-pan /system/bin/dhcpcd -ABKL
+    class main
+    disabled
+    oneshot
+
+# Support Preload install apks
+on property:persist.sys.storage_preload=1
+    mount ext4 /dev/block/mmcblk0p25 /preload nosuid nodev ro barrier=1
+    setprop storage.preload.complete 1
+
+on property:persist.sys.storage_preload=0
+    start umount_service
+
+on property:sys.boot_completed=1
+    write /proc/sys/vm/dirty_bytes 31457280
+    write /proc/sys/vm/dirty_background_bytes 15728640
