@@ -28,6 +28,9 @@ RDIR=$(pwd)
 #	ktt = N900K  (KT Corporation)
 #	lgt = N900L  (LG Telecom)
 #	skt = N900S  (South Korea Telecom)
+# japanese variants:
+#	dcm = N900D / SC-01F  (NTT Docomo)
+#	kdi = N900J / SCL22   (au by KDDI)
 VARIANT=can
 
 [ -z $VER ] && \
