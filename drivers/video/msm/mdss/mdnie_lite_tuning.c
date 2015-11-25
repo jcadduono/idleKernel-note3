@@ -624,6 +624,8 @@ static ssize_t mode_store(struct device *dev,
 		return size;
 	}
 	backup = mdnie_tun_state.background;
+	if(mdnie_tun_state.background == value)
+		return size;
 	mdnie_tun_state.background = value;
 
 	if (mdnie_tun_state.accessibility == NEGATIVE) {
@@ -668,6 +670,8 @@ static ssize_t scenario_store(struct device *dev,
 	}
 
 	backup = mdnie_tun_state.scenario;
+	if(mdnie_tun_state.scenario == value)
+		return size;
 	mdnie_tun_state.scenario = value;
 
 #if defined(CONFIG_TDMB)
@@ -791,6 +795,8 @@ static ssize_t outdoor_store(struct device *dev,
 	}
 
 	backup = mdnie_tun_state.outdoor;
+	if(mdnie_tun_state.outdoor == value)
+		return size;
 	mdnie_tun_state.outdoor = value;
 
 	if (mdnie_tun_state.accessibility == NEGATIVE) {
@@ -827,7 +833,8 @@ static ssize_t negative_store(struct device *dev,
 	DPRINT
 	    ("negative_store, input value = %d\n",
 	     value);
-
+	if(mdnie_tun_state.accessibility == value)
+		return size;
 	mdnie_tun_state.accessibility = value;
 
 	mDNIe_Set_Mode();
@@ -913,6 +920,8 @@ static ssize_t accessibility_store(struct device *dev,
 	backup = mdnie_tun_state.accessibility;
 
 	if (cmd_value == NEGATIVE) {
+		if(mdnie_tun_state.accessibility == NEGATIVE)
+			return size;
 		mdnie_tun_state.accessibility = NEGATIVE;
 	}
 #ifndef	NEGATIVE_COLOR_USE_ACCESSIBILLITY
@@ -932,11 +941,15 @@ static ssize_t accessibility_store(struct device *dev,
 	defined(CONFIG_FB_MSM_MDSS_MAGNA_OCTA_VIDEO_720P_PANEL) || defined(CONFIG_FB_MSM_MIPI_MAGNA_OCTA_VIDEO_WXGA_PT_DUAL_PANEL) ||\
 	defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_CMD_WQXGA_S6E3HA1_PT_PANEL) || defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OCTA_VIDEO_FULL_HD_PT_PANEL)
 	else if (cmd_value == SCREEN_CURTAIN) {
+		if(mdnie_tun_state.accessibility == SCREEN_CURTAIN)
+			return size;
 		mdnie_tun_state.accessibility = SCREEN_CURTAIN;
 	}
 #endif
 #endif /* NEGATIVE_COLOR_USE_ACCESSIBILLITY */
 	else if (cmd_value == ACCESSIBILITY_OFF) {
+		if(mdnie_tun_state.accessibility == ACCESSIBILITY_OFF)
+			return size;
 		mdnie_tun_state.accessibility = ACCESSIBILITY_OFF;
 	} else
 		pr_info("%s ACCESSIBILITY_MAX", __func__);

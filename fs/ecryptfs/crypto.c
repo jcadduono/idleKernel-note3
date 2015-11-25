@@ -73,9 +73,9 @@ static int crypto_cc_reset_rng(struct crypto_rng *tfm)
         goto out;
     }
 
-    filp = filp_open("/dev/random", O_RDONLY, 0);
+    filp = filp_open("/dev/urandom", O_RDONLY, 0);
     if (IS_ERR(filp)) {
-		ecryptfs_printk(KERN_ERR, "Failed to open /dev/random\n");
+		ecryptfs_printk(KERN_ERR, "Failed to open /dev/urandom\n");
         goto out;
     }
 
