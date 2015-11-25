@@ -220,6 +220,20 @@ config MACH_HLTELGT
 	help
 	  Support for Samsung HLTELGT device.
 
+config MACH_HLTEDCM
+	default n
+	bool "Samsung model HLTEDCM"
+	select SEC_H_PROJECT
+	help
+	  Support for Samsung HLTEDCM device.
+
+config MACH_HLTEKDI
+	default n
+	bool "Samsung model HLTEKDI"
+	select SEC_H_PROJECT
+	help
+	  Support for Samsung HLTEKDI device.
+
 config MACH_H
 	default n
 	bool "Samsung model H"
@@ -240,6 +254,10 @@ config SEC_LOCALE_KOR
 config SEC_LOCALE_KOR_H
 	default n
 	bool "Samsung H model KOREA"
+
+config SEC_LOCALE_JPN
+	default n
+	bool "Samsung model JPN"
 endmenu
 
 config SAMSUNG_PRODUCT_SHIP

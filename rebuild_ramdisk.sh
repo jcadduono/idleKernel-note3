@@ -26,6 +26,7 @@ RDIR=$(pwd)
 #	att = N900A	(AT&T)
 #	usc = N900R4	(US Cellular)
 #	vzw = N900V	(Verizon)
+#	jpn = N900D/J / SC-01F / SCL22 (Unified Japanese / NTT Docomo / au by KDDI)
 VARIANT=can
 
 [ -z $VER ] && \
