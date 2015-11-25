@@ -146,6 +146,11 @@ ifeq ($(CONFIG_SEC_LOCALE_KOR),y)
 	dtb-y += msm8974-sec-hltekor-r05.dtb
 	dtb-y += msm8974-sec-hltekor-r06.dtb
 	dtb-y += msm8974-sec-hltekor-r07.dtb
+else ifeq ($(CONFIG_SEC_LOCALE_JPN),y)
+	dtb-y += msm8974-sec-hltejpn-r05.dtb
+	dtb-y += msm8974-sec-hltejpn-r06.dtb
+	dtb-y += msm8974-sec-hltejpn-r07.dtb
+	dtb-y += msm8974-sec-hltejpn-r08.dtb
 else
 	dtb-y += msm8974-sec-hlte-r05.dtb
 	dtb-y += msm8974-sec-hlte-r06.dtb
