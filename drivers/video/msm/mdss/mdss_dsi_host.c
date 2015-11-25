@@ -1676,6 +1676,9 @@ int mdss_dsi_cmdlist_commit(struct mdss_dsi_ctrl_pdata *ctrl, int from_mdp)
 	rc = mdss_iommu_ctrl(1);
 	if (IS_ERR_VALUE(rc)) {
 		pr_err("IOMMU attach failed\n");
+		mdss_dsi_clk_ctrl(ctrl, DSI_ALL_CLKS, 0);
+		mdss_bus_scale_set_quota(MDSS_HW_DSI0, 0, 0);
+		mdss_bus_bandwidth_ctrl(0);
 		mutex_unlock(&ctrl->cmd_mutex);
 		return rc;
 	}

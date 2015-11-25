@@ -1330,6 +1330,7 @@ static ssize_t mipi_samsung_disp_siop_store(struct device *dev,
 }
 
 #ifdef LDI_FPS_CHANGE
+static int ldi_fps_state=MIPI_SUSPEND_STATE;
 static unsigned int current_ldi_fps=0;
 static unsigned int current_ldi_fps_otp=0;
 unsigned int current_change_ldi_fps=0;
@@ -1352,7 +1353,7 @@ int ldi_fps(unsigned int input_fps)
 		return 0;
 	}
 
-	if(msd.mfd->resume_state == MIPI_RESUME_STATE) {
+	if(ldi_fps_state == MIPI_RESUME_STATE) {
 		dest_fps_delta = (proper_fps - (int)input_fps)/200;
 		if(dest_fps_delta == 0) {
 			pr_info("%s::No FPS Delta, Skip!! \n",__func__);
@@ -2436,6 +2437,11 @@ static int mdss_dsi_panel_on(struct mdss_panel_data *pdata)
 	msd.dstat.on = 1;
 	msd.dstat.wait_disp_on = 1;
 	msd.mfd->resume_state = MIPI_RESUME_STATE;
+
+#ifdef LDI_FPS_CHANGE
+	ldi_fps_state = MIPI_RESUME_STATE;
+#endif
+
 #ifdef LDI_ADJ_VDDM_OFFSET
 	mipi_samsung_disp_send_cmd(PANEL_LDI_SET_VDDM_OFFSET, true);
 #endif
@@ -2506,6 +2512,10 @@ static int mdss_dsi_panel_off(struct mdss_panel_data *pdata)
 	msd.dstat.on = 0;
 	msd.mfd->resume_state = MIPI_SUSPEND_STATE;
 	ctrl->dsi_err_cnt = 0;
+
+#ifdef LDI_FPS_CHANGE
+	ldi_fps_state = MIPI_SUSPEND_STATE;
+#endif
 
 	mipi_samsung_disp_send_cmd(PANEL_DISP_OFF, true);
 

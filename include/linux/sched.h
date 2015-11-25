@@ -679,9 +679,6 @@ struct signal_struct {
 	struct mutex cred_guard_mutex;	/* guard against foreign influences on
 					 * credential calculations
 					 * (notably. ptrace) */
-#ifdef CONFIG_SAMP_HOTNESS
-	int hotness_adj;
-#endif
 };
 
 /* Context switch must be unlocked if interrupts are to be enabled */

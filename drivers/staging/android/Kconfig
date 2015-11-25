@@ -142,12 +142,6 @@ config KSWAPD_NOSWAP
 	help
 	  This option controls swap action in kswapd
 
-config SAMP_HOTNESS
-	bool "Kill hidden process by hotness"
-	default n
-	help
-	  This option change kill hidden process policy in LMK
-
 endif # if ANDROID
 
 endmenu

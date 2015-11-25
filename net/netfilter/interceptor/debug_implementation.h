@@ -1,6 +1,6 @@
 /**
    @copyright
-   Copyright (c) 2011 - 2014, INSIDE Secure Oy. All rights reserved.
+   Copyright (c) 2011 - 2015, INSIDE Secure Oy. All rights reserved.
 */
 
 
@@ -238,6 +238,13 @@ DebugDumper(
 
 DebugDumper debug_dump_hex_bytes;
 
+void
+debug_disable(
+        void);
+
+void
+debug_enable(
+        void);
 
 void
 debug_set_filename(
@@ -246,5 +253,13 @@ debug_set_filename(
 void
 debug_set_filter_filename(
         const char *filename);
+
+void
+debug_set_filter_string(
+        const char *debug_string);
+
+void
+debug_set_prefix(
+        const char *prefix);
 
 #endif /* DEBUG_IMPLEMENTATION_H */
