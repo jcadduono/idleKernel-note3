@@ -105,6 +105,12 @@ on post-fs-data
     chown radio radio /efs/h2k.dat
     chmod 0644 /efs/h2k.dat
 
+    # proximity and gyro sensor permission
+    chmod 0644 /efs/prox_cal
+    chown system system /efs/prox_cal
+    chmod 0644 /efs/gyro_cal_data
+    chown system system /efs/gyro_cal_data
+
 # DRK permission
     mkdir /efs/prov 0770 radio system
     chown radio system /efs/prov/libdevkm.lock
