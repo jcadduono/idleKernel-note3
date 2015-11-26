@@ -343,6 +343,12 @@ on post-fs-data
     chmod 0644 /efs/h2k.dat
     chown system system /efs/drm/h2k
 
+    # proximity and gyro sensor permission
+    chmod 0644 /efs/prox_cal
+    chown system system /efs/prox_cal
+    chmod 0644 /efs/gyro_cal_data
+    chown system system /efs/gyro_cal_data
+
     # icd
     check_icd
     chown system system /dev/icd
