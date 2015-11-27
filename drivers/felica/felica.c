@@ -41,7 +41,9 @@
 /******************************************************************************
  * log
  ******************************************************************************/
+#if defined(CONFIG_SEC_DEBUG)
 #include <mach/sec_debug.h>
+#endif
 #define NO_CHECK_TAMPER
 #define SRIB_DIAG_ENABLED
 
