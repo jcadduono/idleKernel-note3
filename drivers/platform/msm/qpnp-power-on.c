@@ -1270,7 +1270,9 @@ static int __devinit qpnp_pon_config_init(struct qpnp_pon *pon)
 #ifdef CONFIG_MACH_HLTEVZW
 		/* Disable power key reset on HLTE VZW with debug low by request */
 		if (cfg->pon_type == PON_KPDPWR) {
+#ifdef CONFIG_SEC_DEBUG
 			if (0 == sec_debug_is_enabled())
+#endif
 				qpnp_control_s2_reset(pon, cfg, 0);
 		}
 #endif
