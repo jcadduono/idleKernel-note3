@@ -1,0 +1,149 @@
+#!/system/bin/sh
+
+checksu=`ls /data/data`
+[ -z "$checksu" ] && echo "Must be superuser!" && exit
+
+DDIR=/data/data/idlekernel
+VERSION=1.0
+
+LUN=/sys/devices/msm_dwc3/f9200000.dwc3/gadget/lun0
+SDCARD=/dev/block/mmcblk1p1
+SD_MOUNTED=0
+
+CHECK_SD_MOUNTED() {
+	[ `grep -cE "\/extSdCard|\/sdcard1" /proc/mounts` -gt 0 ] && SD_MOUNTED=true || SD_MOUNTED=false
+}
+
+DISPLAY_VERSION() {
+	echo "/sbin/ums by jcadduono (version $VERSION)"
+}
+
+DISPLAY_USAGE() {
+	echo "Usage: ums [on|off|status]"
+	echo "Enables or disables USB Mass Storage mode"
+	echo "for the external SDcard."
+	echo
+	echo "  on, start, enable    turns on UMS mode"
+	echo "  off, stop, disable   turns off UMS mode"
+	echo "  status, info         displays status of UMS mode"
+	echo "  -h, help             displays this information"
+	echo "  -v, version          displays version info"
+	echo
+	echo "For more help & to report bugs contact <jc@adduono.com>"
+}
+
+DISPLAY_STATUS() {
+	[ "$(getprop sys.usb.state)" == "mass_storage,adb" ] && {
+		FILE=$(cat $LUN/file)
+		echo "USB Mass Storage is currently enabled."
+		echo "Currently mounted: $FILE"
+	} || {
+		echo "USB Mass Storage is currently disabled."
+	}
+	CHECK_SD_MOUNTED
+	$SD_MOUNTED && {
+		echo "SDcard is currently mounted in Android."
+	} || {
+		echo "SDcard is not mounted in Android."
+	}
+}
+
+USB_OFF() {
+	WAIT_COUNT=0
+	echo -n "Disabling USB protocols..."
+	setprop sys.usb.config none
+	while [ "$(getprop sys.usb.state)" != "none" ]
+	do
+		echo -n "."
+		sleep 0.1
+		WAIT_COUNT=$(($WAIT_COUNT+1))
+		[ $WAIT_COUNT -eq 10 ] && {
+			echo
+			echo "Error: USB mode does not want to change!" 1>&2
+			exit 1
+		}
+	done
+	echo
+}
+
+USB_DEFAULT() {
+	WAIT_COUNT=0
+	echo -n "Setting USB mode to default..."
+	setprop sys.usb.config $(getprop persist.sys.usb.config)
+	while [ "$(getprop sys.usb.state)" != "$(getprop persist.sys.usb.config)" ]
+	do
+		echo -n "."
+		sleep 0.1
+		WAIT_COUNT=$(($WAIT_COUNT+1))
+		[ $WAIT_COUNT -eq 10 ] && {
+			echo
+			echo "Error: USB mode does not want to change!" 1>&2
+			exit 1
+		}
+	done
+	echo
+}
+
+USB_UMS() {
+	WAIT_COUNT=0
+	echo -n "Setting USB mode to mass storage..."
+	setprop sys.usb.config mass_storage,adb
+	while [ "$(getprop sys.usb.state)" != "mass_storage,adb" ]
+	do
+		echo -n "."
+		sleep 0.1
+		WAIT_COUNT=$(($WAIT_COUNT+1))
+		[ $WAIT_COUNT -eq 20 ] && {
+			echo
+			echo "Error: USB mode does not want to change!" 1>&2
+			exit 1
+		}
+	done
+	echo
+}
+
+UMS_ON() {
+	CHECK_SD_MOUNTED
+	$SD_MOUNTED && {
+		echo "Error: You can't enable UMS mode while SDcard is mounted in Android!" 1>&2
+		exit 1
+	}
+	USB_OFF
+	echo "Setting up dwc3 storage gadget lun..."
+	echo 0 > $LUN/cdrom
+	echo 0 > $LUN/nofua
+	echo 0 > $LUN/ro
+	echo "Mounting $SDCARD to lun..."
+	echo $SDCARD > $LUN/file
+	USB_UMS
+	echo "Done. PLEASE USE EJECT MEDIA ON PC BEFORE TURNING OFF UMS!"
+}
+
+UMS_OFF() {
+	USB_OFF
+	echo "Disabling dwc3 storage gadget lun..."
+	echo 0 > $LUN/cdrom
+	echo 0 > $LUN/nofua
+	echo 0 > $LUN/ro
+	echo 0 > $LUN/file
+	USB_DEFAULT
+	echo "Done."
+}
+
+case $1 in
+1|on|enable|start)
+	UMS_ON
+	;;
+0|off|disable|stop)
+	UMS_OFF
+	;;
+status)
+	DISPLAY_STATUS
+	;;
+-v|version)
+	DISPLAY_VERSION
+	;;
+*)
+	DISPLAY_USAGE
+	;;
+esac
