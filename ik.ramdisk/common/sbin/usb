@@ -1,0 +1,273 @@
+#!/system/bin/sh
+
+VERSION=1.0
+
+LUN=/sys/devices/msm_dwc3/f9200000.dwc3/gadget/lun0
+SDCARD=/dev/block/mmcblk1
+SD_MOUNTED=false
+USB_MODE=false
+ADB_ON=false
+
+DISPLAY_VERSION() {
+	echo "/sbin/usb by jcadduono (version $VERSION)"
+}
+
+DISPLAY_USAGE() {
+	echo "Usage: usb [mtp|ptp|ums|status] [on|off]"
+	echo "Enables or disables MTP, PTP, and UMS USB modes."
+	echo
+	echo "  mtp on/off           turns on/off MTP mode"
+	echo "  ptp on/off           turns on/off PTP mode"
+	echo "  ums on/off           turns on/off UMS mode"
+	echo "  default              sets USB mode to default"
+	echo "  -i, info, status     displays active USB mode"
+	echo "  -h, help             displays this information"
+	echo "  -v, version          displays version info"
+	echo
+	echo "For more help & to report bugs contact <jc@adduono.com>"
+}
+
+CHECK_SU() {
+	[ -z "$(ls /data/data)" ] && {
+		echo "Must be superuser!" 1>&2
+		exit 1
+	}
+}
+
+CHECK_ADB_ON() {
+	case "$(getprop sys.usb.state)" in
+	*adb*)
+		ADB_ON=true
+		;;
+	*)
+		ADB_ON=false
+		;;
+	esac
+}
+
+CHECK_SD_MOUNTED() {
+	[ `grep -cE "\/extSdCard|\/sdcard1" /proc/mounts` -gt 0 ] && SD_MOUNTED=true || SD_MOUNTED=false
+}
+
+CHECK_USB_MODE() {
+	case "$(getprop sys.usb.state)" in
+	*mtp*)
+		USB_MODE="mtp"
+		;;
+	*ptp*)
+		USB_MODE="ptp"
+		;;
+	*mass_storage*)
+		USB_MODE="ums"
+		;;
+	*)
+		USB_MODE=false
+		;;
+	esac
+}
+
+DISPLAY_STATUS() {
+	CHECK_USB_MODE
+	case "$USB_MODE" in
+	mtp)
+		echo "Media Transfer Protocol is active."
+		;;
+	ptp)
+		echo "Picture Transfer Protocol is active."
+		;;
+	ums)
+		echo "USB Mass Storage is active."
+		;;
+	*)
+		echo "No USB transfer modes are active."
+		;;
+	esac
+	CHECK_SD_MOUNTED
+	$SD_MOUNTED && {
+		echo "SDcard is currently mounted in Android."
+	} || {
+		echo "SDcard is not mounted in Android."
+	}
+}
+
+ACTIVATE_USB_MODE() {
+	WAIT_COUNT=0
+	setprop sys.usb.config $USB_MODE
+	while [ "$(getprop sys.usb.state)" != "$USB_MODE" ]
+	do
+		echo -n "."
+		sleep 0.1
+		WAIT_COUNT=$(($WAIT_COUNT+1))
+		[ $WAIT_COUNT -eq 10 ] && {
+			echo
+			echo "Error: USB mode does not want to change!" 1>&2
+			exit 1
+		}
+	done
+	echo
+}
+
+MTP_ON() {
+	CHECK_ADB_ON
+	$ADB_ON && MODE="mtp,adb" || MODE="mtp"
+	echo -n "Activating MTP USB transfer mode..."
+	USB_MODE=$MODE
+	ACTIVATE_USB_MODE
+	echo "Done."
+}
+
+PTP_ON() {
+	CHECK_ADB_ON
+	$ADB_ON && MODE="ptp,adb" || MODE="ptp"
+	echo -n "Activating PTP USB transfer mode..."
+	USB_MODE=$MODE
+	ACTIVATE_USB_MODE
+	echo "Done."
+}
+
+START_STORAGE_ACTIVITY() {
+	echo "Opening storage settings..."
+	am start -n com.android.settings/.Settings\$StorageSettingsActivity > /dev/null 2>&1
+}
+
+ASK_OPEN_STORAGE() {
+	echo -n "Open storage settings? (y/n): "
+	read OPEN
+	case "$OPEN" in
+	y|Y|1|yes)
+		START_STORAGE_ACTIVITY
+		;;
+	esac
+}
+
+ASK_RETRY() {
+	echo -n "Retry? (y/n): "
+	read RETRY
+	case "$RETRY" in
+	y|Y|1|yes)
+		return
+		;;
+	esac
+	exit 1
+}
+
+UMS_ON() {
+	CHECK_SD_MOUNTED
+	while $SD_MOUNTED; do
+		echo "Error: You can't enable UMS mode while SDcard is mounted in Android!" 1>&2
+		START_STORAGE_ACTIVITY
+		ASK_RETRY
+		CHECK_SD_MOUNTED
+	done
+	USB_OFF
+	echo "Setting up dwc3 storage gadget lun..."
+	echo 0 > $LUN/cdrom
+	echo 0 > $LUN/nofua
+	echo 0 > $LUN/ro
+	echo "Mounting $SDCARD to lun..."
+	echo $SDCARD > $LUN/file
+	CHECK_ADB_ON
+	$ADB_ON && MODE="mass_storage,adb" || MODE="mass_storage"
+	echo -n "Activating USB Mass Storage transfer mode..."
+	USB_MODE=$MODE
+	ACTIVATE_USB_MODE
+	echo "Done. PLEASE USE EJECT MEDIA ON PC BEFORE TURNING OFF UMS!"
+}
+
+UMS_OFF() {
+	echo "Disabling dwc3 storage gadget lun..."
+	echo 0 > $LUN/cdrom
+	echo 0 > $LUN/nofua
+	echo 0 > $LUN/ro
+	echo 0 > $LUN/file
+}
+
+USB_OFF() {
+	CHECK_USB_MODE
+	UMS_WAS_ON=false
+	[ $USB_MODE == "ums" ] && {
+		UMS_OFF
+		CHECK_SD_MOUNTED
+		UMS_WAS_ON=true
+	}
+	CHECK_ADB_ON
+	$ADB_ON && MODE="adb" || MODE="none"
+	echo -n "Disabling USB transfer protocols..."
+	USB_MODE=$MODE
+	ACTIVATE_USB_MODE
+	$UMS_WAS_ON && ! $SD_MOUNTED && ASK_OPEN_STORAGE
+	echo "Done."
+}
+
+USB_DEFAULT() {
+	CHECK_USB_MODE
+	UMS_WAS_ON=false
+	[ $USB_MODE == "ums" ] && {
+		UMS_OFF
+		CHECK_SD_MOUNTED
+		UMS_WAS_ON=true
+	}
+	echo -n "Setting USB mode to default..."
+	USB_MODE="$(getprop persist.sys.usb.config)"
+	ACTIVATE_USB_MODE
+	$UMS_WAS_ON && ! $SD_MOUNTED && ASK_OPEN_STORAGE
+	echo "Done."
+}
+
+case $1 in
+mtp)
+	CHECK_SU
+	case $2 in
+	1|on|start|enable)
+		MTP_ON
+		;;
+	0|off|stop|disable)
+		USB_OFF
+		;;
+	*)
+		DISPLAY_USAGE
+		;;
+	esac
+	;;
+ptp)
+	CHECK_SU
+	case $2 in
+	1|on|start|enable)
+		PTP_ON
+		;;
+	0|off|stop|disable)
+		USB_OFF
+		;;
+	*)
+		DISPLAY_USAGE
+		;;
+	esac
+	;;
+ums)
+	CHECK_SU
+	case $2 in
+	1|on|start|enable)
+		UMS_ON
+		;;
+	0|off|stop|disable)
+		USB_OFF
+		;;
+	*)
+		DISPLAY_USAGE
+		;;
+	esac
+	;;
+default)
+	CHECK_SU
+	USB_DEFAULT
+	;;
+-i|info|status)
+	DISPLAY_STATUS
+	;;
+-v|version)
+	DISPLAY_VERSION
+	;;
+*)
+	DISPLAY_USAGE
+	;;
+esac
