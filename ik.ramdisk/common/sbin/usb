@@ -1,12 +1,14 @@
 #!/system/bin/sh
 
-VERSION=1.0
+VERSION=1.2
 
 LUN=/sys/devices/msm_dwc3/f9200000.dwc3/gadget/lun0
 SDCARD=/dev/block/mmcblk1
+SDMOUNT=/storage/extSdCard
 SD_MOUNTED=false
 USB_MODE=false
 ADB_ON=false
+UMS_WAS_ON=false
 
 DISPLAY_VERSION() {
 	echo "/sbin/usb by jcadduono (version $VERSION)"
@@ -34,6 +36,10 @@ CHECK_SU() {
 	}
 }
 
+CHECK_SD_MOUNTED() {
+	mountpoint -q $SDMOUNT && SD_MOUNTED=true || SD_MOUNTED=false
+}
+
 CHECK_ADB_ON() {
 	case "$(getprop sys.usb.state)" in
 	*adb*)
@@ -43,10 +49,6 @@ CHECK_ADB_ON() {
 		ADB_ON=false
 		;;
 	esac
-}
-
-CHECK_SD_MOUNTED() {
-	[ `grep -cE "\/extSdCard|\/sdcard1" /proc/mounts` -gt 0 ] && SD_MOUNTED=true || SD_MOUNTED=false
 }
 
 CHECK_USB_MODE() {
@@ -107,39 +109,6 @@ ACTIVATE_USB_MODE() {
 	echo
 }
 
-MTP_ON() {
-	CHECK_ADB_ON
-	$ADB_ON && MODE="mtp,adb" || MODE="mtp"
-	echo -n "Activating MTP USB transfer mode..."
-	USB_MODE=$MODE
-	ACTIVATE_USB_MODE
-	echo "Done."
-}
-
-PTP_ON() {
-	CHECK_ADB_ON
-	$ADB_ON && MODE="ptp,adb" || MODE="ptp"
-	echo -n "Activating PTP USB transfer mode..."
-	USB_MODE=$MODE
-	ACTIVATE_USB_MODE
-	echo "Done."
-}
-
-START_STORAGE_ACTIVITY() {
-	echo "Opening storage settings..."
-	am start -n com.android.settings/.Settings\$StorageSettingsActivity > /dev/null 2>&1
-}
-
-ASK_OPEN_STORAGE() {
-	echo -n "Open storage settings? (y/n): "
-	read OPEN
-	case "$OPEN" in
-	y|Y|1|yes)
-		START_STORAGE_ACTIVITY
-		;;
-	esac
-}
-
 ASK_RETRY() {
 	echo -n "Retry? (y/n): "
 	read RETRY
@@ -151,15 +120,70 @@ ASK_RETRY() {
 	exit 1
 }
 
-UMS_ON() {
+MOUNT_SDCARD() {
 	CHECK_SD_MOUNTED
-	while $SD_MOUNTED; do
-		echo "Error: You can't enable UMS mode while SDcard is mounted in Android!" 1>&2
-		START_STORAGE_ACTIVITY
+	$SD_MOUNTED && return
+	echo "Mounting SDcard to $SDMOUNT..."
+	vdc volume mount $SDMOUNT > /dev/null 2>&1
+	CHECK_SD_MOUNTED
+	$SD_MOUNTED && {
+		echo "SDcard mounted successfully."
+		sleep 1
+	} || {
+		echo "Error: Unable to mount SDcard!" 1>&2
 		ASK_RETRY
-		CHECK_SD_MOUNTED
-	done
+		MOUNT_SDCARD
+	}
+}
+
+UNMOUNT_SDCARD() {
+	CHECK_SD_MOUNTED
+	$SD_MOUNTED || return
+	echo "Unmounting SDcard from $SDMOUNT..."
+	vdc volume unmount $SDMOUNT > /dev/null 2>&1
+	CHECK_SD_MOUNTED
+	$SD_MOUNTED && {
+		echo "Error: Unable to unmount SDcard!" 1>&2
+		ASK_RETRY
+		UNMOUNT_SDCARD
+	} || {
+		echo "SDcard unmounted successfully."
+	}
+}
+
+ASK_MOUNT_SDCARD() {
+	CHECK_SD_MOUNTED
+	$SD_MOUNTED && return
+	echo -n "Mount SDcard in Android? (y/n): "
+	read OPEN
+	case "$OPEN" in
+	y|Y|1|yes)
+		MOUNT_SDCARD
+		;;
+	esac
+}
+
+MTP_ON() {
 	USB_OFF
+	CHECK_ADB_ON
+	$ADB_ON && MODE="mtp,adb" || MODE="mtp"
+	echo -n "Activating MTP USB transfer mode..."
+	USB_MODE=$MODE
+	ACTIVATE_USB_MODE
+}
+
+PTP_ON() {
+	USB_OFF
+	CHECK_ADB_ON
+	$ADB_ON && MODE="ptp,adb" || MODE="ptp"
+	echo -n "Activating PTP USB transfer mode..."
+	USB_MODE=$MODE
+	ACTIVATE_USB_MODE
+}
+
+UMS_ON() {
+	USB_OFF
+	UNMOUNT_SDCARD
 	echo "Setting up dwc3 storage gadget lun..."
 	echo 0 > $LUN/cdrom
 	echo 0 > $LUN/nofua
@@ -171,7 +195,6 @@ UMS_ON() {
 	echo -n "Activating USB Mass Storage transfer mode..."
 	USB_MODE=$MODE
 	ACTIVATE_USB_MODE
-	echo "Done. PLEASE USE EJECT MEDIA ON PC BEFORE TURNING OFF UMS!"
 }
 
 UMS_OFF() {
@@ -180,38 +203,25 @@ UMS_OFF() {
 	echo 0 > $LUN/nofua
 	echo 0 > $LUN/ro
 	echo 0 > $LUN/file
+	UMS_WAS_ON=true
 }
 
 USB_OFF() {
 	CHECK_USB_MODE
-	UMS_WAS_ON=false
-	[ $USB_MODE == "ums" ] && {
-		UMS_OFF
-		CHECK_SD_MOUNTED
-		UMS_WAS_ON=true
-	}
+	[ $USB_MODE == "ums" ] && UMS_OFF
 	CHECK_ADB_ON
 	$ADB_ON && MODE="adb" || MODE="none"
 	echo -n "Disabling USB transfer protocols..."
 	USB_MODE=$MODE
 	ACTIVATE_USB_MODE
-	$UMS_WAS_ON && ! $SD_MOUNTED && ASK_OPEN_STORAGE
-	echo "Done."
+	$UMS_WAS_ON && ASK_MOUNT_SDCARD
 }
 
 USB_DEFAULT() {
-	CHECK_USB_MODE
-	UMS_WAS_ON=false
-	[ $USB_MODE == "ums" ] && {
-		UMS_OFF
-		CHECK_SD_MOUNTED
-		UMS_WAS_ON=true
-	}
+	USB_OFF
 	echo -n "Setting USB mode to default..."
 	USB_MODE="$(getprop persist.sys.usb.config)"
 	ACTIVATE_USB_MODE
-	$UMS_WAS_ON && ! $SD_MOUNTED && ASK_OPEN_STORAGE
-	echo "Done."
 }
 
 case $1 in
@@ -220,9 +230,11 @@ mtp)
 	case $2 in
 	1|on|start|enable)
 		MTP_ON
+		echo "Done."
 		;;
 	0|off|stop|disable)
 		USB_OFF
+		echo "Done."
 		;;
 	*)
 		DISPLAY_USAGE
@@ -234,9 +246,11 @@ ptp)
 	case $2 in
 	1|on|start|enable)
 		PTP_ON
+		echo "Done."
 		;;
 	0|off|stop|disable)
 		USB_OFF
+		echo "Done."
 		;;
 	*)
 		DISPLAY_USAGE
@@ -248,9 +262,11 @@ ums)
 	case $2 in
 	1|on|start|enable)
 		UMS_ON
+		echo "Done. PLEASE USE EJECT MEDIA ON PC BEFORE TURNING OFF UMS!"
 		;;
 	0|off|stop|disable)
 		USB_OFF
+		echo "Done."
 		;;
 	*)
 		DISPLAY_USAGE
@@ -260,6 +276,7 @@ ums)
 default)
 	CHECK_SU
 	USB_DEFAULT
+	echo "Done."
 	;;
 -i|info|status)
 	DISPLAY_STATUS
