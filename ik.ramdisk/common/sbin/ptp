@@ -1,6 +1,6 @@
 #!/system/bin/sh
 
-VERSION=1.0
+VERSION=1.1
 
 DISPLAY_VERSION() {
 	echo "/sbin/ptp by jcadduono (version $VERSION)"
@@ -12,6 +12,7 @@ DISPLAY_USAGE() {
 	echo
 	echo "  on, start, enable    turns on PTP mode"
 	echo "  off, stop, disable   turns off PTP mode"
+	echo "  -3, 3                activates USB 3.0, use with on"
 	echo "  -i, info, status     displays status of USB mode"
 	echo "  -h, help             displays this information"
 	echo "  -v, version          displays version info"
@@ -21,7 +22,7 @@ DISPLAY_USAGE() {
 
 case $1 in
 1|on|start|enable)
-	/sbin/usb ptp on
+	/sbin/usb ptp on $2
 	;;
 0|off|stop|disable)
 	/sbin/usb ptp off
