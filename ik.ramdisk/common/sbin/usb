@@ -1,6 +1,6 @@
 #!/system/bin/sh
 
-VERSION=1.2
+VERSION=1.3
 
 LUN=/sys/devices/msm_dwc3/f9200000.dwc3/gadget/lun0
 SDCARD=/dev/block/mmcblk1
@@ -8,7 +8,9 @@ SDMOUNT=/storage/extSdCard
 SD_MOUNTED=false
 USB_MODE=false
 ADB_ON=false
-UMS_WAS_ON=false
+USB_30_ON=false
+USE_USB_30=false
+ASK_SD_MOUNT=false
 
 DISPLAY_VERSION() {
 	echo "/sbin/usb by jcadduono (version $VERSION)"
@@ -22,6 +24,7 @@ DISPLAY_USAGE() {
 	echo "  ptp on/off           turns on/off PTP mode"
 	echo "  ums on/off           turns on/off UMS mode"
 	echo "  default              sets USB mode to default"
+	echo "  -3, 3                activates USB 3.0, use with on"
 	echo "  -i, info, status     displays active USB mode"
 	echo "  -h, help             displays this information"
 	echo "  -v, version          displays version info"
@@ -66,6 +69,14 @@ CHECK_USB_MODE() {
 		USB_MODE=false
 		;;
 	esac
+	case "$(cat /sys/class/android_usb/android0/usb30en)" in
+	1)
+		USB_30_ON=true
+		;;
+	*)
+		USB_30_ON=false
+		;;
+	esac
 }
 
 DISPLAY_STATUS() {
@@ -84,6 +95,12 @@ DISPLAY_STATUS() {
 		echo "No USB transfer modes are active."
 		;;
 	esac
+	echo -n "USB bus speed is set to: "
+	$USB_30_ON && {
+		echo "USB 3.0 SuperSpeed"
+	} || {
+		echo "USB 2.0 HighSpeed"
+	}
 	CHECK_SD_MOUNTED
 	$SD_MOUNTED && {
 		echo "SDcard is currently mounted in Android."
@@ -107,6 +124,30 @@ ACTIVATE_USB_MODE() {
 		}
 	done
 	echo
+}
+
+ACTIVATE_USB_30() {
+	CHECK_USB_MODE
+	$USB_30_ON || {
+		echo "Activating USB 3.0 SuperSpeed mode..."
+		echo 1 > /sys/class/android_usb/android0/usb30en
+		[ "$(cat /sys/class/android_usb/android0/usb30en)" != "1" ] && {
+			echo "Error: USB bus speed does not want to change!" 1>&2
+			exit 1
+		}
+	}
+}
+
+DEACTIVATE_USB_30() {
+	CHECK_USB_MODE
+	$USB_30_ON && {
+		echo "Deactivating USB 3.0 SuperSpeed mode..."
+		echo 0 > /sys/class/android_usb/android0/usb30en
+		[ "$(cat /sys/class/android_usb/android0/usb30en)" != "0" ] && {
+			echo "Error: USB bus speed does not want to change!" 1>&2
+			exit 1
+		}
+	}
 }
 
 ASK_RETRY() {
@@ -165,6 +206,7 @@ ASK_MOUNT_SDCARD() {
 
 MTP_ON() {
 	USB_OFF
+	$USE_USB_30 && ACTIVATE_USB_30
 	CHECK_ADB_ON
 	$ADB_ON && MODE="mtp,adb" || MODE="mtp"
 	echo -n "Activating MTP USB transfer mode..."
@@ -174,6 +216,7 @@ MTP_ON() {
 
 PTP_ON() {
 	USB_OFF
+	$USE_USB_30 && ACTIVATE_USB_30
 	CHECK_ADB_ON
 	$ADB_ON && MODE="ptp,adb" || MODE="ptp"
 	echo -n "Activating PTP USB transfer mode..."
@@ -184,6 +227,7 @@ PTP_ON() {
 UMS_ON() {
 	USB_OFF
 	UNMOUNT_SDCARD
+	$USE_USB_30 && ACTIVATE_USB_30
 	echo "Setting up dwc3 storage gadget lun..."
 	echo 0 > $LUN/cdrom
 	echo 0 > $LUN/nofua
@@ -203,7 +247,6 @@ UMS_OFF() {
 	echo 0 > $LUN/nofua
 	echo 0 > $LUN/ro
 	echo 0 > $LUN/file
-	UMS_WAS_ON=true
 }
 
 USB_OFF() {
@@ -214,7 +257,8 @@ USB_OFF() {
 	echo -n "Disabling USB transfer protocols..."
 	USB_MODE=$MODE
 	ACTIVATE_USB_MODE
-	$UMS_WAS_ON && ASK_MOUNT_SDCARD
+	$USE_USB_30 || DEACTIVATE_USB_30
+	$ASK_SD_MOUNT && ASK_MOUNT_SDCARD
 }
 
 USB_DEFAULT() {
@@ -224,11 +268,33 @@ USB_DEFAULT() {
 	ACTIVATE_USB_MODE
 }
 
+CHECK_USB_30() {
+	case $1 in
+	-3|3)
+		[ "$(cat /sys/class/android_usb/android0/ss_host_available)" == "1" ] && {
+			USE_USB_30=true
+		} || {
+			echo "Error: USB 3.0 SuperSpeed support not available on host!" 1>&2
+			echo -n "Continue anyway (y/n)? "
+			read CONT
+			case "$CONT" in
+			y|Y|1|yes)
+				return
+				;;
+			esac
+			exit 1
+		}
+		;;
+	esac
+}
+
 case $1 in
 mtp)
 	CHECK_SU
 	case $2 in
 	1|on|start|enable)
+		ASK_SD_MOUNT=true
+		CHECK_USB_30 $3
 		MTP_ON
 		echo "Done."
 		;;
@@ -245,6 +311,8 @@ ptp)
 	CHECK_SU
 	case $2 in
 	1|on|start|enable)
+		ASK_SD_MOUNT=true
+		CHECK_USB_30 $3
 		PTP_ON
 		echo "Done."
 		;;
@@ -261,10 +329,12 @@ ums)
 	CHECK_SU
 	case $2 in
 	1|on|start|enable)
+		CHECK_USB_30 $3
 		UMS_ON
 		echo "Done. PLEASE USE EJECT MEDIA ON PC BEFORE TURNING OFF UMS!"
 		;;
 	0|off|stop|disable)
+		ASK_SD_MOUNT=true
 		USB_OFF
 		echo "Done."
 		;;
@@ -275,6 +345,7 @@ ums)
 	;;
 default)
 	CHECK_SU
+	ASK_SD_MOUNT=true
 	USB_DEFAULT
 	echo "Done."
 	;;
