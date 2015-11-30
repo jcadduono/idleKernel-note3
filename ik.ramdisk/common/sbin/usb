@@ -4,7 +4,7 @@ VERSION=1.3
 
 LUN=/sys/devices/msm_dwc3/f9200000.dwc3/gadget/lun0
 SDCARD=/dev/block/mmcblk1
-SDMOUNT=/storage/extSdCard
+SDMOUNT="$(ls -1d /storage/* | grep '\/....-....$')"
 SD_MOUNTED=false
 USB_MODE=false
 ADB_ON=false
