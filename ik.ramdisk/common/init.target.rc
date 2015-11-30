@@ -50,11 +50,11 @@ on fs
     # results in failure to launch late-start class.
 
     wait /dev/block/platform/msm_sdcc.1/by-name/persist
-    #check_fs /dev/block/platform/msm_sdcc.1/by-name/persist ext4
+    check_fs /dev/block/platform/msm_sdcc.1/by-name/persist ext4
     mount ext4 /dev/block/platform/msm_sdcc.1/by-name/persist /persist nosuid nodev noatime data=ordered,nomblk_io_submit,noauto_da_alloc,errors=panic
 
     wait /dev/block/platform/msm_sdcc.1/by-name/efs
-    #check_fs /dev/block/platform/msm_sdcc.1/by-name/efs ext4
+    check_fs /dev/block/platform/msm_sdcc.1/by-name/efs ext4
     mount ext4 /dev/block/platform/msm_sdcc.1/by-name/efs /efs nosuid nodev noatime data=ordered,nomblk_io_submit,noauto_da_alloc,errors=panic
     chown system radio /efs
      chmod 0771 /efs
@@ -63,7 +63,7 @@ on fs
     mount vfat /dev/block/platform/msm_sdcc.1/by-name/apnhlos /firmware ro shortname=lower,uid=1000,gid=1000,dmask=222,fmask=333,context=u:object_r:firmware_file:s0
 		# 444 file mode, 555 dirmode
     wait /dev/block/platform/msm_sdcc.1/by-name/modem
-    mount vfat /dev/block/platform/msm_sdcc.1/by-name/modem /firmware-modem ro shortname=lower,uid=1000,gid=1000,dmask=227,fmask=337,context=u:object_r:firmware_file:s0
+    mount vfat /dev/block/platform/msm_sdcc.1/by-name/modem /firmware-modem ro shortname=lower,uid=1000,gid=1000,dmask=222,fmask=333,context=u:object_r:firmware_file:s0
      write /sys/kernel/boot_adsp/boot 1
      setprop qcom.audio.init complete
 
@@ -453,22 +453,6 @@ on boot
     chown system radio /sys/class/sec/sec_barcode_emul/barcode_send
     chown system radio /sys/class/sec/sec_barcode_emul/barcode_led_status
     chown system radio /sys/class/sec/sec_barcode_emul/barcode_ver_check
-
-# NFC_NXP
-    setprop ro.nfc.port "I2C"
-    chmod 0600 /dev/pn547
-    chown nfc nfc /dev/pn547
-
-# NFC_BROADCOM
-    chmod 0600 /dev/bcm2079x
-    chown nfc nfc /dev/bcm2079x
-    mkdir /data/nfc
-    mkdir /data/nfc/param
-    chmod 0700 /data/nfc
-    chmod 0700 /data/nfc/param
-    chown nfc nfc /data/nfc
-    chown nfc nfc /data/nfc/param
-
 
 # IR_LED
     chown system radio /sys/class/sec/sec_ir/ir_send

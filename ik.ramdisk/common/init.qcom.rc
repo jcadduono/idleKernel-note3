@@ -341,20 +341,6 @@ on post-fs-data
     chown system system /sys/devices/virtual/lcd/panel/panel/backlight
     setprop vold.post_fs_data_done 1
 
-# Broadcom NFC
-    chmod 0600 /dev/bcm2079x
-    chown nfc nfc /dev/bcm2079x
-    mkdir /data/bcmnfc
-    mkdir /data/bcmnfc/param
-    chmod 0700 /data/bcmnfc
-    chmod 0700 /data/bcmnfc/param
-    chown nfc nfc /data/bcmnfc
-    chown nfc nfc /data/bcmnfc/param
-
-# NFC NXP
-    chmod 0660 /dev/pn547
-    chown nfc nfc /dev/pn547
-
     #Create a folder for SRS to be able to create a usercfg file
     mkdir /data/data/media 0770 media media
     restorecon_recursive /data/media

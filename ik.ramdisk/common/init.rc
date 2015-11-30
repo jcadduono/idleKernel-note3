@@ -9,11 +9,11 @@ import /init.usb.rc
 import /init.${ro.hardware}.rc
 import /init.${ro.zygote}.rc
 import /init.trace.rc
-# Include Slim's extra init file
+import /init.carrier.rc
+# Include SLIM's extra init file
 import /init.slim.rc
 # Include idleKernel's init file
 import /init.idlekernel.rc
-
 
 on early-init
     # Set init and its forked children's oom_adj.
