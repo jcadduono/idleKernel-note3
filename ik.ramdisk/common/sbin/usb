@@ -166,7 +166,16 @@ MOUNT_SDCARD() {
 	$SD_MOUNTED && return
 	echo "Mounting SDcard to $SDMOUNT..."
 	vdc volume mount $SDMOUNT > /dev/null 2>&1
-	CHECK_SD_MOUNTED
+	echo -n "Waiting for SDcard to be ready..."
+	WAIT_COUNT=0
+	while ! $SD_MOUNTED; do
+		echo -n "."
+		sleep 0.1
+		WAIT_COUNT=$(($WAIT_COUNT+1))
+		[ $WAIT_COUNT -eq 20 ] && break
+		CHECK_SD_MOUNTED
+	done
+	echo
 	$SD_MOUNTED && {
 		echo "SDcard mounted successfully."
 		sleep 1
