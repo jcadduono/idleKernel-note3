@@ -49,7 +49,9 @@
 #include "barcode_emul_ice4.h"
 #include <linux/err.h>
 
+#ifndef CONFIG_SEC_FPGA_LEGACY
 #define US_TO_PATTERN		1000000
+#endif
 
 #if defined(TEST_DEBUG)
 #define pr_barcode	pr_emerg
@@ -870,8 +872,13 @@ static ssize_t remocon_store(struct device *dev, struct device_attribute *attr,
 		const char *buf, size_t size)
 {
 	struct barcode_emul_data *data = dev_get_drvdata(dev);
+#ifndef CONFIG_SEC_FPGA_LEGACY
 	unsigned int _data, _tdata;
 	int count, i, converting_factor = 1;
+#else
+	unsigned int _data;
+	int count, i;
+#endif
 
 	pr_barcode("ir_send called\n");
 
@@ -881,7 +888,9 @@ static ssize_t remocon_store(struct device *dev, struct device_attribute *attr,
 				break;
 			if (data->count == 2) {
 				data->ir_freq = _data;
+#ifndef CONFIG_SEC_FPGA_LEGACY
 				converting_factor = US_TO_PATTERN / data->ir_freq;
+#endif
 				if (data->on_off) {
 					irda_wake_en(0);
 					usleep_range(200, 300);
@@ -900,6 +909,7 @@ static ssize_t remocon_store(struct device *dev, struct device_attribute *attr,
 								= _data & 0xFF;
 				data->count += 3;
 			} else {
+#ifndef CONFIG_SEC_FPGA_LEGACY
 				_tdata = _data / converting_factor;
 				data->ir_sum += _tdata;
 				count = data->count;
@@ -907,6 +917,15 @@ static ssize_t remocon_store(struct device *dev, struct device_attribute *attr,
 								= _tdata >> 8;
 				data->i2c_block_transfer.data[count+1]
 								= _tdata & 0xFF;
+#else
+				data->ir_sum += _data;
+				count = data->count;
+				data->i2c_block_transfer.data[count]
+								= _data >> 8;
+				data->i2c_block_transfer.data[count+1]
+								= _data & 0xFF;
+#endif
+
 				data->count += 2;
 			}
 

@@ -12,6 +12,14 @@ config SEC_FPGA
 	  To compile this driver as a module, choose M here.
 	  If unsure, say N.
 
+config SEC_FPGA_LEGACY
+	bool "use legacy IR LED driver"
+	depends on SEC_FPGA
+	default n
+	help
+	  This will enable the legacy KitKat barcode emulator
+	  driver based on Lattice FPGA chip.
+
 config IR_REMOCON_FPGA
 	tristate "this feature allows IR LED"
 	depends on SEC_FPGA
