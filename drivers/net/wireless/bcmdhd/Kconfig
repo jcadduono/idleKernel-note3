@@ -117,6 +117,13 @@ config BROADCOM_WIFI_RESERVED_MEM
 	---help---
 	  This is a configuration for broadcom WLAN driver.
 
+config BROADCOM_WIFI_LEGACY
+	bool "Broadcom legacy wifi driver"
+	depends on (BCM4330 ||BCM4343 || BCM4334 || BCM4335 || BCM4339 || BCM4354 || BCM43241)
+	default n
+	---help---
+	  Enabling this uses the legacy broadcom WLAN driver instead.
+
 config WIFI_BROADCOM_COB
         bool "BROADCOM WIFI COB"
         depends on (BCM43455 || BCM4335 || BCM4339 || BCM4334 || BCM43241 || BCM4354 || BCM4330 || BCM4358 || BCM4359 || BCM4343)
