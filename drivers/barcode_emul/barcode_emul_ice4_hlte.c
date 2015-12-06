@@ -49,7 +49,9 @@
 #include "barcode_emul_ice4_hlte.h"
 #include <linux/err.h>
 
+#ifndef CONFIG_SEC_FPGA_LEGACY
 #define US_TO_PATTERN		1000000
+#endif
 
 #if defined(CONFIG_MACH_H3GDUOS)
 #include <mach/gpiomux.h>
@@ -90,6 +92,11 @@
 #define BOARD_REV02 2
 #define BOARD_REV03 3
 #define BOARD_REV07 3
+
+#ifdef CONFIG_SEC_FPGA_LEGACY
+#define TIME_LIMIT_MSEC 300
+#define tm(time) (u32)ktime_to_us(time)
+#endif
 
 extern int system_rev;
 
@@ -853,9 +860,14 @@ static void ir_remocon_work(struct barcode_emul_data *ir_data, int count)
 	int ret;
 //	int sleep_timing;
 //	int end_data;
-    int converting_factor = 1;
 	int emission_time;
 	int ack_pin_onoff;
+#ifndef CONFIG_SEC_FPGA_LEGACY
+	int converting_factor = 1;
+#else
+	int actual_time;
+	ktime_t t1,t2;
+#endif
 
 	if (count_number >= 100)
 		count_number = 0;
@@ -941,14 +953,30 @@ static void ir_remocon_work(struct barcode_emul_data *ir_data, int count)
 /*
 	printk(KERN_INFO "%s: sleep_timing = %d\n", __func__, sleep_timing);
 */
-    converting_factor = US_TO_PATTERN / data->ir_freq;
+#ifndef CONFIG_SEC_FPGA_LEGACY
+	converting_factor = US_TO_PATTERN / data->ir_freq;
 	emission_time = \
 		((data->ir_sum) * (converting_factor) / 1000);
 	if (emission_time > 0)
 		msleep(emission_time);
-
-		pr_barcode("%s: emission_time = %d\n",
-					__func__, emission_time);
+#else
+	emission_time = \
+		(1000 * (data->ir_sum) / (data->ir_freq));
+	actual_time = 0;
+	t1 = ktime_get();
+	while((gpio_get_value(g_pdata->irda_irq) == 0) && (actual_time <= emission_time))
+	{
+		int diff;
+		t2 = ktime_get();
+		diff = (tm(t2) - tm(t1))/1000;
+		msleep(10);
+		actual_time += 10;
+		if(diff > TIME_LIMIT_MSEC)
+			break;
+	}
+#endif
+	pr_barcode("%s: emission_time = %d\n",
+				__func__, emission_time);
 
 	if (gpio_get_value(g_pdata->irda_irq)) {
 		pr_barcode("%s : %d Sending IR OK!\n",
@@ -979,8 +1007,13 @@ static ssize_t remocon_store(struct device *dev, struct device_attribute *attr,
 		const char *buf, size_t size)
 {
 	struct barcode_emul_data *data = dev_get_drvdata(dev);
+#ifndef CONFIG_SEC_FPGA_LEGACY
 	unsigned int _data, _tdata;
 	int count, i, converting_factor = 1;
+#else
+	unsigned int _data;
+	int count, i;
+#endif
 
 	pr_barcode("ir_send called\n");
 
@@ -990,7 +1023,9 @@ static ssize_t remocon_store(struct device *dev, struct device_attribute *attr,
 				break;
 			if (data->count == 2) {
 				data->ir_freq = _data;
+#ifndef CONFIG_SEC_FPGA_LEGACY
 				converting_factor = US_TO_PATTERN / data->ir_freq;
+#endif
 				if (data->on_off) {
 				//	msleep(30);
 				} else {
@@ -1005,6 +1040,7 @@ static ssize_t remocon_store(struct device *dev, struct device_attribute *attr,
 								= _data & 0xFF;
 				data->count += 3;
 			} else {
+#ifndef CONFIG_SEC_FPGA_LEGACY
 				_tdata = _data / converting_factor;
 				data->ir_sum += _tdata;
 				count = data->count;
@@ -1012,6 +1048,14 @@ static ssize_t remocon_store(struct device *dev, struct device_attribute *attr,
 								= _tdata >> 8;
 				data->i2c_block_transfer.data[count+1]
 								= _tdata & 0xFF;
+#else
+				data->ir_sum += _data;
+				count = data->count;
+				data->i2c_block_transfer.data[count]
+								= _data >> 8;
+				data->i2c_block_transfer.data[count+1]
+								= _data & 0xFF;
+#endif
 				data->count += 2;
 			}
 
