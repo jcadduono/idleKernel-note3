@@ -42,7 +42,7 @@ KERNEL_VERSION=$VARIANT-$VER-cm12.1
 
 [ -z $PERMISSIVE ] && \
 # should we boot with SELinux mode set to permissive? (1 = permissive, 0 = enforcing)
-PERMISSIVE=0
+PERMISSIVE=1
 
 # output directory of flashable kernel
 OUT_DIR=$RDIR
