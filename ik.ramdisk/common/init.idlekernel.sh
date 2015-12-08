@@ -29,7 +29,7 @@ echo `cat $CFILE` > $SFILE
 #
 CFILE=$DDIR/screen_off_maxfreq
 SFILE=/sys/devices/system/cpu/cpufreq
-CDEF=883200
+CDEF=1267200
 if [ ! -f $CFILE ]; then
 	echo $CDEF > $CFILE
 fi
