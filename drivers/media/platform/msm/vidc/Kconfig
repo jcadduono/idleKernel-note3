@@ -5,3 +5,13 @@
 menuconfig MSM_VIDC_V4L2
 	bool "Qualcomm MSM V4L2 based video driver"
 		depends on (ARCH_MSM8974 || ARCH_MSM8610 || ARCH_MSM8226) && VIDEO_V4L2
+
+config MSM_VIDC_IGNORE_YUV
+	bool "Ignore V4L2_MSM_BUF_FLAG_YUV_601_709_CLAMP flag"
+	depends on MSM_VIDC_V4L2
+	default n
+	help
+	  Say Y here to ignore the V4L2_MSM_BUF_FLAG_YUV_601_709_CLAMP
+	  flag sent by Note 5 CameraService. This prevents the colorspace
+	  from alternating rapidly when it isn't actually in use by the
+	  hardware. Solution found by CekMTL.
