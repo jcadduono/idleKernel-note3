@@ -67,7 +67,7 @@ case $option in
 	echo
 	echo -n "enter a number between 0 and 4 (the default is 2): "
 	read value
-	if [ $value -ge -0 -a $value -le 4 ]; then
+	if [ $value -ge 0 -a $value -le 4 ]; then
 		echo $value > $DDIR/panelcolor
 		echo $value > /sys/class/lcd/panel/panel_colors
 		echo "done! toggle screen off/on to see changes"
@@ -110,8 +110,8 @@ case $option in
 		;;
 	2)
 		echo "1) 650 mhz"
-		echo "2) 883 mhz (default)"
-		echo "3) 1.2 ghz"
+		echo "2) 883 mhz"
+		echo "3) 1.2 ghz (default, lower values can cause audio stutter)"
 		echo "4) 1.5 ghz"
 		echo "5) 2.2 ghz (disabled)"
 		echo
