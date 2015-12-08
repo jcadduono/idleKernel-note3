@@ -19,7 +19,12 @@
 #define WLAN_STATIC_SCAN_BUF0		5
 #define WLAN_STATIC_SCAN_BUF1		6
 #define WLAN_STATIC_DHD_INFO_BUF	7
+
+#ifndef CONFIG_BROADCOM_WIFI_LEGACY
 #define WLAN_STATIC_DHD_WLFC_INFO	8
+#define WLAN_STATIC_DHD_WLFC_INFO_SIZE		(64 * 1024)
+#endif
+
 #define WLAN_SCAN_BUF_SIZE		(64 * 1024)
 
 #if defined(CONFIG_64BIT)
@@ -27,8 +32,6 @@
 #else
 #define WLAN_DHD_INFO_BUF_SIZE	(16 * 1024)
 #endif /* CONFIG_64BIT */
-
-#define WLAN_STATIC_DHD_WLFC_INFO_SIZE		(64 * 1024)
 
 #define PREALLOC_WLAN_SEC_NUM		4
 #define PREALLOC_WLAN_BUF_NUM		160
@@ -63,7 +66,9 @@ static struct wlan_mem_prealloc wlan_mem_array[PREALLOC_WLAN_SEC_NUM] = {
 void *wlan_static_scan_buf0 = NULL;
 void *wlan_static_scan_buf1 = NULL;
 void *wlan_static_dhd_info_buf = NULL;
+#ifndef CONFIG_BROADCOM_WIFI_LEGACY
 void *wlan_static_dhd_wlfc_buf = NULL;
+#endif
 
 #if defined(CONFIG_BCM4335) || defined(CONFIG_BCM4335_MODULE)
 #define ENABLE_4335BT_WAR
@@ -121,6 +126,7 @@ static void *brcm_wlan_mem_prealloc(int section, unsigned long size)
 		return wlan_static_dhd_info_buf;
 	}
 
+#ifndef CONFIG_BROADCOM_WIFI_LEGACY
 	if (section == WLAN_STATIC_DHD_WLFC_INFO)  {
 		if (size > WLAN_STATIC_DHD_WLFC_INFO_SIZE) {
 			pr_err("request DHD_WLFC_INFO size(%lu) is bigger than"
@@ -130,6 +136,7 @@ static void *brcm_wlan_mem_prealloc(int section, unsigned long size)
 		}
 		return wlan_static_dhd_wlfc_buf;
 	}
+#endif
 
 	if ((section < 0) || (section > PREALLOC_WLAN_SEC_NUM))
 		return NULL;
@@ -181,10 +188,12 @@ static int brcm_init_wlan_mem(void)
 	if (!wlan_static_dhd_info_buf)
 		goto err_mem_alloc;
 
+#ifndef CONFIG_BROADCOM_WIFI_LEGACY
 	wlan_static_dhd_wlfc_buf = kmalloc(WLAN_STATIC_DHD_WLFC_INFO_SIZE, GFP_KERNEL);
 	if (!wlan_static_dhd_wlfc_buf) {
 		goto err_mem_alloc;
 	}
+#endif
 
 	pr_err("%s: WIFI MEM Allocated\n", __FUNCTION__);
 	return 0;
@@ -197,8 +206,10 @@ err_mem_alloc:
 		kfree(wlan_static_scan_buf1);
 	if (wlan_static_dhd_info_buf)
 		kfree(wlan_static_dhd_info_buf);
+#ifndef CONFIG_BROADCOM_WIFI_LEGACY
 	if (wlan_static_dhd_wlfc_buf)
 		kfree(wlan_static_dhd_wlfc_buf);
+#endif
 
 	for (j = 0; j < i; j++)
 		kfree(wlan_mem_array[j].mem_ptr);
