@@ -46,6 +46,14 @@ config SENSORS_SSP_STM_HESTIA
 	  To compile this driver as a module, choose M here: the
 	  module will be called ssp.
 
+config SENSORS_SSP_STM_LEGACY
+	boolean "Sensors ssp STM use legacy interface"
+	default n
+	depends on SPI
+	help
+	   Say Y here to use legacy ABS access to proximity
+	   sensor data.
+
 source "drivers/sensorhub/atmel/Kconfig"
 source "drivers/sensorhub/stm/Kconfig"
 source "drivers/sensorhub/stm32f/Kconfig"
