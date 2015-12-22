@@ -20,16 +20,18 @@ RDIR=$(pwd)
 
 [ -z $VARIANT ] && \
 # device variant/carrier, possible options:
-#	can = N900W8	(Canadian, same as T-Mobile)
-#	eur = N9005	(Snapdragon International / hltexx / Europe)
-#	spr = N900P	(Sprint)
-#	tmo = N900T	(T-Mobile, same as Canadian)
-#	kor = N900K/L/S	(Unified Korean / KT Corporation, LG Telecom, South Korea Telecom)
-# not currently possible options (missing cm13.0 support!):
-#	att = N900A	(AT&T)
-#	usc = N900R4	(US Cellular)
-#	vzw = N900V	(Verizon)
-#	jpn = N900D/J / SC-01F / SCL22 (Unified Japanese / NTT Docomo / au by KDDI)
+#	att = N900A  (AT&T)
+#	can = N900W8 (Canadian, same as T-Mobile)
+#	eur = N9005  (Snapdragon International / hltexx / Europe)
+#	spr = N900P  (Sprint)
+#	tmo = N900T  (T-Mobile, same as Canadian)
+#	usc = N900R4 (US Cellular)
+#	vzw = N900V  (Verizon)
+# korean variants:
+#	kor = N900K/L/S	  (Unified Korean / KT Corporation, LG Telecom, South Korea Telecom)
+# japanese variants:
+#	dcm = N900D / SC-01F  (NTT Docomo)
+#	kdi = N900J / SCL22   (au by KDDI)
 VARIANT=can
 
 [ -z $VER ] && \
@@ -107,15 +109,9 @@ BUILD_KERNEL()
 
 BUILD_RAMDISK()
 {
-	echo "Building ramdisk structure..."
-	cd $RDIR
-	mkdir -p build/ramdisk
-	cp -ar ik.ramdisk/common/* build/ramdisk
-	cp -ar ik.ramdisk/variant/$VARIANT/* build/ramdisk
-	echo "Building ramdisk.img..."
+	VARIANT=$VARIANT $RDIR/setup_ramdisk.sh
 	cd $RDIR/build/ramdisk
-	mkdir -pm 755 dev proc sys system
-	mkdir -pm 771 data
+	echo "Building ramdisk.img..."
 	find | fakeroot cpio -o -H newc | xz --check=crc32 --lzma2=dict=2MiB > $KDIR/ramdisk.cpio.xz
 	cd $RDIR
 }
