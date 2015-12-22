@@ -112,15 +112,8 @@ BUILD_KERNEL()
 
 BUILD_RAMDISK()
 {
-	echo "Building ramdisk structure..."
-	cd $RDIR
-	mkdir -p build/ramdisk
-	cp -ar ik.ramdisk/common/* ik.ramdisk/variant/$VARIANT/* build/ramdisk
+	VARIANT=$VARIANT $RDIR/setup_ramdisk.sh
 	cd $RDIR/build/ramdisk
-	mkdir -pm 755 dev proc sys system kmod
-	mkdir -pm 771 carrier data
-	echo "Copying kernel modules to ramdisk..."
-	find $RDIR/build -name *.ko -not -path */ramdisk/* -exec cp {} kmod \;
 	echo "Building ramdisk.img..."
 	find | fakeroot cpio -o -H newc | xz --check=crc32 --lzma2=dict=2MiB > $KDIR/ramdisk.cpio.xz
 	cd $RDIR
