@@ -32,7 +32,7 @@ debug.                  u:object_r:debug_prop:s0
 debug.db.               u:object_r:debuggerd_prop:s0
 log.                    u:object_r:shell_prop:s0
 service.adb.root        u:object_r:shell_prop:s0
-service.adb.tcp.port*   u:object_r:shell_prop:s0
+service.adb.tcp.port    u:object_r:shell_prop:s0
 
 persist.audio.          u:object_r:audio_prop:s0
 persist.logd.           u:object_r:logd_prop:s0
@@ -113,7 +113,7 @@ qemu.hw.mainkeys           u:object_r:qemu_hw_mainkeys_prop:s0
 dbg.coresight.cfg_file     u:object_r:coresight_prop:s0
 ctl.hbtp                   u:object_r:ctl_hbtp_prop:s0
 #line 1 "vendor/cm/sepolicy/property_contexts"
-service.adb.tcp.port          u:object_r:adbtcp_prop:s0
+adb.network.port              u:object_r:adbtcp_prop:s0
 recovery.perf.mode            u:object_r:recovery_prop:s0
 adb.secure                    u:object_r:recovery_prop:s0
 cm.userinit.active            u:object_r:userinit_prop:s0

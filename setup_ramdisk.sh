@@ -59,7 +59,7 @@ SETUP_RAMDISK()
 	mkdir -p build/ramdisk
 	cp -r ik.ramdisk/common/* ik.ramdisk/variant/$VARIANT/* build/ramdisk
 	cd $RDIR/build/ramdisk
-	mkdir -p dev proc sys system data
+	mkdir -p dev proc sys system data oem
 }
 
 CLEAN_RAMDISK

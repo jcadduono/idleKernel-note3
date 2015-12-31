@@ -518,10 +518,10 @@
 /system/vendor/bin/qti                          u:object_r:qti_exec:s0
 /system/bin/wcnss_service                       u:object_r:wcnss_service_exec:s0
 /system/vendor/bin/hbtp_daemon                  u:object_r:hbtp_exec:s0
-/system/vendor/bin/touch_fusion                 u:object_r:touchfusion_exec:s0
 /system/vendor/bin/seemp_healthd                u:object_r:seemp_health_daemon_exec:s0
 /system/bin/seempd                              u:object_r:seempd_exec:s0
 /system/bin/sapd                                u:object_r:sapd_exec:s0
+/system/bin/btnvtool                            u:object_r:btnvtool_exec:s0
 /system/bin/btsnoop                             u:object_r:btsnoop_exec:s0
 /system/bin/dun-server                          u:object_r:dun-server_exec:s0
 /system/bin/wfdservice                          u:object_r:wfdservice_exec:s0
@@ -628,6 +628,7 @@
 # persist files
 #
 /persist(/.*)?                                                      u:object_r:persist_file:s0
+/persist/bluetooth(/.*)?                                            u:object_r:persist_bluetooth_file:s0
 /persist/drm(/.*)?                                                  u:object_r:persist_drm_file:s0
 /persist/sensors(/.*)?                                              u:object_r:sensors_persist_file:s0
 /persist/data(/.*)?                                                 u:object_r:persist_drm_file:s0
@@ -749,6 +750,8 @@
 ###################################
 # Primary storage device nodes
 #
+/dev/block/platform/msm_sdcc\.1/by-name/boot                  u:object_r:boot_block_device:s0
+/dev/block/platform/msm_sdcc\.1/by-name/recovery              u:object_r:recovery_block_device:s0
 /dev/block/platform/msm_sdcc\.1/by-name/fsg                   u:object_r:modem_efs_partition_device:s0
 /dev/block/platform/msm_sdcc\.1/by-name/fsc                   u:object_r:modem_efs_partition_device:s0
 /dev/block/platform/msm_sdcc\.1/by-name/modemst1              u:object_r:modem_efs_partition_device:s0
@@ -782,8 +785,7 @@
 /data/bcmnfc(/.*)?                                      u:object_r:nfc_data_file:s0
 
 # SEC
-/sys/devices/virtual/sec(/.*)?				u:object_r:sysfs_sec:s0
-/sys/class/sec(/.*)?					u:object_r:sysfs_sec:s0
+/sys/devices/virtual/sec/sec_key/hall_irq_ctrl          u:object_r:sysfs_sec:s0
 
 #wifi
 /efs/wifi/.mac.info 					u:object_r:wifi_efs_file:s0
@@ -817,6 +819,9 @@
 
 /system/etc/init.d/90userinit           u:object_r:userinit_exec:s0
 /data/local/userinit.sh                 u:object_r:userinit_data_exec:s0
+
+# For F2FS partitions marked "formattable"
+/system/bin/mkfs\.f2fs    u:object_r:mkfs_exec:s0
 
 # For minivold in recovery
 /sbin/minivold            u:object_r:vold_exec:s0
