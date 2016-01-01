@@ -191,6 +191,7 @@ ImsSSConfig                                 u:object_r:system_app_service:s0
 ImsTapi                                     u:object_r:system_app_service:s0
 ImsVolte                                    u:object_r:system_app_service:s0
 ImsVsh                                      u:object_r:system_app_service:s0
+secims                                      u:object_r:system_app_service:s0
 SveService                                  u:object_r:system_app_service:s0
 application_policy                          u:object_r:system_server_service:s0
 ABTPersistenceService                       u:object_r:system_server_service:s0
@@ -351,6 +352,7 @@ phone_restriction_policy                    u:object_r:system_server_service:s0
 rcp                                         u:object_r:system_server_service:s0
 restriction_policy                          u:object_r:system_server_service:s0
 roaming_policy                              u:object_r:system_server_service:s0
+sam_service                                 u:object_r:system_server_service:s0
 sdp                                         u:object_r:system_server_service:s0
 seandroid_policy                            u:object_r:system_server_service:s0
 sedenial                                    u:object_r:system_server_service:s0

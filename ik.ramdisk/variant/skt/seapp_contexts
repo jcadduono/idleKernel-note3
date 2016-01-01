@@ -16,6 +16,7 @@ user=_app seinfo=shared domain=special_knox_untrusted_app type=app_data_file
 user=_app seinfo=release name=com.samsung.android.app.memo domain=special_knox_untrusted_app type=app_data_file
 user=_app seinfo=platform name=com.sec.android.nearby.mediaserver domain=platform_app type=platform_media_app_data_file
 user=sprintextension seinfo=spr_ext name=com.sec.sprextension domain=system_app type=system_app_data_file
+user=_app seinfo=spr_ext name=com.sec.sprextension domain=system_app type=system_app_data_file
 user=_app seinfo=spay domain=platform_app type=platform_app_data_file
 user=spay seinfo=spay domain=platform_app type=platform_app_data_file
 user=system seinfo=spay domain=platform_app type=platform_app_data_file

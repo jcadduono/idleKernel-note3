@@ -48,7 +48,7 @@ input                                     u:object_r:system_server_service:s0
 iphonesubinfo_msim                        u:object_r:radio_service:s0
 iphonesubinfo2                            u:object_r:radio_service:s0
 iphonesubinfo                             u:object_r:radio_service:s0
-#10/25 SEC temporarily changed: ims service from radio_service to ims_service
+## SEC_SEforAndroid 10/25 SEC temporarily changed: ims service from radio_service to ims_service
 ims                                       u:object_r:ims_service:s0
 imms                                      u:object_r:system_server_service:s0
 isms_msim                                 u:object_r:radio_service:s0
@@ -104,7 +104,8 @@ sip                                       u:object_r:radio_service:s0
 statusbar                                 u:object_r:system_server_service:s0
 SurfaceFlinger                            u:object_r:surfaceflinger_service:s0
 task                                      u:object_r:system_server_service:s0
-telecom                                   u:object_r:radio_service:s0
+## SEC_SEforAndroid : compatibility for 5.0 OS
+telecom                                   u:object_r:telecom_service:s0
 telephony.registry                        u:object_r:system_server_service:s0
 textservices                              u:object_r:system_server_service:s0
 trust                                     u:object_r:system_server_service:s0
@@ -124,10 +125,20 @@ wifi                                      u:object_r:system_server_service:s0
 window                                    u:object_r:system_server_service:s0
 
 *                                         u:object_r:default_android_service:s0
-#line 1 "vendor/samsung/common/sepolicy/BSP/bsp_qcom/qcom_common/service_contexts"
-############ compatible for bsp policy #############
-cneservice                                   u:object_r:system_app_service:s0
+#line 1 "vendor/samsung/common/sepolicy/BSP/bsp_qcom_v2/bsp/common/service_contexts"
+# SEC removed : AtCmdFwd                                       u:object_r:atfwd_service:s0
+# SEC removed : dpmservice                                     u:object_r:dpmservice:s0
+# SEC removed : listen.service                                 u:object_r:mediaserver_service:s0
+cneservice                                     u:object_r:cne_service:s0
 vendor.qcom.PeripheralManager                  u:object_r:per_mgr_service:s0
+com.qualcomm.qti.auth.fidocryptodaemon         u:object_r:fidodaemon_service:s0
+# SEC removed : wbc_service                                    u:object_r:wbc_service:s0
+# SEC removed : dun                                            u:object_r:dun_service:s0
+qti.ims.connectionmanagerservice               u:object_r:imscm_service:s0
+com.qti.snapdragon.sdk.display.IColorService   u:object_r:color_service:s0
+wfdservice                                     u:object_r:wfdservice_service:s0
+# SEC removed : DigitalPen                                     u:object_r:usf_service:s0
+dts_eagle_service                              u:object_r:dtseagleservice_service:s0
 #line 1 "vendor/samsung/common/sepolicy/service_contexts"
 ############ aosp and sec_common #############
 com.samsung.android.jam.IAPAClient          u:object_r:apaservice_service:s0
@@ -159,6 +170,7 @@ offhostservice                              u:object_r:nfc_service:s0
 secontroller                                u:object_r:nfc_service:s0
 hermesservice                               u:object_r:platform_app_service:s0
 penableservice                              u:object_r:platform_app_service:s0
+SAGearPolicyManaagerService                 u:object_r:platform_app_service:s0
 isprintextension                            u:object_r:radio_service:s0
 radio.simphonebook                          u:object_r:radio_service:s0
 phoneext                                    u:object_r:radio_service:s0
@@ -170,6 +182,17 @@ clipboarduiservice                          u:object_r:system_app_service:s0
 com.sc.scservice.ISCServiceFactory          u:object_r:system_app_service:s0
 emergency_service                           u:object_r:system_app_service:s0
 fingerprint_service                         u:object_r:system_app_service:s0
+ImsBase                                     u:object_r:system_app_service:s0
+ImsCapability                               u:object_r:system_app_service:s0
+ImsPersonalProfile                          u:object_r:system_app_service:s0
+ImsPresence                                 u:object_r:system_app_service:s0
+ImsSms                                      u:object_r:system_app_service:s0
+ImsSSConfig                                 u:object_r:system_app_service:s0
+ImsTapi                                     u:object_r:system_app_service:s0
+ImsVolte                                    u:object_r:system_app_service:s0
+ImsVsh                                      u:object_r:system_app_service:s0
+secims                                      u:object_r:system_app_service:s0
+SveService                                  u:object_r:system_app_service:s0
 application_policy                          u:object_r:system_server_service:s0
 ABTPersistenceService                       u:object_r:system_server_service:s0
 barbeam                                     u:object_r:system_server_service:s0
@@ -183,15 +206,21 @@ context_aware                               u:object_r:system_server_service:s0
 cover                                       u:object_r:system_server_service:s0
 CocktailBarService                          u:object_r:system_server_service:s0
 CCM                                         u:object_r:tlc_server_service:s0
+DCM                                         u:object_r:tlc_server_service:s0
 CustomFrequencyManagerService               u:object_r:system_server_service:s0
 device_info                                 u:object_r:system_server_service:s0
 DigitalPen                                  u:object_r:system_server_service:s0
 DirEncryptService                           u:object_r:system_server_service:s0
 download                                    u:object_r:system_server_service:s0
 dualscreen                                  u:object_r:system_server_service:s0
+edge                                        u:object_r:system_server_service:s0
+emailksproxy                                u:object_r:system_server_service:s0
 epdg                                        u:object_r:system_server_service:s0
+execute                                     u:object_r:system_server_service:s0
 EXT_CONTROL_DEVICE_SERVICE                  u:object_r:system_server_service:s0
 FMPlayer                                    u:object_r:system_server_service:s0
+front_led                                   u:object_r:system_server_service:s0
+firewall                                    u:object_r:system_server_service:s0
 harmony_eas_service                         u:object_r:system_server_service:s0
 healthcover                                 u:object_r:system_server_service:s0
 injection                                   u:object_r:system_server_service:s0
@@ -263,6 +292,7 @@ bluetooth_secure_mode_policy                u:object_r:system_server_service:s0
 browser_policy                              u:object_r:system_server_service:s0
 calling_policy                              u:object_r:system_server_service:s0
 certificate_policy                          u:object_r:system_server_service:s0
+com.samsung.ucs.ucsservice                  u:object_r:system_server_service:s0
 com.sec.action.CALL_STATE_CHANGED           u:object_r:system_server_service:s0
 com.sec.action.NO_USER_ACTIVITY             u:object_r:system_server_service:s0
 com.sec.action.USER_ACTIVITY                u:object_r:system_server_service:s0
@@ -285,9 +315,11 @@ enterprise_isl_policy                       u:object_r:system_server_service:s0
 enterprise_license_policy                   u:object_r:system_server_service:s0
 enterprise_policy                           u:object_r:system_server_service:s0
 enterprise_premium_vpn_policy               u:object_r:system_server_service:s0
+enterprise_shared_device_policy             u:object_r:system_server_service:s0
 enterprise_sso_policy                       u:object_r:system_server_service:s0
 enterprise_user_space_sso_policy            u:object_r:system_server_service:s0
 enterprise_vpn_policy                       u:object_r:system_server_service:s0
+ESEMDMService                             u:object_r:ese_service:s0
 firewall_policy                             u:object_r:system_server_service:s0
 genericssoservice                           u:object_r:system_server_service:s0
 generic_vpn_policy                          u:object_r:system_server_service:s0
@@ -296,6 +328,7 @@ irm_service                                 u:object_r:system_server_service:s0
 kioskmode                                   u:object_r:system_server_service:s0
 knoxcustom                                  u:object_r:system_server_service:s0
 knox_ccm_policy                             u:object_r:system_server_service:s0
+knox_ucsm_policy                             u:object_r:system_server_service:s0
 knox_pinpad_service                         u:object_r:system_server_service:s0
 knox_scep_policy                            u:object_r:system_server_service:s0
 knox_timakeystore_policy                    u:object_r:system_server_service:s0
@@ -311,14 +344,15 @@ mum_container_policy                        u:object_r:system_server_service:s0
 mum_container_rcp_policy                    u:object_r:system_server_service:s0
 otp_service                                 u:object_r:system_server_service:s0
 password_policy                             u:object_r:system_server_service:s0
+mobile_payment                              u:object_r:system_server_service:s0
 persona                                     u:object_r:system_server_service:s0
 persona_policy                              u:object_r:system_server_service:s0
 persona_state_manager                       u:object_r:system_server_service:s0
-per_app_firewall_policy                     u:object_r:system_server_service:s0
 phone_restriction_policy                    u:object_r:system_server_service:s0
 rcp                                         u:object_r:system_server_service:s0
 restriction_policy                          u:object_r:system_server_service:s0
 roaming_policy                              u:object_r:system_server_service:s0
+sam_service                                 u:object_r:system_server_service:s0
 sdp                                         u:object_r:system_server_service:s0
 seandroid_policy                            u:object_r:system_server_service:s0
 sedenial                                    u:object_r:system_server_service:s0
@@ -342,7 +376,9 @@ wbc_service                                 u:object_r:system_server_service:s0
 
 ############ slsi_common #############
 Exynos.HWCService                           u:object_r:surfaceflinger_service:s0
+Exynos.IPService                            u:object_r:surfaceflinger_service:s0
 media.wifi_display                          u:object_r:surfaceflinger_service:s0
+SecTVOutService                             u:object_r:surfaceflinger_service:s0
 
 ############ carrier_common #############
 dmb.DMBFrmwrks                              u:object_r:dmb_service:s0
@@ -361,6 +397,12 @@ bml_engine                                  u:object_r:oneseg_mw_service:s0
 broadcast.ATSCMHProcessObserver             u:object_r:oneseg_mw_service:s0
 ISDtvService.SDtvStackService               u:object_r:oneseg_mw_service:s0
 broadcast.OneSegDsmcc                       u:object_r:oneseg_mw_service:s0
+broadcast.OneSegDsmcc_ltn                   u:object_r:oneseg_mw_service:s0
+broadcast.OneSegGinga                       u:object_r:oneseg_mw_service:s0
+broadcast.OneSegMW                          u:object_r:oneseg_mw_service:s0
+broadcast.OneSegTsDemux_ltn                 u:object_r:oneseg_mw_service:s0
+smplayer.OneSegSMPlayer                     u:object_r:oneseg_mw_service:s0
+SMPlayer                                    u:object_r:oneseg_mw_service:s0
 sd.service                                  u:object_r:dtvserver_service:s0
 dtvbml.server                               u:object_r:dtvserver_service:s0
 dtv.server                                  u:object_r:dtvserver_service:s0

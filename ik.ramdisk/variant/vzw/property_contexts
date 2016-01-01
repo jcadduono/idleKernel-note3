@@ -50,6 +50,10 @@ selinux.                u:object_r:security_prop:s0
 vold.                   u:object_r:vold_prop:s0
 crypto.                 u:object_r:vold_prop:s0
 
+# ro.build.fingerprint is either set in /system/build.prop, or is
+# set at runtime by system_server.
+build.fingerprint       u:object_r:fingerprint_prop:s0
+
 # ctl properties
 ctl.bootanim            u:object_r:ctl_bootanim_prop:s0
 ctl.dumpstate           u:object_r:ctl_dumpstate_prop:s0
@@ -86,8 +90,11 @@ home.operator.		u:object_r:radio_prop:s0
 installd.sdcard_manipulate_done	u:object_r:sdcard_prop:s0
 partition.system.               u:object_r:system_prop:s0
 persist.camera.                 u:object_r:camera_prop:s0
+persist.csc.                 u:object_r:csc_prop:s0
 persist.eth.                 u:object_r:system_prop:s0
+persist.log.                    u:object_r:log_prop:s0
 persist.log.seclevel		u:object_r:seclevel_prop:s0
+persist.omc.                 u:object_r:csc_prop:s0
 persist.ril.		u:object_r:rild_prop:s0
 persist.scan.		u:object_r:system_prop:s0
 persist.translation.		u:object_r:system_prop:s0
@@ -102,6 +109,12 @@ sys.mobicoredaemon.enable	u:object_r:mobicore_prop:s0
 sys.tzdaemon                    u:object_r:tzdaemon_prop:s0
 vpnclientpm.	u:object_r:vpn_prop:s0
 vpn.status	u:object_r:vpn_prop:s0
+
+#VZW
+vzw.os.rooted           u:object_r:system_prop:s0
+
+#SPR
+device.wapprofile.url   u:object_r:system_prop:s0
 
 #from NSA
 net.rmnet0              u:object_r:radio_prop:s0

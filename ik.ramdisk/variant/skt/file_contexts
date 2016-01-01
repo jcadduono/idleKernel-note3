@@ -395,6 +395,7 @@
 /system/bin/rfs_access                          u:object_r:rfs_access_exec:s0
 /system/bin/tftp_server                         u:object_r:rfs_access_exec:s0
 /system/bin/hvdcp                               u:object_r:hvdcp_exec:s0
+/system/bin/hvdcp_opti                               u:object_r:hvdcp_exec:s0
 /system/bin/qseecomd                            u:object_r:tee_exec:s0
 /system/bin/hostapd_cli                         u:object_r:hostapd_exec:s0
 /system/bin/adsprpcd                            u:object_r:adsprpcd_exec:s0
@@ -680,6 +681,7 @@
 /dev/socket/ppm     u:object_r:epm_socket:s0
 /dev/socket/rild[0-9]*	u:object_r:rild_socket:s0
 /dev/socket/rild-debug[0-9]* u:object_r:rild_debug_socket:s0
+/dev/socket/sme_socket          u:object_r:imsd_socket:s0
 /dev/socket/ss_conn_daemon      u:object_r:ss_conn_daemon_socket:s0
 /dev/socket/taa                  u:object_r:tz_socket:s0
 /dev/socket/tz                  u:object_r:tz_socket:s0
@@ -1166,6 +1168,7 @@
 /efs/wifi(/.*)?	u:object_r:wifi_efs_file:s0
 /efs_gsm(/.*)?            u:object_r:efs_gsm_file:s0
 
+/efs/apn-changes\.xml                            u:object_r:sec_efs_file:s0
 /efs/calibration_data                            u:object_r:sec_efs_file:s0
 /efs/grip_cal_data                               u:object_r:sec_efs_file:s0
 /efs/gyro_cal_data	                         u:object_r:sec_efs_file:s0
