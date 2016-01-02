@@ -1,6 +1,6 @@
 #!/bin/bash
 # idleKernel for Samsung Galaxy Note 3 build script by jcadduono
-# This build script is for AOSP/CyanogenMod only
+# This build script is for AOSP/CyanogenMod with Kali Nethunter support only
 
 ################### BEFORE STARTING ################
 #
@@ -40,7 +40,7 @@ VER=6.6.4
 
 # kernel version string appended to 3.4.x-idleKernel-hlte-
 # (shown in Settings -> About device)
-KERNEL_VERSION=$VARIANT-$VER-cm12.1
+KERNEL_VERSION=$VARIANT-$VER-cm12.1-kali
 
 [ -z $PERMISSIVE ] && \
 # should we boot with SELinux mode set to permissive? (1 = permissive, 0 = enforcing)

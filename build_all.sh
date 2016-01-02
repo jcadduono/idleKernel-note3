@@ -1,6 +1,6 @@
 #!/bin/bash
 # idleKernel for Samsung Galaxy Note 3 build script by jcadduono
-# This build script is for AOSP/CyanogenMod only
+# This build script is for AOSP/CyanogenMod with Kali Nethunter support only
 # This build script builds all variants in /ik.ramdisk/variant/
 
 ################### BEFORE STARTING ################
@@ -24,8 +24,8 @@ RDIR=$(pwd)
 VER=6.6.4
 
 # output directory of flashable kernel
-OUT_DIR_ENFORCING="/home/jc/idlekernel.com/cm12.1/selinux_enforcing/v"$VER"_"$(date +'%Y_%m_%d')
-OUT_DIR_PERMISSIVE="/home/jc/idlekernel.com/cm12.1/v"$VER"_"$(date +'%Y_%m_%d')
+OUT_DIR_ENFORCING="/home/jc/idlekernel.com/cm12.1-kali/selinux_enforcing/v"$VER"_"$(date +'%Y_%m_%d')
+OUT_DIR_PERMISSIVE="/home/jc/idlekernel.com/cm12.1-kali/v"$VER"_"$(date +'%Y_%m_%d')
 
 # should we make a TWRP flashable zip? (1 = yes, 0 = no)
 MAKE_ZIP=1
@@ -43,7 +43,7 @@ SET_KERNEL_VERSION()
 {
 	# kernel version string appended to 3.4.x-idleKernel-hlte-
 	# (shown in Settings -> About device)
-	KERNEL_VERSION=$VARIANT-$VER-cm12.1
+	KERNEL_VERSION=$VARIANT-$VER-cm12.1-kali
 
 	# output filename of flashable kernel
 	OUT_NAME=idleKernel-hlte-$KERNEL_VERSION
@@ -123,7 +123,8 @@ CREATE_TAR()
 	cd $RDIR
 }
 
-mkdir -p $OUT_DIR_ENFORCING
+# disable enforcing builds for kali until updated sepolicy available!
+#mkdir -p $OUT_DIR_ENFORCING
 mkdir -p $OUT_DIR_PERMISSIVE
 
 for V in $RDIR/ik.ramdisk/variant/*
@@ -135,11 +136,12 @@ do
 		echo "Device variant/carrier $VARIANT not found in arm configs!"
 		continue
 	elif CLEAN_BUILD && BUILD_KERNEL && BUILD_RAMDISK; then
-		OUT_DIR=$OUT_DIR_ENFORCING
-		SELINUX="enforcing"
-		BUILD_BOOT_IMG
-		if [ $MAKE_ZIP -eq 1 ]; then CREATE_ZIP; fi
-		if [ $MAKE_TAR -eq 1 ]; then CREATE_TAR; fi
+# disable enforcing builds for kali until updated sepolicy available!
+#		OUT_DIR=$OUT_DIR_ENFORCING
+#		SELINUX="enforcing"
+#		BUILD_BOOT_IMG
+#		if [ $MAKE_ZIP -eq 1 ]; then CREATE_ZIP; fi
+#		if [ $MAKE_TAR -eq 1 ]; then CREATE_TAR; fi
 		OUT_DIR=$OUT_DIR_PERMISSIVE
 		SELINUX="permissive"
 		BUILD_BOOT_IMG
