@@ -24,7 +24,7 @@ RDIR=$(pwd)
 VER=6.6.5
 
 # output directory of images
-OUT_DIR="/home/jc/kali-nethunter/AnyKernel2/kernels/lollipop"
+OUT_DIR=/home/jc/build/kali-nethunter/AnyKernel2/kernels/lollipop
 
 # directory containing cross-compile arm-cortex_a15 toolchain
 TOOLCHAIN=/home/jc/build/toolchain/arm-cortex_a15-linux-gnueabihf-linaro_4.9.4-2015.06
@@ -52,7 +52,7 @@ CLEAN_BUILD()
 	cd $RDIR
 	rm -rf build
 	echo "Removing old image files..."
-	rm -rf $OUT_DIR/hlte$VARIANT/
+	rm -rf $VARIANT_DIR
 }
 
 BUILD_KERNEL()
@@ -75,7 +75,6 @@ BUILD_DT_IMG()
 
 MOVE_IMAGES()
 {
-	VARIANT_DIR="$OUT_DIR/hlte$VARIANT"
 	echo "Moving images to $VARIANT_DIR/..."
 	mkdir -p $VARIANT_DIR
 	mv $KDIR/zImage $KDIR/dt.img $VARIANT_DIR/
@@ -85,7 +84,8 @@ mkdir -p $OUT_DIR
 
 for V in eur can kor dcm kdi spr
 do
-	VARIANT=V
+	VARIANT=$V
+	VARIANT_DIR=$OUT_DIR/hlte$V
 	SET_KERNEL_VERSION
 	export LOCALVERSION=$KERNEL_VERSION
 	if ! [ -f $RDIR"/arch/arm/configs/variant_hlte_"$VARIANT ] ; then
