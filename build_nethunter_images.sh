@@ -61,7 +61,8 @@ BUILD_KERNEL()
 	cd $RDIR
 	mkdir -p build
 	make -C $RDIR O=build ik_defconfig \
-		VARIANT_DEFCONFIG=variant_hlte_$VARIANT
+		VARIANT_DEFCONFIG=variant_hlte_$VARIANT \
+		SELINUX_DEFCONFIG=selinux_never_enforce
 	echo "Starting build..."
 	make -C $RDIR O=build -j"$THREADS"
 }
