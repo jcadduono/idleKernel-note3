@@ -21,7 +21,7 @@ RDIR=$(pwd)
 
 [ -z $VER ] && \
 # version number
-VER=6.6.4
+VER=6.6.5
 
 # output directory of flashable kernel
 OUT_DIR_ENFORCING="/home/jc/idlekernel.com/note5port/selinux_enforcing/v"$VER"_"$(date +'%Y_%m_%d')
