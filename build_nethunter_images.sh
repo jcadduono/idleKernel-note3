@@ -21,7 +21,7 @@ RDIR=$(pwd)
 
 [ -z $VER ] && \
 # version number
-VER=6.6.5
+VER=$(cat $RDIR/VERSION)
 
 # output directory of images
 OUT_DIR=/home/jc/build/kali-nethunter/AnyKernel2/kernels/lollipop
