@@ -1,24 +1,25 @@
-on post-fs-data
+# Disable FeliCa NFC until AOSP support available
+#on post-fs-data
     # NFC FeliCa
-    mkdir /efs/sec_efs/FeliCaLock 0770 system felicalock
-    copy /efs/FeliCaLock/01 /efs/sec_efs/FeliCaLock/01
-    copy /efs/FeliCaLock/02 /efs/sec_efs/FeliCaLock/02
-    copy /efs/FeliCaLock/03 /efs/sec_efs/FeliCaLock/03
-    copy /efs/FeliCaLock/04 /efs/sec_efs/FeliCaLock/04
-    copy /efs/FeliCaLock/05 /efs/sec_efs/FeliCaLock/05
-    chown felicalock felicalock /efs/sec_efs/FeliCaLock/01
-    chown felicalock felicalock /efs/sec_efs/FeliCaLock/02
-    chown felicalock felicalock /efs/sec_efs/FeliCaLock/03
-    chown felicalock felicalock /efs/sec_efs/FeliCaLock/04
-    chown felicalock felicalock /efs/sec_efs/FeliCaLock/05
-    chmod 0644 /efs/sec_efs/FeliCaLock/01
-    chmod 0600 /efs/sec_efs/FeliCaLock/02
-    chmod 0644 /efs/sec_efs/FeliCaLock/03
-    chmod 0600 /efs/sec_efs/FeliCaLock/04
-    chmod 0600 /efs/sec_efs/FeliCaLock/05
-    rm /efs/FeliCaLock/01
-    rm /efs/FeliCaLock/02
-    rm /efs/FeliCaLock/03
-    rm /efs/FeliCaLock/04
-    rm /efs/FeliCaLock/05
-    rmdir /efs/FeliCaLock/
+    #mkdir /efs/sec_efs/FeliCaLock 0770 system felicalock
+    #copy /efs/FeliCaLock/01 /efs/sec_efs/FeliCaLock/01
+    #copy /efs/FeliCaLock/02 /efs/sec_efs/FeliCaLock/02
+    #copy /efs/FeliCaLock/03 /efs/sec_efs/FeliCaLock/03
+    #copy /efs/FeliCaLock/04 /efs/sec_efs/FeliCaLock/04
+    #copy /efs/FeliCaLock/05 /efs/sec_efs/FeliCaLock/05
+    #chown felicalock felicalock /efs/sec_efs/FeliCaLock/01
+    #chown felicalock felicalock /efs/sec_efs/FeliCaLock/02
+    #chown felicalock felicalock /efs/sec_efs/FeliCaLock/03
+    #chown felicalock felicalock /efs/sec_efs/FeliCaLock/04
+    #chown felicalock felicalock /efs/sec_efs/FeliCaLock/05
+    #chmod 0644 /efs/sec_efs/FeliCaLock/01
+    #chmod 0600 /efs/sec_efs/FeliCaLock/02
+    #chmod 0644 /efs/sec_efs/FeliCaLock/03
+    #chmod 0600 /efs/sec_efs/FeliCaLock/04
+    #chmod 0600 /efs/sec_efs/FeliCaLock/05
+    #rm /efs/FeliCaLock/01
+    #rm /efs/FeliCaLock/02
+    #rm /efs/FeliCaLock/03
+    #rm /efs/FeliCaLock/04
+    #rm /efs/FeliCaLock/05
+    #rmdir /efs/FeliCaLock/

@@ -1,5 +1,6 @@
-on post-fs-data
+# Disable PN547 NFC until AOSP support available
+#on post-fs-data
     # NFC NXP
-    setprop ro.nfc.port "I2C"
-    chmod 0660 /dev/pn547
-    chown nfc nfc /dev/pn547
+    #setprop ro.nfc.port "I2C"
+    #chmod 0660 /dev/pn547
+    #chown nfc nfc /dev/pn547
