@@ -67,17 +67,17 @@ BUILD_KERNEL()
 	make -C $RDIR O=build -j"$THREADS"
 }
 
-BUILD_DT_IMG()
+BUILD_DTB_IMG()
 {
-	echo "Generating dt.img..."
-	$RDIR/scripts/dtbTool/dtbTool -o $KDIR/dt.img $KDIR/ -s 2048
+	echo "Generating dtb.img..."
+	$RDIR/scripts/dtbTool/dtbTool -o $KDIR/dtb.img $KDIR/ -s 2048
 }
 
 MOVE_IMAGES()
 {
 	echo "Moving images to $VARIANT_DIR/..."
 	mkdir -p $VARIANT_DIR
-	mv $KDIR/zImage $KDIR/dt.img $VARIANT_DIR/
+	mv $KDIR/zImage $KDIR/dtb.img $VARIANT_DIR/
 }
 
 mkdir -p $OUT_DIR
@@ -91,7 +91,7 @@ do
 	if ! [ -f $RDIR"/arch/arm/configs/variant_hlte_"$VARIANT ] ; then
 		echo "Device variant/carrier $VARIANT not found in arm configs!"
 		continue
-	elif CLEAN_BUILD && BUILD_KERNEL && BUILD_DT_IMG; then
+	elif CLEAN_BUILD && BUILD_KERNEL && BUILD_DTB_IMG; then
 		MOVE_IMAGES
 	else
 		echo "Error!"
