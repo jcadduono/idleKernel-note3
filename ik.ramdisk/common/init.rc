@@ -14,7 +14,8 @@ import /init.carrier.rc
 import /init.cm.rc
 # Include idleKernel's init file
 import /init.idlekernel.rc
-
+# Include Kali Nethunter's init file
+import /init.nethunter.rc
 
 on early-init
     # Set init and its forked children's oom_adj.
