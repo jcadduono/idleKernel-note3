@@ -24,7 +24,7 @@ RDIR=$(pwd)
 VER=$(cat $RDIR/VERSION)
 
 # output directory of images
-OUT_DIR=/home/jc/build/kali-nethunter/AnyKernel2/kernels/lollipop
+OUT_DIR=/home/jc/build/kali-nethunter/nethunter-installer/kernels/lollipop
 
 # directory containing cross-compile arm-cortex_a15 toolchain
 TOOLCHAIN=/home/jc/build/toolchain/arm-cortex_a15-linux-gnueabihf-linaro_4.9.4-2015.06
@@ -76,7 +76,8 @@ BUILD_DTB_IMG()
 MOVE_IMAGES()
 {
 	echo "Moving images to $VARIANT_DIR/..."
-	mkdir -p $VARIANT_DIR
+	rm -rf $VARIANT_DIR
+	mkdir $VARIANT_DIR
 	mv $KDIR/zImage $KDIR/dtb.img $VARIANT_DIR/
 }
 
