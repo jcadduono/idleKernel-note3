@@ -86,7 +86,7 @@ BUILD_RAMDISK()
 	VARIANT=$VARIANT $RDIR/setup_ramdisk.sh
 	cd $RDIR/build/ramdisk
 	echo "Building ramdisk.img..."
-	find | fakeroot cpio -o -H newc | xz --check=crc32 --lzma2=dict=2MiB > $KDIR/ramdisk.cpio.xz
+	find | fakeroot cpio -o -H newc | gzip -9 > $KDIR/ramdisk.cpio.gz
 	cd $RDIR
 }
 
@@ -94,7 +94,7 @@ BUILD_BOOT_IMG()
 {
 	echo "Generating boot.img..."
 	$RDIR/scripts/mkqcdtbootimg/mkqcdtbootimg --kernel $KDIR/zImage \
-		--ramdisk $KDIR/ramdisk.cpio.xz \
+		--ramdisk $KDIR/ramdisk.cpio.gz \
 		--dt_dir $KDIR \
 		--cmdline "quiet console=null androidboot.hardware=qcom user_debug=31 msm_rtb.filter=0x3F androidboot.bootdevice=msm_sdcc.1 androidboot.selinux=$SELINUX" \
 		--base 0x00000000 \
