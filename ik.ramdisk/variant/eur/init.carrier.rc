@@ -5,10 +5,6 @@
 #
   
 on boot
-    # Set model info
-    setprop ro.product.model SM-N9005
-    setprop ro.product.name hltexx
-
     # IPSec for VOLTE
     chown root system /dev/socket
     chmod 0775 /dev/socket

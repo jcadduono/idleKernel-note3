@@ -5,10 +5,6 @@
 #
 
 on boot
-    # Set model info
-    setprop ro.product.model SM-N900R4
-    setprop ro.product.name hlteusc
-
     # IPSec for VOLTE
     chown root system /dev/socket
     chmod 0775 /dev/socket

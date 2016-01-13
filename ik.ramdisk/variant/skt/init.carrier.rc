@@ -5,10 +5,6 @@
 #
 
 on boot
-    # Set model info
-    setprop ro.product.model SM-N900S
-    setprop ro.product.name hlteskt
-
     # Define TCP buffer sizes for various networks
     # ReadMin, ReadInitial, ReadMax, WriteMin, WriteInitial, WriteMax,
     setprop net.tcp.buffersize.default 4096,87380,110208,4096,16384,110208

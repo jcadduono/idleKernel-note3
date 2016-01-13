@@ -1,0 +1,47 @@
+#
+# Correct build.prop info
+#
+ro.product.model=SC-01F
+ro.product.brand=samsung
+ro.product.name=SC-01F
+ro.product.device=SC-01F
+ro.product.board=MSM8974
+ro.product.manufacturer=samsung
+ro.product.cpu.abi=armeabi-v7a
+ro.product.cpu.abi2=armeabi
+ro.product.cpu.abilist=armeabi-v7a,armeabi
+ro.product.cpu.abilist32=armeabi-v7a,armeabi
+ro.product.cpu.abilist64=
+ro.board.platform=msm8974
+ro.chipname=MSM8974
+#
+# 3LM settings
+#
+ro.3lm.production=1
+ro.3LM.extended=1
+ro.3LM.oem_sd_encryption=1
+ro.3LM.oem_manifest=3
+#
+# ADDITIONAL_DEFAULT_PROPERTIES
+#
+persist.cne.feature=0
+persist.security.ams.enforcing=0
+ro.secure=0
+ro.adb.secure=0
+ro.allow.mock.location=1
+ro.debuggable=0
+ro.zygote=zygote32
+persist.sys.strict_op_enable=false
+persist.sys.whitelist=/system/etc/whitelist_appops.xml
+persist.sys.usb.config=mtp,adb
+persist.sys.ssr.enable_debug=0
+camera2.portability.force_api=1
+dalvik.vm.dex2oat-Xms=64m
+dalvik.vm.dex2oat-Xmx=512m
+dalvik.vm.image-dex2oat-Xms=64m
+dalvik.vm.image-dex2oat-Xmx=64m
+ro.dalvik.vm.native.bridge=0
+ro.securestorage.support=false
+ro.config.knox=0
+ro.config.tima=0
+

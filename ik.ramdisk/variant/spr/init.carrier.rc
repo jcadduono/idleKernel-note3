@@ -4,11 +4,6 @@
 # This is a common source of Android security bugs.
 #
 
-on boot
-    # Set model info
-    setprop ro.product.model SM-N900P
-    setprop ro.product.name hltespr
-
 ## mount carrier partition for SPR model ##
 on init
     mkdir /carrier 0771 system system

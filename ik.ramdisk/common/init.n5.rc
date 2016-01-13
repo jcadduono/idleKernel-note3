@@ -4,20 +4,6 @@ on init
 
     symlink /dev/block/platform/msm_sdcc.1/by-name/persist /dev/block/persistent
 
-on boot
-    setprop ro.build.version.sdk 22
-    setprop ro.build.version.codename REL
-    setprop ro.build.version.release 5.1.1
-
-    setprop ro.product.device hlte
-    setprop ro.product.board MSM8974
-    setprop ro.product.cpu.abi armeabi-v7a
-    setprop ro.product.cpu.abi2 armeabi
-    setprop ro.product.brand samsung
-    setprop ro.product.manufacturer samsung
-
-    setprop ro.board.platform msm8974
-
 on post-fs
     # Private Mode
     mkdir /mnt/shell/privatemode 0700 system system

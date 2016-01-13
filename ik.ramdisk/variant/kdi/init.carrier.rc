@@ -9,12 +9,6 @@ on fs
     mkdir /preload 0771 system system
 
 on post-fs-data
-    # 3LM settings
-    setprop ro.3lm.production 1
-    setprop ro.3LM.extended 1
-    setprop ro.3LM.oem_sd_encryption 1
-    setprop ro.3LM.oem_manifest 3
-
     # JPN: For MobileTV [ISDBT] \android\device\samsung\hltekdi\init.hltekdi.rc
     mkdir /data/one-seg 0775 system system
     chown system system /data/one-seg
