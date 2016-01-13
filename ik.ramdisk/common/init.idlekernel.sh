@@ -108,6 +108,16 @@ if [ ! -f $CFILE ]; then
 	echo $CDEF > $CFILE
 fi
 echo `cat $CFILE` > $SFILE
+#
+# system install SuperSU
+#
+CFILE=$DDIR/supersu
+SFILE=/data/.supersu
+CDEF="SYSTEMLESS=false"
+if [ ! -f $CFILE ]; then
+	echo $CDEF > $CFILE
+fi
+echo `cat $CFILE` > $SFILE
 
 /sbin/setonboot apply &
 /system/xbin/busybox run-parts /system/etc/init.d &
