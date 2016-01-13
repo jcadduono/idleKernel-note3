@@ -42,6 +42,7 @@ on init
 
     #External storage directories
     mkdir /mnt/media_rw/sdcard1 0700 media_rw media_rw
+    mkdir /storage/usbdisk 0000 system system
     mkdir /mnt/media_rw/usbdisk 0700 media_rw media_rw
 
     mkdir /storage/sdcard1 0700 root root
@@ -360,6 +361,9 @@ on post-fs-data
 on property:init.svc.wpa_supplicant=stopped
     stop dhcpcd
 
+on property:vold.decrypt=trigger_restart_framework
+    setprop ro.fuse_sdcard ${persist.fuse_sdcard}
+
 service irsc_util /system/bin/irsc_util "/etc/sec_config"
     class main
     user root
@@ -555,7 +559,6 @@ on property:sys.boot_completed=1
     chmod 664 /sys/devices/system/cpu/cpu1/online
     chmod 664 /sys/devices/system/cpu/cpu2/online
     chmod 664 /sys/devices/system/cpu/cpu3/online
-    write /dev/cpuctl/apps/cpu.notify_on_migrate 1
 
     # Configure the cpu-boost module
     write /sys/module/cpu_boost/parameters/boost_ms 10
@@ -642,6 +645,13 @@ service fuse_usbdisk /system/bin/sdcard -u 1023 -g 1023 /mnt/media_rw/usbdisk /s
 on property:ro.fuse_sdcard=true
     start sdcard
 
+# This will make sure that sdcard service starts as late_start.
+on nonencrypted
+    setprop ro.fuse_sdcard ${persist.fuse_sdcard}
+
+on property:vold.decrypt=trigger_restart_framework
+    setprop ro.fuse_sdcard ${persist.fuse_sdcard}
+
 service hcidump /system/bin/sh /system/etc/hcidump.sh
     user bluetooth
     group bluetooth system net_bt_admin net_admin
@@ -668,3 +678,10 @@ on property:persist.sys.ssr.restart_level=3
     write /sys/bus/msm_subsys/devices/subsys1/restart_level related
     write /sys/bus/msm_subsys/devices/subsys2/restart_level related
     write /sys/bus/msm_subsys/devices/subsys3/restart_level related
+
+# Boot Audio - Default Silent
+service bootsnd /system/bin/tinyplay /system/etc/sound/silence.wav -D 0 -d 0 -p 880
+    class late_start
+    user root
+    group audio
+    oneshot

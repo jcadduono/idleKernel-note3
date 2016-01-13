@@ -1,7 +1,5 @@
 # Extras
 
-import /init.superuser.rc
-
 on init
     export TERMINFO /system/etc/terminfo
     export TERM linux
