@@ -10,6 +10,9 @@ import /init.${ro.hardware}.rc
 import /init.${ro.zygote}.rc
 import /init.trace.rc
 import /init.carrier.rc
+# Import Superuser's init file
+import /init.superuser.rc
+# Import idleKernel's init file
 import /init.idlekernel.rc
 
 on early-init
