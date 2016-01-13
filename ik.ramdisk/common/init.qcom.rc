@@ -341,6 +341,10 @@ on post-fs-data
     chown system system /sys/devices/virtual/lcd/panel/panel/backlight
     setprop vold.post_fs_data_done 1
 
+    #Create a folder for SRS to be able to create a usercfg file
+    mkdir /data/data/media 0770 media media
+    restorecon_recursive /data/media
+
 # GPIO DVS
     chown radio system /sys/class/secgpio_check/secgpio_check_all/secgpio_ctrl
 # sensor
