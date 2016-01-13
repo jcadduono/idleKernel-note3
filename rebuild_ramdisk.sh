@@ -33,7 +33,7 @@ VARIANT=can
 
 [ -z $VER ] && \
 # version number
-VER=6.6.5
+VER=$(cat $RDIR/VERSION)
 
 # kernel version string appended to 3.4.x-idleKernel-hlte-
 # (shown in Settings -> About device)
