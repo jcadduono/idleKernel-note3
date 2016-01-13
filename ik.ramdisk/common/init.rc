@@ -13,6 +13,8 @@ import /init.trace.rc
 import /init.carrier.rc
 # Include CM's extra init file
 import /init.cm.rc
+# Include Superuser's init file
+import /init.superuser.rc
 # Include idleKernel's init file
 import /init.idlekernel.rc
 
