@@ -19,7 +19,8 @@ echo "5) gpu governor"
 echo "6) tcp congestion control"
 echo "7) io scheduler"
 echo "8) mmc crc"
-echo "9) check top 10 wake locks (ie. wakeup sources)"
+echo "9) supersu install method"
+echo "10) check top 10 wake locks (ie. wakeup sources)"
 echo
 echo -n "please enter a number (or press enter to exit): "
 
@@ -52,6 +53,16 @@ case $option in
 	cat /sys/block/mmcblk1/queue/scheduler
 	echo -n "8) mmc crc: "
 	[ `cat /sys/module/mmc_core/parameters/use_spi_crc` == Y ] && echo enabled || echo disabled
+	echo -n "9) supersu install method: "
+	[ -e /data/.supersu ] && {
+		if grep -q SYSTEMLESS=false /data/.supersu; then
+			echo system
+		elif grep -q SYSTEMLESS=true /data/.supersu; then
+			echo systemless
+		else
+			echo auto
+		fi
+	} || echo auto
 	;;
 1)
 	echo
@@ -249,6 +260,26 @@ case $option in
 	fi
 	;;
 9)
+	echo
+	echo "1) auto"
+	echo "2) system (default)"
+	echo "3) systemless"
+	echo
+	echo -n "enter a number (or press enter to return): "
+        read value
+        case $value in
+		1) SUI=detect;;
+		2) SUI=false;;
+		3) SUI=true;;
+		*) SUI=;;
+        esac
+	if [ -n $SUI ]; then
+		echo "SYSTEMLESS=$SUI" > $DDIR/supersu
+		echo "SYSTEMLESS=$SUI" > /data/.supersu
+		echo "done!"
+	fi
+	;;
+10)
 	echo
         if [ -a /system/xbin/awk ]; then
                 echo "1st column: total time wakeup source has been active."
