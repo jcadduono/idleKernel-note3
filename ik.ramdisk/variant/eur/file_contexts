@@ -664,6 +664,7 @@
 /dev/socket/drsd        u:object_r:drsd_socket:s0
 /dev/socket/epm     u:object_r:epm_socket:s0
 /dev/socket/frigate		u:object_r:frigate_socket:s0
+/dev/socket/imsd	u:object_r:imsd_socket:s0
 /dev/socket/ipsec_socket        u:object_r:ipsec_socket:s0
 /dev/socket/jack(/.*)?          u:object_r:jack_socket:s0
 /dev/socket/msockets(/.*)?	u:object_r:msockets_socket:s0
@@ -682,6 +683,7 @@
 /dev/ttyGS[0-9]*	u:object_r:usb_serial_device:s0
 /dev/ttyUSB[0-9]*	u:object_r:usb_device:s0
 /dev/t-base-tui                    u:object_r:tui_device:s0
+/dev/tuihw	u:object_r:tz_device:s0
 /dev/tzdev	u:object_r:tz_device:s0
 /dev/tzic	u:object_r:tz_device:s0
 /dev/url	u:object_r:url_device:s0
@@ -1087,6 +1089,7 @@
 /data/system/users(/.*)?                u:object_r:users_system_data_file:s0
 /data/system/users/service(/.*)?	u:object_r:reset_reason_service_file:s0
 /data/system/users(/.*)/wallpaper	u:object_r:wallpaper_file:s0
+/data/system/users(/.*)/wallpaper2	u:object_r:wallpaper_file:s0
 /data/tee(/.*)?	                        u:object_r:tee_data_file:s0
 
 ############################# 

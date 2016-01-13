@@ -138,6 +138,7 @@ persist.csc.                 u:object_r:csc_prop:s0
 persist.eth.                 u:object_r:system_prop:s0
 persist.log.                    u:object_r:log_prop:s0
 persist.log.seclevel		u:object_r:seclevel_prop:s0
+persist.nfc.		u:object_r:nfc_prop:s0
 persist.omc.                 u:object_r:csc_prop:s0
 persist.ril.		u:object_r:rild_prop:s0
 persist.scan.		u:object_r:system_prop:s0
