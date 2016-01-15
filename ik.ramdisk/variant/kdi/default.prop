@@ -1,10 +1,11 @@
 #
 # Correct build.prop info
 #
-ro.product.model=SCL22
-ro.product.brand=KDDI
-ro.product.name=SCL22
-ro.product.device=SCL22
+# Don't fix model info, prevents Note 5 features from working
+#ro.product.model=SCL22
+#ro.product.brand=KDDI
+#ro.product.name=SCL22
+#ro.product.device=SCL22
 ro.product.board=MSM8974
 ro.product.manufacturer=samsung
 ro.product.cpu.abi=armeabi-v7a

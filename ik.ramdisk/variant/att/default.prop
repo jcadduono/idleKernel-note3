@@ -1,10 +1,11 @@
 #
 # Correct build.prop info
 #
-ro.product.model=SAMSUNG-SM-N900A
-ro.product.brand=samsung
-ro.product.name=hlteuc
-ro.product.device=hlteatt
+# Don't fix model info, prevents Note 5 features from working
+#ro.product.model=SAMSUNG-SM-N900A
+#ro.product.brand=samsung
+#ro.product.name=hlteuc
+#ro.product.device=hlteatt
 ro.product.board=MSM8974
 ro.product.manufacturer=samsung
 ro.product.cpu.abi=armeabi-v7a

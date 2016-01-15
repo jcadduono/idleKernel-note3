@@ -1,10 +1,11 @@
 #
 # Correct build.prop info
 #
-ro.product.model=SM-N900T
-ro.product.brand=samsung
-ro.product.name=hltetmo
-ro.product.device=hltetmo
+# Don't fix model info, prevents Note 5 features from working
+#ro.product.model=SM-N900T
+#ro.product.brand=samsung
+#ro.product.name=hltetmo
+#ro.product.device=hltetmo
 ro.product.board=MSM8974
 ro.product.manufacturer=samsung
 ro.product.cpu.abi=armeabi-v7a

@@ -1,10 +1,11 @@
 #
 # Correct build.prop info
 #
-ro.product.model=SM-N900V
-ro.product.brand=Verizon
-ro.product.name=hltevzw
-ro.product.device=hltevzw
+# Don't fix model info, prevents Note 5 features from working
+#ro.product.model=SM-N900V
+#ro.product.brand=Verizon
+#ro.product.name=hltevzw
+#ro.product.device=hltevzw
 ro.product.board=MSM8974
 ro.product.manufacturer=samsung
 ro.product.cpu.abi=armeabi-v7a

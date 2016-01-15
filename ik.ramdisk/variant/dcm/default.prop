@@ -1,10 +1,11 @@
 #
 # Correct build.prop info
 #
-ro.product.model=SC-01F
-ro.product.brand=samsung
-ro.product.name=SC-01F
-ro.product.device=SC-01F
+# Don't fix model info, prevents Note 5 features from working
+#ro.product.model=SC-01F
+#ro.product.brand=samsung
+#ro.product.name=SC-01F
+#ro.product.device=SC-01F
 ro.product.board=MSM8974
 ro.product.manufacturer=samsung
 ro.product.cpu.abi=armeabi-v7a
