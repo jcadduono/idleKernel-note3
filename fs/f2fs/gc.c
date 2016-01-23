@@ -16,7 +16,6 @@
 #include <linux/kthread.h>
 #include <linux/delay.h>
 #include <linux/freezer.h>
-#include <linux/blkdev.h>
 
 #include "f2fs.h"
 #include "node.h"
@@ -77,12 +76,12 @@ static int gc_thread_func(void *data)
 
 		stat_inc_bggc_count(sbi);
 
-		trace_f2fs_background_gc(sbi->sb, wait_ms,
-				prefree_segments(sbi), free_segments(sbi));
-
 		/* if return value is not zero, no victim was selected */
 		if (f2fs_gc(sbi, test_opt(sbi, FORCE_FG_GC)))
 			wait_ms = gc_th->no_gc_sleep_time;
+
+		trace_f2fs_background_gc(sbi->sb, wait_ms,
+				prefree_segments(sbi), free_segments(sbi));
 
 		/* balancing f2fs's metadata periodically */
 		f2fs_balance_fs_bg(sbi);
@@ -173,9 +172,9 @@ static unsigned int get_max_cost(struct f2fs_sb_info *sbi,
 {
 	/* SSR allocates in a segment unit */
 	if (p->alloc_mode == SSR)
-		return 1 << sbi->log_blocks_per_seg;
+		return sbi->blocks_per_seg;
 	if (p->gc_mode == GC_GREEDY)
-		return (1 << sbi->log_blocks_per_seg) * p->ofs_unit;
+		return sbi->blocks_per_seg * p->ofs_unit;
 	else if (p->gc_mode == GC_CB)
 		return UINT_MAX;
 	else /* No other gc_mode */
@@ -559,8 +558,16 @@ static void move_encrypted_block(struct inode *inode, block_t bidx)
 	if (err)
 		goto out;
 
-	if (unlikely(dn.data_blkaddr == NULL_ADDR))
+	if (unlikely(dn.data_blkaddr == NULL_ADDR)) {
+		ClearPageUptodate(page);
 		goto put_out;
+	}
+
+	/*
+	 * don't cache encrypted data into meta inode until previous dirty
+	 * data were writebacked to avoid racing between GC and flush.
+	 */
+	f2fs_wait_on_page_writeback(page, DATA);
 
 	get_node_info(fio.sbi, dn.nid, &ni);
 	set_summary(&sum, dn.nid, dn.ofs_in_node, ni.version);
@@ -586,7 +593,7 @@ static void move_encrypted_block(struct inode *inode, block_t bidx)
 		goto put_page_out;
 
 	set_page_dirty(fio.encrypted_page);
-	f2fs_wait_on_page_writeback(fio.encrypted_page, META);
+	f2fs_wait_on_page_writeback(fio.encrypted_page, DATA);
 	if (clear_page_dirty_for_io(fio.encrypted_page))
 		dec_page_count(fio.sbi, F2FS_DIRTY_META);
 
@@ -821,8 +828,10 @@ gc_more:
 
 	if (unlikely(!(sbi->sb->s_flags & MS_ACTIVE)))
 		goto stop;
-	if (unlikely(f2fs_cp_error(sbi)))
+	if (unlikely(f2fs_cp_error(sbi))) {
+		ret = -EIO;
 		goto stop;
+	}
 
 	if (gc_type == BG_GC && has_not_enough_free_secs(sbi, sec_freed)) {
 		gc_type = FG_GC;
@@ -837,7 +846,7 @@ gc_more:
 	/* readahead multi ssa blocks those have contiguous address */
 	if (sbi->segs_per_sec > 1)
 		ra_meta_pages(sbi, GET_SUM_BLOCK(sbi, segno), sbi->segs_per_sec,
-								META_SSA);
+							META_SSA, true);
 
 	for (i = 0; i < sbi->segs_per_sec; i++) {
 		/*
