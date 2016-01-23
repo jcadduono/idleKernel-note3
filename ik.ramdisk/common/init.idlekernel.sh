@@ -50,7 +50,7 @@ echo `cat $CFILE` > $SFILE
 #
 CFILE=$DDIR/cpu_governor
 SFILE=/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor
-CDEF=interactiveX
+CDEF=interactive
 if [ ! -f $CFILE ]; then
 	echo $CDEF > $CFILE
 fi
