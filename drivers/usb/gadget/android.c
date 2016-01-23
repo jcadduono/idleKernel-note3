@@ -47,6 +47,9 @@
 #include "epautoconf.c"
 #include "composite.c"
 
+#ifdef CONFIG_SND_RAWMIDI
+#include "f_midi.c"
+#endif
 #include "f_diag.c"
 #include "f_qdss.c"
 #include "f_rmnet_smd.c"
@@ -127,6 +130,11 @@ static int composite_string_index;
 #define PRODUCT_ID		0x0001
 
 #define ANDROID_DEVICE_NODE_NAME_LENGTH 11
+/* f_midi configuration */
+#define MIDI_INPUT_PORTS    1
+#define MIDI_OUTPUT_PORTS   1
+#define MIDI_BUFFER_SIZE    1024
+#define MIDI_QUEUE_LENGTH   32
 
 struct android_usb_function {
 	char *name;
@@ -491,12 +499,13 @@ static int android_enable(struct android_dev *dev)
 	if (--dev->disable_depth == 0) {
 
 		list_for_each_entry(conf, &dev->configs, list_item) {
-		usb_add_config(cdev, &conf->usb_config,
-					android_bind_config);
+			err = usb_add_config(cdev, &conf->usb_config,
+						android_bind_config);
 			if (err < 0) {
 				pr_err("%s: usb_add_config failed : err: %d\n",
 						__func__, err);
-				}
+				return err;
+			}
 		}
 #if defined(CONFIG_SEC_H_PROJECT)
 		schedule_usb_gadget_connect_work(dev);
@@ -1655,7 +1664,11 @@ rndis_function_bind_config(struct android_usb_function *f,
 		rndis->ethaddr[0], rndis->ethaddr[1], rndis->ethaddr[2],
 		rndis->ethaddr[3], rndis->ethaddr[4], rndis->ethaddr[5]);
 
-	ret = gether_setup_name(c->cdev->gadget, rndis->ethaddr, "rndis");
+	if (rndis->ethaddr[0])
+		ret = gether_setup_name(c->cdev->gadget, NULL, "rndis");
+	else
+		ret = gether_setup_name(c->cdev->gadget, rndis->ethaddr,
+								"rndis");
 	if (ret) {
 		pr_err("%s: gether_setup failed\n", __func__);
 		return ret;
@@ -2307,6 +2320,62 @@ static struct android_usb_function uasp_function = {
 	.bind_config	= uasp_function_bind_config,
 };
 
+#ifdef CONFIG_SND_RAWMIDI
+static int midi_function_init(struct android_usb_function *f,
+					struct usb_composite_dev *cdev)
+{
+	struct midi_alsa_config *config;
+
+	config = kzalloc(sizeof(struct midi_alsa_config), GFP_KERNEL);
+	f->config = config;
+	if (!config)
+		return -ENOMEM;
+	config->card = -1;
+	config->device = -1;
+	return 0;
+}
+
+static void midi_function_cleanup(struct android_usb_function *f)
+{
+	kfree(f->config);
+}
+
+static int midi_function_bind_config(struct android_usb_function *f,
+						struct usb_configuration *c)
+{
+	struct midi_alsa_config *config = f->config;
+
+	return f_midi_bind_config(c, SNDRV_DEFAULT_IDX1, SNDRV_DEFAULT_STR1,
+			MIDI_INPUT_PORTS, MIDI_OUTPUT_PORTS, MIDI_BUFFER_SIZE,
+			MIDI_QUEUE_LENGTH, config);
+}
+
+static ssize_t midi_alsa_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	struct android_usb_function *f = dev_get_drvdata(dev);
+	struct midi_alsa_config *config = f->config;
+
+	/* print ALSA card and device numbers */
+	return sprintf(buf, "%d %d\n", config->card, config->device);
+}
+
+static DEVICE_ATTR(alsa, S_IRUGO, midi_alsa_show, NULL);
+
+static struct device_attribute *midi_function_attributes[] = {
+	&dev_attr_alsa,
+	NULL
+};
+
+static struct android_usb_function midi_function = {
+	.name		= "midi",
+	.init		= midi_function_init,
+	.cleanup	= midi_function_cleanup,
+	.bind_config	= midi_function_bind_config,
+	.attributes	= midi_function_attributes,
+};
+#endif
+
 static int hid_function_init(struct android_usb_function *f, struct usb_composite_dev *cdev)
 {
 	return ghid_setup(cdev->gadget, 2);
@@ -2378,6 +2447,9 @@ static struct android_usb_function *supported_functions[] = {
 	&audio_source_function,
 #endif
 	&uasp_function,
+#ifdef CONFIG_SND_RAWMIDI
+	&midi_function,
+#endif
 	&hid_function,
 	NULL
 };
@@ -2740,6 +2812,8 @@ static ssize_t enable_store(struct device *pdev, struct device_attribute *attr,
 	int enabled = 0;
 	bool audio_enabled = false;
 	static DEFINE_RATELIMIT_STATE(rl, 10*HZ, 1);
+	int err = 0;
+
 	if (!cdev)
 		return -ENODEV;
 
@@ -2820,7 +2894,14 @@ static ssize_t enable_store(struct device *pdev, struct device_attribute *attr,
 			}
 		if (audio_enabled)
 			msleep(100);
-		android_enable(dev);
+		err = android_enable(dev);
+		if (err < 0) {
+			pr_err("%s: android_enable failed\n", __func__);
+			dev->connected = 0;
+			dev->enabled = false;
+			mutex_unlock(&dev->mutex);
+			return size;
+		}
 		dev->enabled = true;
 	} else if (!enabled && dev->enabled) {
 		android_disable(dev);
