@@ -556,11 +556,10 @@ on property:sys.perf.profile=0
 on property:sys.perf.profile=1
     write /sys/class/devfreq/qcom,cpubw.34/governor msm_cpufreq
     write /sys/class/devfreq/fdb00000.qcom,kgsl-3d0/governor msm-adreno-tz
-    write /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor interactiveX
-    write /sys/devices/system/cpu/cpu1/cpufreq/scaling_governor interactiveX
-    write /sys/devices/system/cpu/cpu2/cpufreq/scaling_governor interactiveX
-    write /sys/devices/system/cpu/cpu3/cpufreq/scaling_governor interactiveX
-
+    write /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor interactive
+    write /sys/devices/system/cpu/cpu1/cpufreq/scaling_governor interactive
+    write /sys/devices/system/cpu/cpu2/cpufreq/scaling_governor interactive
+    write /sys/devices/system/cpu/cpu3/cpufreq/scaling_governor interactive
     write /sys/class/kgsl/kgsl-3d0/devfreq/governor msm-adreno-tz
     start mpdecision
 
