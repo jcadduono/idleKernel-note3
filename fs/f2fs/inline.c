@@ -12,12 +12,10 @@
 #include <linux/f2fs_fs.h>
 
 #include "f2fs.h"
+#include "node.h"
 
 bool f2fs_may_inline_data(struct inode *inode)
 {
-	if (!test_opt(F2FS_I_SB(inode), INLINE_DATA))
-		return false;
-
 	if (f2fs_is_atomic_file(inode))
 		return false;
 
@@ -176,6 +174,9 @@ int f2fs_convert_inline_inode(struct inode *inode)
 	struct page *ipage, *page;
 	int err = 0;
 
+	if (!f2fs_has_inline_data(inode))
+		return 0;
+
 	page = grab_cache_page(inode->i_mapping, 0);
 	if (!page)
 		return -ENOMEM;
@@ -198,6 +199,9 @@ out:
 	f2fs_unlock_op(sbi);
 
 	f2fs_put_page(page, 1);
+
+	f2fs_balance_fs(sbi, dn.node_changed);
+
 	return err;
 }
 
@@ -573,4 +577,39 @@ int f2fs_read_inline_dir(struct file *file, void *dirent, filldir_t filldir,
 
 	f2fs_put_page(ipage, 1);
 	return 0;
+}
+
+int f2fs_inline_data_fiemap(struct inode *inode,
+		struct fiemap_extent_info *fieinfo, __u64 start, __u64 len)
+{
+	__u64 byteaddr, ilen;
+	__u32 flags = FIEMAP_EXTENT_DATA_INLINE | FIEMAP_EXTENT_NOT_ALIGNED |
+		FIEMAP_EXTENT_LAST;
+	struct node_info ni;
+	struct page *ipage;
+	int err = 0;
+
+	ipage = get_node_page(F2FS_I_SB(inode), inode->i_ino);
+	if (IS_ERR(ipage))
+		return PTR_ERR(ipage);
+
+	if (!f2fs_has_inline_data(inode)) {
+		err = -EAGAIN;
+		goto out;
+	}
+
+	ilen = min_t(size_t, MAX_INLINE_DATA, i_size_read(inode));
+	if (start >= ilen)
+		goto out;
+	if (start + len < ilen)
+		ilen = start + len;
+	ilen -= start;
+
+	get_node_info(F2FS_I_SB(inode), inode->i_ino, &ni);
+	byteaddr = (__u64)ni.blk_addr << inode->i_sb->s_blocksize_bits;
+	byteaddr += (char *)inline_data_addr(ipage) - (char *)F2FS_INODE(ipage);
+	err = fiemap_fill_next_extent(fieinfo, start, byteaddr, ilen, flags);
+out:
+	f2fs_put_page(ipage, 1);
+	return err;
 }

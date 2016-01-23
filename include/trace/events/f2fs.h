@@ -990,6 +990,32 @@ TRACE_EVENT(f2fs_writepages,
 		__entry->range_cyclic)
 );
 
+TRACE_EVENT(f2fs_readpages,
+
+	TP_PROTO(struct inode *inode, struct page *page, unsigned int nrpage),
+
+	TP_ARGS(inode, page, nrpage),
+
+	TP_STRUCT__entry(
+		__field(dev_t,	dev)
+		__field(ino_t,	ino)
+		__field(pgoff_t,	start)
+		__field(unsigned int,	nrpage)
+	),
+
+	TP_fast_assign(
+		__entry->dev	= inode->i_sb->s_dev;
+		__entry->ino	= inode->i_ino;
+		__entry->start	= page->index;
+		__entry->nrpage	= nrpage;
+	),
+
+	TP_printk("dev = (%d,%d), ino = %lu, start = %lu nrpage = %u",
+		show_dev_ino(__entry),
+		(unsigned long)__entry->start,
+		__entry->nrpage)
+);
+
 TRACE_EVENT(f2fs_write_checkpoint,
 
 	TP_PROTO(struct super_block *sb, int reason, char *msg),
@@ -1199,6 +1225,44 @@ TRACE_EVENT(f2fs_destroy_extent_tree,
 	TP_printk("dev = (%d,%d), ino = %lu, destroyed: node_cnt = %u",
 		show_dev_ino(__entry),
 		__entry->node_cnt)
+);
+
+DECLARE_EVENT_CLASS(f2fs_sync_dirty_inodes,
+
+	TP_PROTO(struct super_block *sb, int type, int count),
+
+	TP_ARGS(sb, type, count),
+
+	TP_STRUCT__entry(
+		__field(dev_t, dev)
+		__field(int, type)
+		__field(int, count)
+	),
+
+	TP_fast_assign(
+		__entry->dev	= sb->s_dev;
+		__entry->type	= type;
+		__entry->count	= count;
+	),
+
+	TP_printk("dev = (%d,%d), %s, dirty count = %d",
+		show_dev(__entry),
+		show_file_type(__entry->type),
+		__entry->count)
+);
+
+DEFINE_EVENT(f2fs_sync_dirty_inodes, f2fs_sync_dirty_inodes_enter,
+
+	TP_PROTO(struct super_block *sb, int type, int count),
+
+	TP_ARGS(sb, type, count)
+);
+
+DEFINE_EVENT(f2fs_sync_dirty_inodes, f2fs_sync_dirty_inodes_exit,
+
+	TP_PROTO(struct super_block *sb, int type, int count),
+
+	TP_ARGS(sb, type, count)
 );
 
 #endif /* _TRACE_F2FS_H */
