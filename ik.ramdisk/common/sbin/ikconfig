@@ -147,14 +147,14 @@ case $option in
 4)
 	echo
 	echo "1) ondemand"
-	echo "2) interactiveX (default)"
+	echo "2) interactive (default)"
 	echo "3) performance"
 	echo
 	echo -n "enter a number (or press enter to return): "
         read value
         case $value in
 		1) GOV=ondemand;;
-		2) GOV=interactiveX;;
+		2) GOV=interactive;;
 		3) GOV=performance;;
 		*) GOV=;;
         esac
