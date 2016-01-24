@@ -89,6 +89,3 @@ GTAGS
 # idleKernel build generated files
 #
 /build/
-/*.zip
-/*.tar.md5
-/ik.zip/*.img
