@@ -1,10 +1,10 @@
 #!/system/bin/sh
 
-VERSION=1.4
+VERSION=1.5
 
 LUN=/sys/devices/msm_dwc3/f9200000.dwc3/gadget/lun0
 SDCARD=/dev/block/mmcblk1
-SDMOUNT="$(ls -1 /dev/block/vold | grep -m1 '^public\:')"
+SDMOUNT=$(toybox ls -1 /dev/block/vold | grep -m1 '^public\:')
 [ -b "$SDCARD" ] && HAS_SDCARD=true || HAS_SDCARD=false
 SD_MOUNTED=false
 USB_MODE=false
@@ -41,8 +41,8 @@ CHECK_SU() {
 }
 
 CHECK_SD_MOUNTED() {
-	$HAS_SDCARD && {
-		[ -n "$(grep $SDMOUNT /proc/mounts)" ] && SD_MOUNTED=true || SD_MOUNTED=false
+	$HAS_SDCARD && [ "$SDMOUNT" ] && {
+		grep -q "$SDMOUNT" /proc/mounts && SD_MOUNTED=true || SD_MOUNTED=false
 	} || {
 		SD_MOUNTED=false
 	}
@@ -125,7 +125,7 @@ ACTIVATE_USB_MODE() {
 	do
 		echo -n "."
 		sleep 0.1
-		WAIT_COUNT=$(($WAIT_COUNT+1))
+		WAIT_COUNT=$((WAIT_COUNT+1))
 		[ $WAIT_COUNT -eq 10 ] && {
 			echo
 			echo "Error: USB mode does not want to change!" 1>&2
@@ -174,13 +174,13 @@ MOUNT_SDCARD() {
 	CHECK_SD_MOUNTED
 	$SD_MOUNTED && return
 	echo "Mounting SDcard to $SDMOUNT..."
-	vdc volume mount $SDMOUNT > /dev/null 2>&1
+	vdc volume mount "$SDMOUNT" > /dev/null 2>&1
 	echo -n "Waiting for SDcard to be ready..."
 	WAIT_COUNT=0
 	while ! $SD_MOUNTED; do
 		echo -n "."
 		sleep 0.1
-		WAIT_COUNT=$(($WAIT_COUNT+1))
+		WAIT_COUNT=$((WAIT_COUNT+1))
 		[ $WAIT_COUNT -eq 20 ] && break
 		CHECK_SD_MOUNTED
 	done
@@ -199,7 +199,7 @@ UNMOUNT_SDCARD() {
 	CHECK_SD_MOUNTED
 	$SD_MOUNTED || return
 	echo "Unmounting SDcard from $SDMOUNT..."
-	vdc volume unmount $SDMOUNT > /dev/null 2>&1
+	vdc volume unmount "$SDMOUNT" > /dev/null 2>&1
 	CHECK_SD_MOUNTED
 	$SD_MOUNTED && {
 		echo "Error: Unable to unmount SDcard!" 1>&2
@@ -252,7 +252,7 @@ UMS_ON() {
 	echo 0 > $LUN/nofua
 	echo 0 > $LUN/ro
 	echo "Mounting $SDCARD to lun..."
-	echo $SDCARD > $LUN/file
+	echo "$SDCARD" > "$LUN/file"
 	CHECK_ADB_ON
 	$ADB_ON && MODE="mass_storage,adb" || MODE="mass_storage"
 	echo -n "Activating USB Mass Storage transfer mode..."
@@ -270,7 +270,7 @@ UMS_OFF() {
 
 USB_OFF() {
 	CHECK_USB_MODE
-	[ $USB_MODE == "ums" ] && UMS_OFF
+	[ $USB_MODE = "ums" ] && UMS_OFF
 	CHECK_ADB_ON
 	$ADB_ON && MODE="adb" || MODE="none"
 	echo -n "Disabling USB transfer protocols..."
@@ -290,7 +290,7 @@ USB_DEFAULT() {
 CHECK_USB_30() {
 	case $1 in
 	-3|3)
-		[ "$(cat /sys/class/android_usb/android0/ss_host_available)" == "1" ] && {
+		[ "$(cat /sys/class/android_usb/android0/ss_host_available)" = "1" ] && {
 			USE_USB_30=true
 		} || {
 			echo "Error: USB 3.0 SuperSpeed support not available on host!" 1>&2
