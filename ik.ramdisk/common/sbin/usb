@@ -4,7 +4,7 @@ VERSION=1.4
 
 LUN=/sys/devices/msm_dwc3/f9200000.dwc3/gadget/lun0
 SDCARD=/dev/block/mmcblk1
-SDMOUNT="$(ls -1 /dev/block/vold | grep -m1 '^public\:')"
+SDMOUNT="$(toybox ls -1 /dev/block/vold | grep -m1 '^public\:')"
 [ -b "$SDCARD" ] && HAS_SDCARD=true || HAS_SDCARD=false
 SD_MOUNTED=false
 USB_MODE=false
