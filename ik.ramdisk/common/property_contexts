@@ -92,12 +92,14 @@ min_freq_0                 u:object_r:freq_prop:s0
 min_freq_4                 u:object_r:freq_prop:s0
 ctl.perfd                  u:object_r:perfd_prop:s0
 ctl.iop                    u:object_r:perfd_prop:s0
+ctl.vm_bms                 u:object_r:vm_bms_prop:s0
 qualcomm.bluetooth.        u:object_r:bluetooth_prop:s0
 ctl.ipacm                  u:object_r:ipacm_prop:s0
 ctl.ipacm-diag             u:object_r:ipacm-diag_prop:s0
 ctl.qti                    u:object_r:qti_prop:s0
 ctl.sensors                u:object_r:sensors_prop:s0
 ctl.msm_irqbalance         u:object_r:msm_irqbalance_prop:s0
+ctl.msm_irqbal_lb          u:object_r:msm_irqbalance_prop:s0
 camera.                    u:object_r:camera_prop:s0
 persist.camera.            u:object_r:camera_prop:s0
 sf.lcd_density             u:object_r:sf_lcd_density_prop:s0
@@ -108,10 +110,15 @@ ctl.mpdecision             u:object_r:mpdecision_prop:s0
 qualcomm.perf.cores_online u:object_r:mpdecision_prop:s0
 netd.fstman.               u:object_r:netd_prop:s0
 location.                  u:object_r:location_prop:s0
+qc.izat.                   u:object_r:location_prop:s0
 persist.rmnet.mux          u:object_r:rmnet_mux_prop:s0
 qemu.hw.mainkeys           u:object_r:qemu_hw_mainkeys_prop:s0
 dbg.coresight.cfg_file     u:object_r:coresight_prop:s0
 ctl.hbtp                   u:object_r:ctl_hbtp_prop:s0
+sys.audio.init             u:object_r:audio_prop:s0
+alarm_boot                 u:object_r:alarm_boot_prop:s0
+debug.sf.nobootanimation   u:object_r:boot_animation_prop:s0
+radio.noril                u:object_r:radio_noril_prop:s0
 #line 1 "vendor/cm/sepolicy/property_contexts"
 adb.network.port              u:object_r:adbtcp_prop:s0
 recovery.perf.mode            u:object_r:recovery_prop:s0
