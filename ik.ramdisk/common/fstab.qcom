@@ -14,4 +14,4 @@
 
 # VOLD
 /devices/msm_sdcc.3/mmc_host/mmc2*		auto		auto	defaults											voldmanaged=sdcard1:auto,encryptable=userdata
-/devices/platform/xhci-hcd*			auto		auto	defaults											voldmanaged=usbdisk:auto,noemulatedsd
+/devices/platform/xhci-hcd*			auto		auto	defaults											voldmanaged=usbdisk:auto
