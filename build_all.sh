@@ -1,6 +1,6 @@
 #!/bin/bash
 # idleKernel for Samsung Galaxy Note 3 build script by jcadduono
-# This build script is for AOSP/CyanogenMod Marshmallow only
+# This build script is for AOSP/SlimRom Marshmallow only
 # This build script builds all variants in /ik.ramdisk/variant/
 
 ################### BEFORE STARTING ################
@@ -24,8 +24,8 @@ RDIR=$(pwd)
 VER=$(cat $RDIR/VERSION)
 
 # output directory of flashable kernel
-OUT_DIR_ENFORCING="/home/jc/idlekernel.com/cm13.0/selinux_enforcing/v"$VER"_"$(date +'%Y_%m_%d')
-OUT_DIR_PERMISSIVE="/home/jc/idlekernel.com/cm13.0/v"$VER"_"$(date +'%Y_%m_%d')
+OUT_DIR_ENFORCING="/home/jc/idlekernel.com/slim6.0/selinux_enforcing/v"$VER"_"$(date +'%Y_%m_%d')
+OUT_DIR_PERMISSIVE="/home/jc/idlekernel.com/slim6.0/v"$VER"_"$(date +'%Y_%m_%d')
 
 # should we make a TWRP flashable zip? (1 = yes, 0 = no)
 MAKE_ZIP=1
@@ -43,7 +43,7 @@ SET_KERNEL_VERSION()
 {
 	# kernel version string appended to 3.4.x-idleKernel-hlte-
 	# (shown in Settings -> About device)
-	KERNEL_VERSION=$VARIANT-$VER-cm13.0
+	KERNEL_VERSION=$VARIANT-$VER-slim6.0
 
 	# output filename of flashable kernel
 	OUT_NAME=idleKernel-hlte-$KERNEL_VERSION

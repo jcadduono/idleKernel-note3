@@ -1,6 +1,6 @@
 #!/bin/bash
 # idleKernel for Samsung Galaxy Note 3 ramdisk setup script by jcadduono
-# This script is for AOSP/CyanogenMod Marshmallow only
+# This script is for AOSP/SlimRom Marshmallow only
 
 # root directory of idleKernel git repo (default is this script's location)
 RDIR=$(pwd)

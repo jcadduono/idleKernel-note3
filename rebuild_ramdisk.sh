@@ -1,6 +1,6 @@
 #!/bin/bash
 # idleKernel for Samsung Galaxy Note 3 ramdisk rebuild script by jcadduono
-# This rebuild script is for AOSP/CyanogenMod Marshmallow only
+# This rebuild script is for AOSP/SlimRom Marshmallow only
 
 ################### BEFORE STARTING ################
 #
@@ -36,7 +36,7 @@ VER=$(cat $RDIR/VERSION)
 
 # kernel version string appended to 3.4.x-idleKernel-hlte-
 # (shown in Settings -> About device)
-KERNEL_VERSION=$VARIANT-$VER-cm13.0
+KERNEL_VERSION=$VARIANT-$VER-slim6.0
 
 [ -z $PERMISSIVE ] && \
 # should we boot with SELinux mode set to permissive? (1 = permissive, 0 = enforcing)
