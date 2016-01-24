@@ -12,4 +12,4 @@ dalvik.vm.dex2oat-Xms=64m
 dalvik.vm.dex2oat-Xmx=512m
 ro.dalvik.vm.native.bridge=0
 debug.atrace.tags.enableflags=0
-persist.sys.usb.config=none
+persist.sys.usb.config=mtp
