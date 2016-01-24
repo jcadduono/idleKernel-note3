@@ -518,10 +518,10 @@
 /system/vendor/bin/qti                          u:object_r:qti_exec:s0
 /system/bin/wcnss_service                       u:object_r:wcnss_service_exec:s0
 /system/vendor/bin/hbtp_daemon                  u:object_r:hbtp_exec:s0
+/system/vendor/bin/touch_fusion                 u:object_r:touchfusion_exec:s0
 /system/vendor/bin/seemp_healthd                u:object_r:seemp_health_daemon_exec:s0
 /system/bin/seempd                              u:object_r:seempd_exec:s0
 /system/bin/sapd                                u:object_r:sapd_exec:s0
-/system/bin/btnvtool                            u:object_r:btnvtool_exec:s0
 /system/bin/btsnoop                             u:object_r:btsnoop_exec:s0
 /system/bin/dun-server                          u:object_r:dun-server_exec:s0
 /system/bin/wfdservice                          u:object_r:wfdservice_exec:s0
@@ -594,7 +594,6 @@
 /data/rfs.*                                                         u:object_r:rfs_file:s0
 /data/hlos_rfs(/.*)?                                                u:object_r:rfs_shared_hlos_file:s0
 /data/camera(/.*)?                                                  u:object_r:camera_socket:s0
-/data/fdAlbum                                                       u:object_r:camera_data_file:s0
 /data/misc/stargate(/.*)?                                           u:object_r:qfp-daemon_data_file:s0
 /data/system/sensors(/.*)?                                          u:object_r:sensors_data_file:s0
 /data/time(/.*)?                                                    u:object_r:time_data_file:s0
@@ -628,7 +627,6 @@
 # persist files
 #
 /persist(/.*)?                                                      u:object_r:persist_file:s0
-/persist/bluetooth(/.*)?                                            u:object_r:persist_bluetooth_file:s0
 /persist/drm(/.*)?                                                  u:object_r:persist_drm_file:s0
 /persist/sensors(/.*)?                                              u:object_r:sensors_persist_file:s0
 /persist/data(/.*)?                                                 u:object_r:persist_drm_file:s0
@@ -750,8 +748,6 @@
 ###################################
 # Primary storage device nodes
 #
-/dev/block/platform/msm_sdcc\.1/by-name/boot                  u:object_r:boot_block_device:s0
-/dev/block/platform/msm_sdcc\.1/by-name/recovery              u:object_r:recovery_block_device:s0
 /dev/block/platform/msm_sdcc\.1/by-name/fsg                   u:object_r:modem_efs_partition_device:s0
 /dev/block/platform/msm_sdcc\.1/by-name/fsc                   u:object_r:modem_efs_partition_device:s0
 /dev/block/platform/msm_sdcc\.1/by-name/modemst1              u:object_r:modem_efs_partition_device:s0
@@ -803,7 +799,7 @@
 /efs/FactoryApp(/.*)?  					u:object_r:efs_file:s0
 /efs/imei	  					u:object_r:efs_file:s0
 /efs/mps_code.dat					u:object_r:efs_file:s0
-#line 1 "vendor/cm/sepolicy/file_contexts"
+#line 1 "vendor/slim/sepolicy/file_contexts"
 /cache/dalvik-cache(/.*)? u:object_r:dalvikcache_data_file:s0
 
 /cache/recovery(/.*)?     u:object_r:recovery_cache_file:s0
@@ -812,18 +808,10 @@
 /system/bin/auditd        u:object_r:logd_exec:s0
 /data/misc/audit(/.*)?    u:object_r:auditd_log:s0
 
-# Themes
-/data/system/theme(/.*)?  u:object_r:theme_data_file:s0
-
 /system/bin/sysinit       u:object_r:sysinit_exec:s0
 
 /system/etc/init.d/90userinit           u:object_r:userinit_exec:s0
 /data/local/userinit.sh                 u:object_r:userinit_data_exec:s0
-
-# For EXFAT/F2FS/NTFS partitions marked "formattable"
-/system/bin/mkfs\.exfat   u:object_r:mkfs_exec:s0
-/system/bin/mkfs\.f2fs    u:object_r:mkfs_exec:s0
-/system/bin/mkfs\.ntfs    u:object_r:mkfs_exec:s0
 
 # For minivold in recovery
 /sbin/minivold            u:object_r:vold_exec:s0
@@ -846,14 +834,10 @@
 /data/system/users/[0-9]+/keyguard_wallpaper   u:object_r:wallpaper_file:s0
 
 # Persistent properties
-/persist/properties(/.*)?         u:object_r:persist_property_file:s0
+/persist/properties         u:object_r:persist_property_file:s0
 
 # LiveDisplay
 /sys/devices/virtual/graphics/fb0/aco           u:object_r:livedisplay_sysfs:s0
 /sys/devices/virtual/graphics/fb0/cabc          u:object_r:livedisplay_sysfs:s0
 /sys/devices/virtual/graphics/fb0/rgb           u:object_r:livedisplay_sysfs:s0
 /sys/devices/virtual/graphics/fb0/sre           u:object_r:livedisplay_sysfs:s0
-
-# fsck
-/system/bin/fsck\.ntfs                          u:object_r:fsck_exec:s0
-/system/bin/fsck\.exfat                         u:object_r:fsck_exec:s0

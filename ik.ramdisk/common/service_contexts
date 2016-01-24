@@ -190,15 +190,10 @@ com.qualcomm.qti.seemp.health                  u:object_r:seemp_health_daemon_se
 com.qualcomm.qti.auth.securesampleauthdaemon   u:object_r:fidotest_service:s0
 com.qualcomm.qti.qseeproxysample               u:object_r:qseeproxysample_service:s0
 
-#line 1 "vendor/cm/sepolicy/service_contexts"
+#line 1 "vendor/slim/sepolicy/service_contexts"
 edgegestureservice                        u:object_r:edge_gesture_service:s0
 themes                                    u:object_r:themes_service:s0
 torch                                     u:object_r:torch_service:s0
 killswitch                                u:object_r:kill_switch_service:s0
-cmstatusbar                               u:object_r:cm_status_bar_service:s0
 profile                                   u:object_r:cm_profile_service:s0
-cmpartnerinterface                        u:object_r:cm_partner_interface:s0
-cmtelephonymanager                        u:object_r:cm_telephony_service:s0
 cmhardware                                u:object_r:cm_hardware_service:s0
-cmappsuggest                              u:object_r:cm_app_suggest_service:s0
-cmperformance                             u:object_r:cm_performance_service:s0
