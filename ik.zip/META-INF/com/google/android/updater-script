@@ -1,3 +1,0 @@
-ui_print("Writing idleKernel boot.img to memory...");
-package_extract_file("boot.img", "/dev/block/platform/msm_sdcc.1/by-name/boot");
-ui_print("Done.");
