@@ -37,7 +37,7 @@
 #include <asm/unaligned.h>
 #include "ecryptfs_kernel.h"
 
-#if defined(CONFIG_CRYPTO_FIPS) && !defined(CONFIG_FORCE_DISABLE_FIPS)
+#ifdef CONFIG_CRYPTO_FIPS
 #include <crypto/rng.h>
 #define SEED_LEN 32
 #endif
@@ -57,7 +57,7 @@ ecryptfs_encrypt_page_offset(struct ecryptfs_crypt_stat *crypt_stat,
 			     struct page *src_page, int src_offset, int size,
 			     unsigned char *iv);
 
-#if defined(CONFIG_CRYPTO_FIPS) && !defined(CONFIG_FORCE_DISABLE_FIPS)
+#ifdef CONFIG_CRYPTO_FIPS
 static int crypto_cc_reset_rng(struct crypto_rng *tfm)
 {
     char *seed = NULL;
@@ -179,7 +179,7 @@ void ecryptfs_from_hex(char *dst, char *src, int dst_size)
 	}
 }
 
-#if defined(CONFIG_CRYPTO_FIPS) && !defined(CONFIG_FORCE_DISABLE_FIPS)
+#ifdef CONFIG_CRYPTO_FIPS
 /**
  * ecryptfs_calculate_sha256 - calculates the sha256 of @src
  * @dst: Pointer to 32 bytes of allocated memory
@@ -341,7 +341,7 @@ int ecryptfs_derive_iv(char *iv, struct ecryptfs_crypt_stat *crypt_stat,
 {
 	int rc = 0;
 	char src[ECRYPTFS_MAX_IV_BYTES + 16];
-#if defined(CONFIG_CRYPTO_FIPS) && !defined(CONFIG_FORCE_DISABLE_FIPS)
+#ifdef CONFIG_CRYPTO_FIPS
 	char dst[SHA256_HASH_SIZE];
 #else
 	char dst[MD5_DIGEST_SIZE];
@@ -362,7 +362,7 @@ int ecryptfs_derive_iv(char *iv, struct ecryptfs_crypt_stat *crypt_stat,
 		ecryptfs_printk(KERN_DEBUG, "source:\n");
 		ecryptfs_dump_hex(src, (crypt_stat->iv_bytes + 16));
 	}
-#if defined(CONFIG_CRYPTO_FIPS) && !defined(CONFIG_FORCE_DISABLE_FIPS)
+#ifdef CONFIG_CRYPTO_FIPS
 	if (crypt_stat->mount_crypt_stat->flags & ECRYPTFS_ENABLE_CC)
 		rc = ecryptfs_calculate_sha256(dst, crypt_stat, src, (crypt_stat->iv_bytes + 16));
 	else
@@ -655,7 +655,7 @@ int ecryptfs_encrypt_page(struct page *page)
 {
 	struct inode *ecryptfs_inode;
 	struct ecryptfs_crypt_stat *crypt_stat;
-	char *enc_extent_virt = NULL;
+	char *enc_extent_virt;
 	struct page *enc_extent_page = NULL;
 	loff_t extent_offset;
 	int rc = 0;
@@ -763,7 +763,7 @@ int ecryptfs_decrypt_page(struct page *page)
 {
 	struct inode *ecryptfs_inode;
 	struct ecryptfs_crypt_stat *crypt_stat;
-	char *enc_extent_virt = NULL;
+	char *enc_extent_virt;
 	struct page *enc_extent_page = NULL;
 	unsigned long extent_offset;
 	int rc = 0;
@@ -1051,7 +1051,7 @@ void ecryptfs_set_default_sizes(struct ecryptfs_crypt_stat *crypt_stat)
 int ecryptfs_compute_root_iv(struct ecryptfs_crypt_stat *crypt_stat)
 {
 	int rc = 0;
-#if defined(CONFIG_CRYPTO_FIPS) && !defined(CONFIG_FORCE_DISABLE_FIPS)
+#ifdef CONFIG_CRYPTO_FIPS
 	char dst[SHA256_HASH_SIZE];
 #else
 	char dst[MD5_DIGEST_SIZE];
@@ -1078,7 +1078,7 @@ int ecryptfs_compute_root_iv(struct ecryptfs_crypt_stat *crypt_stat)
 			rc = -EINVAL;
 			goto out;
 			}
-#if defined(CONFIG_CRYPTO_FIPS) && !defined(CONFIG_FORCE_DISABLE_FIPS)
+#ifdef CONFIG_CRYPTO_FIPS
 		if (crypt_stat->mount_crypt_stat->flags & ECRYPTFS_ENABLE_CC)
 			rc = ecryptfs_calculate_sha256(dst, crypt_stat, sig, sig_len);
 		else
@@ -1087,7 +1087,7 @@ int ecryptfs_compute_root_iv(struct ecryptfs_crypt_stat *crypt_stat)
 	} else
 #endif
 	{
-#if defined(CONFIG_CRYPTO_FIPS) && !defined(CONFIG_FORCE_DISABLE_FIPS)
+#ifdef CONFIG_CRYPTO_FIPS
 	if (crypt_stat->mount_crypt_stat->flags & ECRYPTFS_ENABLE_CC)
 		rc = ecryptfs_calculate_sha256(dst, crypt_stat, crypt_stat->key, crypt_stat->key_size);
 	else
@@ -1113,7 +1113,7 @@ out:
 
 static void ecryptfs_generate_new_key(struct ecryptfs_crypt_stat *crypt_stat)
 {
-#if defined(CONFIG_CRYPTO_FIPS) && !defined(CONFIG_FORCE_DISABLE_FIPS)
+#ifdef CONFIG_CRYPTO_FIPS
 	crypto_cc_rng_get_bytes(crypt_stat->key, crypt_stat->key_size);
 #else
 	get_random_bytes(crypt_stat->key, crypt_stat->key_size);
@@ -1348,7 +1348,7 @@ static int ecryptfs_process_flags(struct ecryptfs_crypt_stat *crypt_stat,
 static void write_ecryptfs_marker(char *page_virt, size_t *written)
 {
 	u32 m_1, m_2;
-#if defined(CONFIG_CRYPTO_FIPS) && !defined(CONFIG_FORCE_DISABLE_FIPS)
+#ifdef CONFIG_CRYPTO_FIPS
 	crypto_cc_rng_get_bytes((unsigned char*)&m_1, (MAGIC_ECRYPTFS_MARKER_SIZE_BYTES / 2));
 #else
 	get_random_bytes(&m_1, (MAGIC_ECRYPTFS_MARKER_SIZE_BYTES / 2));
@@ -2044,7 +2044,7 @@ out:
  * should be released by other functions, such as on a superblock put
  * event, regardless of whether this function succeeds for fails.
  */
-#if defined(CONFIG_CRYPTO_FIPS) && !defined(CONFIG_FORCE_DISABLE_FIPS)
+#ifdef CONFIG_CRYPTO_FIPS
 static int
 ecryptfs_process_key_cipher(struct crypto_blkcipher **key_tfm,
 			    char *cipher_name, size_t *key_size, u32 mount_flags)
@@ -2066,7 +2066,7 @@ ecryptfs_process_key_cipher(struct crypto_blkcipher **key_tfm,
 		goto out;
 	}
 
-#if defined(CONFIG_CRYPTO_FIPS) && !defined(CONFIG_FORCE_DISABLE_FIPS)
+#ifdef CONFIG_CRYPTO_FIPS
 	if (mount_flags & ECRYPTFS_ENABLE_CC)
 		rc = ecryptfs_crypto_api_algify_cipher_name(&full_alg_name, cipher_name,
 						    "cbc");
@@ -2089,7 +2089,7 @@ ecryptfs_process_key_cipher(struct crypto_blkcipher **key_tfm,
 
 		*key_size = alg->max_keysize;
 	}
-#if defined(CONFIG_CRYPTO_FIPS) && !defined(CONFIG_FORCE_DISABLE_FIPS)
+#ifdef CONFIG_CRYPTO_FIPS
 	crypto_cc_rng_get_bytes(dummy_key, *key_size);
 #else
 	get_random_bytes(dummy_key, *key_size);
@@ -2139,7 +2139,7 @@ int ecryptfs_destroy_crypto(void)
 	return 0;
 }
 
-#if defined(CONFIG_CRYPTO_FIPS) && !defined(CONFIG_FORCE_DISABLE_FIPS)
+#ifdef CONFIG_CRYPTO_FIPS
 int
 ecryptfs_add_new_key_tfm(struct ecryptfs_key_tfm **key_tfm, char *cipher_name,
 			 size_t key_size, u32 mount_flags)
@@ -2168,11 +2168,11 @@ ecryptfs_add_new_key_tfm(struct ecryptfs_key_tfm **key_tfm, char *cipher_name,
 		ECRYPTFS_MAX_CIPHER_NAME_SIZE);
 	tmp_tfm->cipher_name[ECRYPTFS_MAX_CIPHER_NAME_SIZE] = '\0';
 	tmp_tfm->key_size = key_size;
-#if defined(CONFIG_CRYPTO_FIPS) && !defined(CONFIG_FORCE_DISABLE_FIPS)
+#ifdef CONFIG_CRYPTO_FIPS
 	if (mount_flags & ECRYPTFS_ENABLE_CC) {
-		strncpy(tmp_tfm->cipher_mode, ECRYPTFS_AES_CBC_MODE, ECRYPTFS_MAX_CIPHER_MODE_SIZE+1);
+		strncpy(tmp_tfm->cipher_mode, ECRYPTFS_AES_CBC_MODE, ECRYPTFS_MAX_CIPHER_MODE_SIZE);
 	} else {
-		strncpy(tmp_tfm->cipher_mode, ECRYPTFS_AES_ECB_MODE, ECRYPTFS_MAX_CIPHER_MODE_SIZE+1);
+		strncpy(tmp_tfm->cipher_mode, ECRYPTFS_AES_ECB_MODE, ECRYPTFS_MAX_CIPHER_MODE_SIZE);
 	}
 
 	rc = ecryptfs_process_key_cipher(&tmp_tfm->key_tfm,
@@ -2208,7 +2208,7 @@ out:
  * Returns 1 if found, with @key_tfm set
  * Returns 0 if not found, with @key_tfm set to NULL
  */
-#if defined(CONFIG_CRYPTO_FIPS) && !defined(CONFIG_FORCE_DISABLE_FIPS)
+#ifdef CONFIG_CRYPTO_FIPS
 int ecryptfs_tfm_exists(char *cipher_name, char *cipher_mode, struct ecryptfs_key_tfm **key_tfm)
 #else
 int ecryptfs_tfm_exists(char *cipher_name, struct ecryptfs_key_tfm **key_tfm)
@@ -2219,7 +2219,7 @@ int ecryptfs_tfm_exists(char *cipher_name, struct ecryptfs_key_tfm **key_tfm)
 	BUG_ON(!mutex_is_locked(&key_tfm_list_mutex));
 
 	list_for_each_entry(tmp_key_tfm, &key_tfm_list, key_tfm_list) {
-#if defined(CONFIG_CRYPTO_FIPS) && !defined(CONFIG_FORCE_DISABLE_FIPS)
+#ifdef CONFIG_CRYPTO_FIPS
 		if (strcmp(tmp_key_tfm->cipher_name, cipher_name) == 0 &&
 			(strcmp(tmp_key_tfm->cipher_mode, cipher_mode) == 0)) {
 			if (key_tfm)
@@ -2250,7 +2250,7 @@ int ecryptfs_tfm_exists(char *cipher_name, struct ecryptfs_key_tfm **key_tfm)
  * Searches for cached item first, and creates new if not found.
  * Returns 0 on success, non-zero if adding new cipher failed
  */
-#if defined(CONFIG_CRYPTO_FIPS) && !defined(CONFIG_FORCE_DISABLE_FIPS)
+#ifdef CONFIG_CRYPTO_FIPS
 int ecryptfs_get_tfm_and_mutex_for_cipher_name(struct crypto_blkcipher **tfm,
 					       struct mutex **tfm_mutex,
 					       char *cipher_name, u32 mount_flags)
@@ -2262,19 +2262,19 @@ int ecryptfs_get_tfm_and_mutex_for_cipher_name(struct crypto_blkcipher **tfm,
 {
 	struct ecryptfs_key_tfm *key_tfm;
 	int rc = 0;
-#if defined(CONFIG_CRYPTO_FIPS) && !defined(CONFIG_FORCE_DISABLE_FIPS)
-	char cipher_mode[ECRYPTFS_MAX_CIPHER_MODE_SIZE+1] = {0,};
+#ifdef CONFIG_CRYPTO_FIPS
+	char cipher_mode[ECRYPTFS_MAX_CIPHER_MODE_SIZE];
 #endif
 
 	(*tfm) = NULL;
 	(*tfm_mutex) = NULL;
 
 	mutex_lock(&key_tfm_list_mutex);
-#if defined(CONFIG_CRYPTO_FIPS) && !defined(CONFIG_FORCE_DISABLE_FIPS)
+#ifdef CONFIG_CRYPTO_FIPS
     if (mount_flags & ECRYPTFS_ENABLE_CC) {
-		strncpy(cipher_mode, ECRYPTFS_AES_CBC_MODE, ECRYPTFS_MAX_CIPHER_MODE_SIZE+1);
+		strncpy(cipher_mode, ECRYPTFS_AES_CBC_MODE, ECRYPTFS_MAX_CIPHER_MODE_SIZE);
 	} else {
-		strncpy(cipher_mode, ECRYPTFS_AES_ECB_MODE, ECRYPTFS_MAX_CIPHER_MODE_SIZE+1);
+		strncpy(cipher_mode, ECRYPTFS_AES_ECB_MODE, ECRYPTFS_MAX_CIPHER_MODE_SIZE);
 	}
 
 	if (!ecryptfs_tfm_exists(cipher_name, cipher_mode, &key_tfm)) {
@@ -2660,7 +2660,7 @@ int ecryptfs_set_f_namelen(long *namelen, long lower_namelen,
 		return 0;
 	}
 
-#if defined(CONFIG_CRYPTO_FIPS) && !defined(CONFIG_FORCE_DISABLE_FIPS)
+#ifdef CONFIG_CRYPTO_FIPS
 	rc = ecryptfs_get_tfm_and_mutex_for_cipher_name(&desc.tfm, &tfm_mutex,
 			mount_crypt_stat->global_default_fn_cipher_name, mount_crypt_stat->flags);
 #else

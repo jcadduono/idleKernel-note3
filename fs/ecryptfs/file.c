@@ -553,7 +553,8 @@ int is_file_name_match(struct ecryptfs_mount_crypt_stat *mcs,
 	for (i = 0; i < ENC_NAME_FILTER_MAX_INSTANCE; i++) {
 		int len = 0;
 		struct dentry *p = fp_dentry;
-		if (!strlen(mcs->enc_filter_name[i]))
+		if (!mcs->enc_filter_name[i] ||
+			 !strlen(mcs->enc_filter_name[i]))
 			break;
 
 		while (1) {
@@ -603,7 +604,7 @@ int is_file_ext_match(struct ecryptfs_mount_crypt_stat *mcs, char *str)
 		return 0;
 
 	for (i = 0; i < ENC_EXT_FILTER_MAX_INSTANCE; i++) {
-		if (!strlen(mcs->enc_filter_ext[i]))
+		if (!mcs->enc_filter_ext[i] || !strlen(mcs->enc_filter_ext[i]))
 			return 0;
 		if (strlen(ext) != strlen(mcs->enc_filter_ext[i]))
 			continue;
