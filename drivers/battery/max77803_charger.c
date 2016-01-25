@@ -649,15 +649,11 @@ static void reduce_input_current(struct max77803_charger_data *charger, int cur)
 static int max77803_get_vbus_state(struct max77803_charger_data *charger)
 {
 	u8 reg_data;
-	union power_supply_propval value;
 
 	max77803_read_reg(charger->max77803->i2c,
 		MAX77803_CHG_REG_CHG_DTLS_00, &reg_data);
 
-	psy_do_property("battery", get, POWER_SUPPLY_PROP_ONLINE,
-			value);
-
-	if (value.intval  == POWER_SUPPLY_TYPE_WIRELESS)
+	if (charger->cable_type == POWER_SUPPLY_TYPE_WIRELESS)
 		reg_data = ((reg_data & MAX77803_WCIN_DTLS) >>
 			MAX77803_WCIN_DTLS_SHIFT);
 	else
