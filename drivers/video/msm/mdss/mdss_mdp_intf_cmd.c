@@ -889,10 +889,12 @@ int mdss_mdp_cmd_stop(struct mdss_mdp_ctl *ctl)
 			} else {
 				pinfo = &ctl->panel_data->panel_info;
 
-				mdss_mdp_irq_disable
-					(MDSS_MDP_IRQ_PING_PONG_RD_PTR,
-							ctx->pp_num);
-				ctx->rdptr_enabled = 0;
+				if (pinfo->panel_dead) {
+					mdss_mdp_irq_disable
+						(MDSS_MDP_IRQ_PING_PONG_RD_PTR,
+								ctx->pp_num);
+					ctx->rdptr_enabled = 0;
+				}
 			}
 		}
 
