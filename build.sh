@@ -1,6 +1,6 @@
 #!/bin/bash
 # idleKernel for Samsung Galaxy Note 3 build script by jcadduono
-# This build script is for AOSP Lollipop with Kali Nethunter support only
+# This build script is for TouchWiz Lollipop with Kali Nethunter support only
 
 ################### BEFORE STARTING ################
 #
@@ -57,7 +57,7 @@ THREADS=5
 
 export ARCH=arm
 export CROSS_COMPILE=$TOOLCHAIN/bin/arm-eabi-
-export LOCALVERSION="$VARIANT-nethunter-L-$VER"
+export LOCALVERSION="$VARIANT-nethunter-touchwiz-$VER"
 
 KDIR=$RDIR/build/arch/arm/boot
 
@@ -74,7 +74,8 @@ BUILD_KERNEL()
 	cd $RDIR
 	mkdir -p build
 	make -C $RDIR O=build ik_defconfig \
-		VARIANT_DEFCONFIG=variant_hlte_$VARIANT
+		VARIANT_DEFCONFIG=variant_hlte_$VARIANT \
+		SELINUX_DEFCONFIG=selinux_never_enforce
 	echo "Starting build for $VARIANT..."
 	make -C $RDIR O=build -j"$THREADS"
 }

@@ -1,6 +1,6 @@
 #!/bin/bash
 # idleKernel for Samsung Galaxy Note 3 build script by jcadduono
-# This build script is for AOSP Lollipop with Kali Nethunter support only
+# This build script is for TouchWiz Lollipop with Kali Nethunter support only
 # This build script builds all variants in ./VARIANTS
 
 ################### BEFORE STARTING ################
@@ -34,7 +34,7 @@ mkdir -p $OUT_DIR
 
 for V in $(cat $RDIR/VARIANTS)
 do
-	VARIANT_DIR=$OUT_DIR/hlte$V
+	VARIANT_DIR=$OUT_DIR/hlte$V-touchwiz
 	$RDIR/build.sh $V
 	MOVE_IMAGES
 done
