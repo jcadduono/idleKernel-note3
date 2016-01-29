@@ -23,4 +23,10 @@ config USB_DWC3_VERBOSE
 	help
 	  Say Y here to enable verbose debugging messages on DWC3 Driver.
 
+config USB_DWC3_OTG_CHARGING
+	bool "Enable charging while USB host mode is active"
+	help
+	  Say Y here to allow charging the device through a Y cable
+	  while hosting another device.
+
 endif
