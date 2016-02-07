@@ -1,6 +1,6 @@
 #!/bin/bash
 # idleKernel for Samsung Galaxy Note 3 build script by jcadduono
-# This build script is for AOSP Marshmallow with Kali Nethunter support only
+# This build script is for TeamWin Recovery Project support only
 # This build script builds all variants in ./VARIANTS
 
 ################### BEFORE STARTING ################
@@ -16,7 +16,7 @@
 RDIR=$(pwd)
 
 # output directory of zImage and dtb.img
-OUT_DIR=/home/jc/build/kali-nethunter/nethunter-installer/kernels/marshmallow
+OUT_DIR=/home/jc/build/n3/twrp
 
 ############## SCARY NO-TOUCHY STUFF ###############
 
@@ -34,9 +34,13 @@ mkdir -p $OUT_DIR
 
 for V in $(cat $RDIR/VARIANTS)
 do
-	VARIANT_DIR=$OUT_DIR/hlte$V
+	[ "$V" == "eur" ] && {
+		VARIANT_DIR=$OUT_DIR/hlte
+	} || {
+		VARIANT_DIR=$OUT_DIR/hlte$V
+	}
 	$RDIR/build.sh $V
 	MOVE_IMAGES
 done
 
-echo "Finished building NetHunter kernels!"
+echo "Finished building TWRP kernels!"

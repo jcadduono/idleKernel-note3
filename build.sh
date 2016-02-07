@@ -1,6 +1,6 @@
 #!/bin/bash
 # idleKernel for Samsung Galaxy Note 3 build script by jcadduono
-# This build script is for AOSP Marshmallow with Kali Nethunter support only
+# This build script is for TeamWin Recovery Project support only
 
 ################### BEFORE STARTING ################
 #
@@ -57,7 +57,7 @@ THREADS=5
 
 export ARCH=arm
 export CROSS_COMPILE=$TOOLCHAIN/bin/arm-eabi-
-export LOCALVERSION="$VARIANT-nethunter-M-$VER"
+export LOCALVERSION="$VARIANT-twrp-$VER"
 
 KDIR=$RDIR/build/arch/arm/boot
 
