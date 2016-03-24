@@ -427,7 +427,7 @@ static int uinput_setup_device(struct uinput_device *udev, const char __user *bu
 	return retval;
 }
 
-static inline ssize_t uinput_inject_event(struct uinput_device *udev, const char __user *buffer, size_t count)
+static inline ssize_t uinput_inject_event(struct uinput_device *udev, const char __user *buffer, size_t count, __u8 *do_sleep)
 {
 	struct input_event ev;
 
@@ -438,7 +438,11 @@ static inline ssize_t uinput_inject_event(struct uinput_device *udev, const char
 		return -EFAULT;
 
 	input_event(udev->dev, ev.type, ev.code, ev.value);
-
+	
+/* XXX UGLY HACK to throttle system_server orientation sensor code */
+	if (ev.type == 2 && ev.code == 2) {
+		*do_sleep = 1;
+	}
 	return input_event_size();
 }
 
@@ -446,17 +450,25 @@ static ssize_t uinput_write(struct file *file, const char __user *buffer, size_t
 {
 	struct uinput_device *udev = file->private_data;
 	int retval;
+	__u8 do_sleep = 0;
+ 
+ 	if (count == 0)
+ 		return 0;
 
 	retval = mutex_lock_interruptible(&udev->mutex);
 	if (retval)
 		return retval;
 
 	retval = udev->state == UIST_CREATED ?
-			uinput_inject_event(udev, buffer, count) :
+			uinput_inject_event(udev, buffer, count, &do_sleep) :
 			uinput_setup_device(udev, buffer, count);
 
 	mutex_unlock(&udev->mutex);
-
+/* XXX UGLY HACK to throttle system_server orientation sensor code */
+	if (do_sleep) {
+		set_current_state(TASK_INTERRUPTIBLE);
+		schedule_timeout(HZ/5);
+	}
 	return retval;
 }
 

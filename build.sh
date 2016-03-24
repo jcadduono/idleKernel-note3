@@ -34,7 +34,7 @@ RDIR=$(pwd)
 # japanese variants:
 #	dcm = N900D / SC-01F  (NTT Docomo)
 #	kdi = N900J / SCL22   (au by KDDI)
-VARIANT=can
+VARIANT=eur
 
 [ -z $VER ] && \
 # version number
@@ -52,7 +52,7 @@ PERMISSIVE=1
 OUT_DIR=$RDIR
 
 # output filename of flashable kernel
-OUT_NAME=idleKernel-hlte-$KERNEL_VERSION
+OUT_NAME=LssKernel-hlte-$KERNEL_VERSION
 
 # should we make a TWRP flashable zip? (1 = yes, 0 = no)
 MAKE_ZIP=1
@@ -61,7 +61,7 @@ MAKE_ZIP=1
 MAKE_TAR=1
 
 # directory containing cross-compile arm-cortex_a15 toolchain
-TOOLCHAIN=/home/jc/build/toolchain/arm-cortex_a15-linux-gnueabihf-linaro_4.9.4-2015.06
+TOOLCHAIN=/home/lss/Desktop/phone/toolchains/arm-cortex_a15-linux-gnueabihf-linaro_4.9.4-2015.06
 
 # amount of cpu threads to use in kernel make process
 THREADS=5
