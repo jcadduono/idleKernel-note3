@@ -1,0 +1,27 @@
+Starting build for LssKernel-hlte-eur-1.0.0-note5port, SELINUX = never_enforce...
+Cleaning build...
+Removing old boot.img...
+Removing old zip/tar.md5 files...
+Creating kernel config...
+make: Entering directory '/home/lss/Desktop/phone/kernels_src/lssnote5port'
+  HOSTCC  scripts/basic/fixdep
+  GEN     /home/lss/Desktop/phone/kernels_src/lssnote5port/build/Makefile
+  HOSTCC  scripts/kconfig/conf.o
+  SHIPPED scripts/kconfig/zconf.tab.c
+  SHIPPED scripts/kconfig/zconf.lex.c
+  SHIPPED scripts/kconfig/zconf.hash.c
+  HOSTCC  scripts/kconfig/zconf.tab.o
+  HOSTLD  scripts/kconfig/conf
+/home/lss/Desktop/phone/kernels_src/lssnote5port/scripts/kconfig/Makefile:117: recipe for target 'ik_defconfig' failed
+/home/lss/Desktop/phone/kernels_src/lssnote5port/Makefile:510: recipe for target 'ik_defconfig' failed
+Makefile:130: recipe for target 'sub-make' failed
+make: Leaving directory '/home/lss/Desktop/phone/kernels_src/lssnote5port'
+Starting build...
+make: Entering directory '/home/lss/Desktop/phone/kernels_src/lssnote5port'
+  GEN     /home/lss/Desktop/phone/kernels_src/lssnote5port/build/Makefile
+scripts/kconfig/conf --silentoldconfig Kconfig
+/home/lss/Desktop/phone/kernels_src/lssnote5port/scripts/kconfig/Makefile:33: recipe for target 'silentoldconfig' failed
+/home/lss/Desktop/phone/kernels_src/lssnote5port/Makefile:510: recipe for target 'silentoldconfig' failed
+Makefile:130: recipe for target 'sub-make' failed
+make: Leaving directory '/home/lss/Desktop/phone/kernels_src/lssnote5port'
+Error!
