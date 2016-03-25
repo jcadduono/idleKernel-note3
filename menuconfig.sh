@@ -8,7 +8,7 @@ cd $RDIR
 echo "Cleaning build..."
 rm -rf build
 mkdir build
-ARCH=arm make -s -i -C $RDIR O=build ik_defconfig VARIANT_DEFCONFIG=ik_defconfig menuconfig
+ARCH=arm make -s -i -C $RDIR O=build ik_defconfig menuconfig
 echo "Showing differences between old config and new config"
 echo "-----------------------------------------------------"
 command -v colordiff >/dev/null 2>&1 && {
