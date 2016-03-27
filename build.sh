@@ -57,7 +57,7 @@ THREADS=5
 
 export ARCH=arm
 export CROSS_COMPILE=$TOOLCHAIN/bin/arm-eabi-
-export LOCALVERSION="$VARIANT-nethunter-L-$VER"
+export LOCALVERSION="$VARIANT-L-$VER"
 
 KDIR=$RDIR/build/arch/arm/boot
 
