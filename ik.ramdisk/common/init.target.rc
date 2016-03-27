@@ -184,16 +184,16 @@ on boot
     chown radio system /sys/class/kgsl/kgsl-3d0/gpu_available_frequencies
     chmod 664  /sys/class/kgsl/kgsl-3d0/gpu_available_frequencies
 
-    chown radio system /sys/class/devfreq/qcom,cpubw.34/available_frequencies
-    chmod 664 /sys/class/devfreq/qcom,cpubw.34/available_frequencies
-    chown radio system /sys/class/devfreq/qcom,cpubw.34/available_governors
-    chmod 664 /sys/class/devfreq/qcom,cpubw.34/available_governors
-    chown radio system /sys/class/devfreq/qcom,cpubw.34/governor
-    chmod 664 /sys/class/devfreq/qcom,cpubw.34/governor
-    chown radio system /sys/class/devfreq/qcom,cpubw.34/max_freq
-    chmod 664 /sys/class/devfreq/qcom,cpubw.34/max_freq
-    chown radio system /sys/class/devfreq/qcom,cpubw.34/min_freq
-    chmod 664 /sys/class/devfreq/qcom,cpubw.34/min_freq
+    chown radio system /sys/class/devfreq/qcom,cpubw.42/available_frequencies
+    chmod 664 /sys/class/devfreq/qcom,cpubw.42/available_frequencies
+    chown radio system /sys/class/devfreq/qcom,cpubw.42/available_governors
+    chmod 664 /sys/class/devfreq/qcom,cpubw.42/available_governors
+    chown radio system /sys/class/devfreq/qcom,cpubw.42/governor
+    chmod 664 /sys/class/devfreq/qcom,cpubw.42/governor
+    chown radio system /sys/class/devfreq/qcom,cpubw.42/max_freq
+    chmod 664 /sys/class/devfreq/qcom,cpubw.42/max_freq
+    chown radio system /sys/class/devfreq/qcom,cpubw.42/min_freq
+    chmod 664 /sys/class/devfreq/qcom,cpubw.42/min_freq
 
     # SEC PM sysfs node
     chown system radio /sys/devices/system/soc/soc0/soc_iddq
