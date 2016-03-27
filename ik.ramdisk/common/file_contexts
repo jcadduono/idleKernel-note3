@@ -787,16 +787,21 @@
 /data/bcmnfc(/.*)?                                      u:object_r:nfc_data_file:s0
 
 # SEC
-/sys/devices/virtual/sec/sec_key/hall_irq_ctrl          u:object_r:sysfs_sec:s0
+/sys/devices/virtual/sec(/.*)?				u:object_r:sysfs_sec:s0
+/sys/class/sec(/.*)?					u:object_r:sysfs_sec:s0
 
 #wifi
-/efs/wifi/.mac.info 					u:object_r:wifi_efs_file:s0
+/efs/wifi/.mac.info					u:object_r:wifi_efs_file:s0
 
 # Sensors
 /dev/batch_io                                           u:object_r:sensors_device:s0
 /dev/shtc1_sensor                                       u:object_r:sensors_device:s0
+/efs/hw_offset						u:object_r:sensors_efs_file:s0
 /efs/FactoryApp/baro_delta				u:object_r:sensors_efs_file:s0
 /efs/prox_cal                                           u:object_r:sensors_efs_file:s0
+
+# Thermal
+/system/bin/thermal-engine                              u:object_r:thermal-engine_exec:s0
 
 # Domain
 /system/bin/macloader                                   u:object_r:macloader_exec:s0
