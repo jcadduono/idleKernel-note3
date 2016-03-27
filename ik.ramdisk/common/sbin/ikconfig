@@ -218,8 +218,8 @@ case $option in
 		echo "1) noop"
 		echo "2) deadline"
 		echo "3) row"
-		echo "4) sio (default)"
-		echo "5) fiops"
+		echo "4) sio"
+		echo "5) fiops (default)"
 		echo
 		echo -n "enter a number (or press enter to return): "
 		read value
