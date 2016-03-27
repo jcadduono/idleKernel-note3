@@ -83,7 +83,7 @@ echo `cat $CFILE` > $SFILE
 #
 CFILE=$DDIR/io_scheduler_internal
 SFILE=/sys/block/mmcblk0/queue/scheduler
-CDEF=sio
+CDEF=fiops
 if [ ! -f $CFILE ]; then
 	echo $CDEF > $CFILE
 fi
@@ -93,7 +93,7 @@ echo `cat $CFILE` > $SFILE
 #
 CFILE=$DDIR/io_scheduler_external
 SFILE=/sys/block/mmcblk1/queue/scheduler
-CDEF=sio
+CDEF=fiops
 if [ ! -f $CFILE ]; then
 	echo $CDEF > $CFILE
 fi
