@@ -25,8 +25,8 @@ KDIR=$RDIR/build/arch/arm/boot
 MOVE_IMAGES()
 {
 	echo "Moving zImage and dtb.img to $VARIANT_DIR/..."
-	rm -rf $VARIANT_DIR
-	mkdir $VARIANT_DIR
+	mkdir -p $VARIANT_DIR
+	rm -f $VARIANT_DIR/zImage $VARIANT_DIR/dtb.img
 	mv $KDIR/zImage $KDIR/dtb.img $VARIANT_DIR/
 }
 
