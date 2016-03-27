@@ -12,3 +12,4 @@ dalvik.vm.dex2oat-Xms=64m
 dalvik.vm.dex2oat-Xmx=512m
 ro.dalvik.vm.native.bridge=0
 persist.sys.usb.config=mtp
+persist.sys.io.scheduler=fiops
