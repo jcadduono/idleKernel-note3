@@ -574,7 +574,7 @@ on property:sys.boot_completed=0
 
 # CM Performance Profiles
 on property:sys.perf.profile=0
-    write /sys/class/devfreq/qcom,cpubw.34/governor powersave
+    write /sys/class/devfreq/qcom,cpubw.42/governor powersave
     write /sys/class/devfreq/fdb00000.qcom,kgsl-3d0/governor powersave
     write /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor ondemand
     write /sys/devices/system/cpu/cpu1/cpufreq/scaling_governor ondemand
@@ -584,7 +584,7 @@ on property:sys.perf.profile=0
     start mpdecision
 
 on property:sys.perf.profile=1
-    write /sys/class/devfreq/qcom,cpubw.34/governor msm_cpufreq
+    write /sys/class/devfreq/qcom,cpubw.42/governor msm_cpufreq
     write /sys/class/devfreq/fdb00000.qcom,kgsl-3d0/governor msm-adreno-tz
     write /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor interactive
     write /sys/devices/system/cpu/cpu1/cpufreq/scaling_governor interactive
@@ -599,7 +599,7 @@ on property:sys.perf.profile=2
     write /sys/devices/system/cpu/cpu1/online 1
     write /sys/devices/system/cpu/cpu2/online 1
     write /sys/devices/system/cpu/cpu3/online 1
-    write /sys/class/devfreq/qcom,cpubw.34/governor performance
+    write /sys/class/devfreq/qcom,cpubw.42/governor performance
     write /sys/class/devfreq/fdb00000.qcom,kgsl-3d0/governor performance
     write /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor performance
     write /sys/devices/system/cpu/cpu1/cpufreq/scaling_governor performance
