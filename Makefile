@@ -377,6 +377,7 @@ KBUILD_CFLAGS   := -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \
 		   -fno-strict-aliasing -fno-common \
 		   -Werror-implicit-function-declaration \
 		   -Wno-format-security \
+		   -Wno-discarded-array-qualifiers \
                    -mtune=cortex-a15 \
                    --param l1-cache-size=32 \
                    --param l2-cache-size=2048 \

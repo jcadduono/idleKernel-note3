@@ -34,7 +34,7 @@ RDIR=$(pwd)
 # japanese variants:
 #	dcm = N900D / SC-01F  (NTT Docomo)
 #	kdi = N900J / SCL22   (au by KDDI)
-VARIANT=can
+VARIANT=eur
 
 [ -z $VER ] && \
 # version number
@@ -66,6 +66,8 @@ TOOLCHAIN=/home/jc/build/toolchain/arm-cortex_a15-linux-gnueabihf-linaro_4.9.4-2
 # amount of cpu threads to use in kernel make process
 THREADS=5
 
+G_SESNSOR_HUB=1
+
 ############## SCARY NO-TOUCHY STUFF ###############
 
 export ARCH=arm
@@ -80,6 +82,10 @@ fi
 if ! [ -d $RDIR"/ik.ramdisk/variant/$VARIANT/" ] ; then
 	echo "Device variant/carrier $VARIANT not found in ik.ramdisk/variant!"
 	exit -1
+fi
+
+if [ $G_SESNSOR_HUB -eq 1] then
+	sed -i "s/CONFIG_SENSORS_SSP_STM_LEGACY=y/# CONFIG_SENSORS_SSP_STM_LEGACY is not set/" arch/arm/configs/id_defconfig
 fi
 
 [ $PERMISSIVE -eq 1 ] && SELINUX="never_enforce" || SELINUX="always_enforce"
