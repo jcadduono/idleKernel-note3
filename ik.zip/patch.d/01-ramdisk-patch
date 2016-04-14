@@ -1,0 +1,49 @@
+#!/sbin/sh
+
+. "$env"
+
+print "Patching the ramdisk for idleKernel..."
+
+chmod -R 0755 "$ramdisk_patch"
+cp -rd $ramdisk_patch/. ./
+
+print "Importing idleKernel init to init.rc"
+insert_after_last init.rc "import /init\\..*\\.rc" "import /init.idlekernel.rc"
+
+print "Freeing up space..."
+rm -f ./*.ranchu
+rm -f ./*.goldfish
+rm -f init.container.rc
+
+$found_prop || {
+	print "Unable to find default.prop!"
+	exit 0
+}
+
+print "Disabling ADB security"
+setprop ro.adb.secure 0
+setprop ro.secure 0
+setprop ro.debuggable 1
+setprop persist.cne.feature 0
+setprop persist.security.ams.enforcing 0
+
+print "Allowing mock locations"
+setprop ro.allow.mock.location 1
+
+print "Disabling TIMA"
+setprop ro.config.tima 0
+setprop ro.config.rkp false
+
+print "Disabling KNOX"
+setprop ro.config.knox 0
+setprop ro.config.kap_default_on false
+setprop ro.securestorage.support false
+
+print "Disabling SSR debug"
+setprop persist.sys.ssr.enable_debug 0
+
+print "Disabling HDCP enforcing"
+setprop wlan.wfd.hdcp disable
+
+print "Setting default IO scheduler to SIO"
+setprop persist.sys.io.scheduler sio

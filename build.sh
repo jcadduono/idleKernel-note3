@@ -92,6 +92,7 @@ CLEAN_BUILD() {
 	cd $RDIR
 	rm -rf build
 	echo "Removing old zip files..."
+	rm -f ik.zip/zImage ik.zip/dtb.img
 	rm -f $OUT_DIR/$OUT_NAME.zip
 }
 
@@ -110,6 +111,7 @@ BUILD_KERNEL() {
 CREATE_ZIP() {
 	echo "Compressing to TWRP flashable zip file..."
 	cd $RDIR/ik.zip
+	cp $KDIR/zImage $KDIR/dtb.img ./
 	zip -r -9 - * > $OUT_DIR/$OUT_NAME.zip
 }
 

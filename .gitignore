@@ -90,5 +90,6 @@ GTAGS
 #
 /build/
 /*.zip
-/*.tar.md5
-/ik.zip/*.img
+!/ik.zip/
+/ik.zip/dtb.img
+/ik.zip/zImage
