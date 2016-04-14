@@ -108,6 +108,11 @@ BUILD_KERNEL() {
 	make -C $RDIR O=build -j$THREADS
 }
 
+BUILD_DTB() {
+	echo "Generating dtb.img..."
+	$RDIR/scripts/dtbTool/dtbTool -o $KDIR/dtb.img $KDIR/ -s 2048
+}
+
 CREATE_ZIP() {
 	echo "Compressing to TWRP flashable zip file..."
 	cd $RDIR/ik.zip
@@ -119,6 +124,7 @@ echo "Starting build for $KERNEL_VERSION, SELinux is $SELINUX enforcing..."
 
 CLEAN_BUILD  || abort "Clean failed!"
 BUILD_KERNEL || abort "Build failed for $KERNEL_VERSION"
+BUILD_DTB    || abort "DTB generation failed!"
 CREATE_ZIP   || abort "Zip creation failed!"
 
 echo "Finished building $KERNEL_VERSION!"
