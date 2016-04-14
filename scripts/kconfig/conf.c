@@ -599,6 +599,16 @@ int main(int ac, char **av)
 				exit(1);
 			}
 		}
+		name = getenv("KCONFIG_TARGET");
+		printf("KCONFIG_TARGET(%s)\n", name);
+		if (name) {
+			if (conf_read_simple(name, S_DEF_USER, false)) {
+				printf(_("***\n"
+					"*** Can't find ROM target configuration \"%s\"!\n"
+					"***\n"), name);
+				exit(1);
+			}
+		}
 		name = getenv("KCONFIG_DEBUG");
 		printf("KCONFIG_DEBUG(%s)\n", name);
 		if (name) {

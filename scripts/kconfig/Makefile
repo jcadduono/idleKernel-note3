@@ -82,6 +82,10 @@ ifneq ($(VARIANT_DEFCONFIG),)
 export KCONFIG_VARIANT := arch/$(SRCARCH)/configs/$(VARIANT_DEFCONFIG)
 endif
 
+ifneq ($(TARGET_DEFCONFIG),)
+export KCONFIG_TARGET := arch/$(SRCARCH)/configs/$(TARGET_DEFCONFIG)
+endif
+
 ifneq ($(DEBUG_DEFCONFIG),)
 export KCONFIG_DEBUG := arch/$(SRCARCH)/configs/$(DEBUG_DEFCONFIG)
 endif
