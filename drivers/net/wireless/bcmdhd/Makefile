@@ -1,7 +1,4 @@
 # bcmdhd
-ifeq ($(CONFIG_BROADCOM_WIFI_LEGACY),y)
-obj-y += legacy/
-else
 
 #####################
 # SDIO Basic feature
@@ -605,5 +602,3 @@ clean:
 install:
 	@$(MAKE) --no-print-directory -C $(KDIR) \
 		SUBDIRS=$(CURDIR) modules_install
-
-endif
