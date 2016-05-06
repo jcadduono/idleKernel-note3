@@ -1323,7 +1323,7 @@ int q6usm_set_us_detection(struct us_client *usc,
 				msecs_to_jiffies(Q6USM_TIMEOUT_JIFFIES));
 	if (!rc) {
 		rc = -ETIME;
-		pr_err("%s: CMD_SIGNAL_DETECT_MODE: timeout=%d\n",
+		pr_err("%s: CMD_SIGNAL_DETECT_MODE: timeout=%ld\n",
 		       __func__, msecs_to_jiffies(Q6USM_TIMEOUT_JIFFIES));
 	} else
 		rc = 0;
@@ -1369,7 +1369,7 @@ int q6usm_set_us_stream_param(int dir, struct us_client *usc,
 				msecs_to_jiffies(Q6USM_TIMEOUT_JIFFIES));
 	if (!rc) {
 		rc = -ETIME;
-		pr_err("%s: CMD_SET_PARAM: timeout=%d\n",
+		pr_err("%s: CMD_SET_PARAM: timeout=%ld\n",
 			__func__, msecs_to_jiffies(Q6USM_TIMEOUT_JIFFIES));
 	} else
 		rc = 0;
@@ -1415,7 +1415,7 @@ int q6usm_get_us_stream_param(int dir, struct us_client *usc,
 				msecs_to_jiffies(Q6USM_TIMEOUT_JIFFIES));
 	if (!rc) {
 		rc = -ETIME;
-		pr_err("%s: CMD_GET_PARAM: timeout=%d\n",
+		pr_err("%s: CMD_GET_PARAM: timeout=%ld\n",
 			__func__, msecs_to_jiffies(Q6USM_TIMEOUT_JIFFIES));
 	} else
 		rc = 0;
