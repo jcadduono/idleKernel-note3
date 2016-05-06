@@ -356,7 +356,7 @@ static void msm_dmov_enqueue_cmd_ext_work(struct work_struct *work)
 	}
 	if (!dmov_conf[adm].channel_active) {
 		dmov_conf[adm].clk_ctl = CLK_TO_BE_DIS;
-		schedule_delayed_work(&dmov_conf[adm].work, (HZ/10));
+		schedule_delayed_work(&dmov_conf[adm].work, msecs_to_jiffies(100));
 	}
 	spin_unlock_irqrestore(&dmov_conf[adm].list_lock, flags);
 error:
