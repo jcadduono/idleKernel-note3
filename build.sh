@@ -61,7 +61,7 @@ MAKE_ZIP=1
 MAKE_TAR=1
 
 # directory containing cross-compile arm-cortex_a15 toolchain
-TOOLCHAIN=/home/jc/build/toolchain/arm-cortex_a15-linux-gnueabihf-linaro_4.9.4-2015.06
+TOOLCHAIN=/home/vagrant/g2/DORIMANX_LG_STOCK_LP_KERNEL/android-toolchain
 
 # amount of cpu threads to use in kernel make process
 THREADS=5
@@ -84,8 +84,8 @@ if ! [ -d $RDIR"/ik.ramdisk/variant/$VARIANT/" ] ; then
 	exit -1
 fi
 
-if [ $G_SESNSOR_HUB -eq 1] then
-	sed -i "s/CONFIG_SENSORS_SSP_STM_LEGACY=y/# CONFIG_SENSORS_SSP_STM_LEGACY is not set/" arch/arm/configs/id_defconfig
+if [ $G_SESNSOR_HUB -eq 1 ] ; then
+	sed -i "s/CONFIG_SENSORS_SSP_STM_LEGACY=y/# CONFIG_SENSORS_SSP_STM_LEGACY is not set/" arch/arm/configs/ik_defconfig
 fi
 
 [ $PERMISSIVE -eq 1 ] && SELINUX="never_enforce" || SELINUX="always_enforce"
