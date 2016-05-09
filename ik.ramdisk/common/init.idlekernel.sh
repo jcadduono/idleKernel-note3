@@ -118,6 +118,16 @@ if [ ! -f $CFILE ]; then
 	echo $CDEF > $CFILE
 fi
 echo `cat $CFILE` > $SFILE
+#
+# uksm
+#
+CFILE=$DDIR/uksm_run
+SFILE=/sys/kernel/mm/uksm/run
+CDEF=N
+if [ ! -f $CFILE ]; then
+	echo $CDEF > $CFILE
+fi
+echo `cat $CFILE` > $SFILE
 
 /sbin/setonboot apply &
 /system/xbin/busybox run-parts /system/etc/init.d &
