@@ -123,7 +123,7 @@ echo `cat $CFILE` > $SFILE
 #
 CFILE=$DDIR/uksm_run
 SFILE=/sys/kernel/mm/uksm/run
-CDEF=N
+CDEF=0
 if [ ! -f $CFILE ]; then
 	echo $CDEF > $CFILE
 fi
