@@ -80,7 +80,11 @@ module_param_named(enabled, zswap_enabled, bool, 0);
 
 /* Compressor to be used by zswap (fixed at boot for now) */
 #define ZSWAP_COMPRESSOR_DEFAULT "lzo"
+#ifndef CONFIG_CRYPTO_LZ4
 static char *zswap_compressor = ZSWAP_COMPRESSOR_DEFAULT;
+#else
+static char *zswap_compressor = "lz4";
+#endif
 module_param_named(compressor, zswap_compressor, charp, 0);
 
 /* The maximum percentage of memory that the compressed pool can occupy */
