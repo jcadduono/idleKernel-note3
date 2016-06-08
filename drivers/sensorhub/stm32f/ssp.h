@@ -48,7 +48,7 @@
 #include "ssp_sensorhub.h"
 #endif
 
-#define SSP_DBG		1
+#define SSP_DBG		0
 
 #define SUCCESS		1
 #define FAIL		0
