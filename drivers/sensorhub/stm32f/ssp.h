@@ -56,18 +56,19 @@
 
 #define FACTORY_DATA_MAX	100
 
-#if SSP_DBG
-#define SSP_FUNC_DBG 1
-#define SSP_DATA_DBG 0
-
 /* ssp mcu device ID */
 #define DEVICE_ID			0x55
 
+#if SSP_DBG
+#define SSP_FUNC_DBG 1
+#define SSP_DATA_DBG 0
 
 #define ssp_dbg(dev, format, ...) do { \
 	printk(KERN_INFO dev, format, ##__VA_ARGS__); \
 	} while (0)
 #else
+#define SSP_FUNC_DBG 0
+#define SSP_DATA_DBG 0
 #define ssp_dbg(dev, format, ...)
 #endif
 
