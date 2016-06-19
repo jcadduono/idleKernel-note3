@@ -35,12 +35,12 @@ static struct backing_dev_info swap_backing_dev_info = {
 	.capabilities	= BDI_CAP_NO_ACCT_AND_WRITEBACK | BDI_CAP_SWAP_BACKED,
 };
 
-struct address_space swapper_space = {
-	.page_tree	= RADIX_TREE_INIT(GFP_ATOMIC|__GFP_NOWARN),
-	.tree_lock	= __SPIN_LOCK_UNLOCKED(swapper_space.tree_lock),
-	.a_ops		= &swap_aops,
-	.i_mmap_nonlinear = LIST_HEAD_INIT(swapper_space.i_mmap_nonlinear),
-	.backing_dev_info = &swap_backing_dev_info,
+struct address_space swapper_spaces[MAX_SWAPFILES] = {
+	[0 ... MAX_SWAPFILES - 1] = {
+		.page_tree	= RADIX_TREE_INIT(GFP_ATOMIC|__GFP_NOWARN),
+		.a_ops		= &swap_aops,
+		.backing_dev_info = &swap_backing_dev_info,
+	}
 };
 
 #define INC_CACHE_INFO(x)	do { swap_cache_info.x++; } while (0)
