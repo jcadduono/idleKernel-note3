@@ -174,6 +174,7 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 	bool is_active_high;
 	bool flag = 0;
 #endif
+	u32 zswap_pool_total_pages;
 
 	if (nr_to_scan > 0) {
 		if (mutex_lock_interruptible(&scan_mutex) < 0)
@@ -275,7 +276,8 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 #if defined(CONFIG_ZSWAP)
 		if (atomic_read(&zswap_stored_pages)) {
 			lowmem_print(3, "shown tasksize : %d\n", tasksize);
-			tasksize += DIV_ROUND_UP(zswap_pool_total_size, PAGE_SIZE) * get_mm_counter(p->mm, MM_SWAPENTS)
+			zswap_pool_total_pages = DIV_ROUND_UP(zswap_pool_total_size, PAGE_SIZE);
+			tasksize +=  zswap_pool_total_pages * get_mm_counter(p->mm, MM_SWAPENTS)
 				/ atomic_read(&zswap_stored_pages);
 			lowmem_print(3, "real tasksize : %d\n", tasksize);
 		}
