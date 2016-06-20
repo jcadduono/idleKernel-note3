@@ -100,3 +100,4 @@ obj-$(CONFIG_TOUCHSCREEN_FTS_S) += stm_s/
 obj-$(CONFIG_TOUCHSCREEN_FTS) += stm_fts/
 obj-$(CONFIG_TOUCHSCREEN_ZINITIX_BT532)	+= zinitix_bt532_ts.o
 obj-$(CONFIG_TOUCHSCREEN_SYNAPTICS_I2C_RMI_JSGLTE)	+= synaptics_jsglte/
+obj-$(CONFIG_STATE_NOTIFIER)		+= state_notifier.o
