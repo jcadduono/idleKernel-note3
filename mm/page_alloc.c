@@ -6312,6 +6312,9 @@ static struct trace_print_flags pageflag_names[] = {
 	{1UL << PG_scfslower, "scfslower"},
 	{1UL << PG_nocache,"nocache"},
 #endif
+#ifdef CONFIG_ZCACHE
+	{1UL << PG_was_active,           "PG_was_active"  },
+#endif
 };
 
 static void dump_page_flags(unsigned long flags)

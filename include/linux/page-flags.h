@@ -116,6 +116,9 @@ enum pageflags {
 #ifdef CONFIG_SDP
 	PG_sensitive,
 #endif
+#ifdef CONFIG_ZCACHE
+	PG_was_active,
+#endif
 	__NR_PAGEFLAGS,
 #if defined(CONFIG_CMA_PAGE_COUNTING)
 	PG_cma,			/* page in CMA area */

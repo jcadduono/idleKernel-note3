@@ -41,6 +41,7 @@
 #include <linux/delay.h>
 #include <linux/swap.h>
 #include <linux/fs.h>
+#include <linux/zcache.h>
 
 #include <linux/ratelimit.h>
 
@@ -197,7 +198,7 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 	is_active_high = (global_page_state(NR_ACTIVE_FILE) >
 				global_page_state(NR_INACTIVE_FILE)) ? 1 : 0;
 #endif
-	other_file = global_page_state(NR_FILE_PAGES);
+	other_file = global_page_state(NR_FILE_PAGES) + zcache_pages();
 
 #if defined(CONFIG_CMA_PAGE_COUNTING) && defined(CONFIG_EXCLUDE_LRU_LIVING_IN_CMA)
 	if (get_nr_swap_pages() < SSWAP_LMK_THRESHOLD && cma_page_ratio >= CMA_PAGE_RATIO
@@ -303,22 +304,22 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 #if defined(CONFIG_CMA_PAGE_COUNTING)
 		lowmem_print(1, "send sigkill to %d (%s), adj %d, size %d, "
 			"ofree %d, ofile %d(%c), is_kswapd %d - "
-			"cma_free %lu priority %d cma_i_file %lu cma_a_file %lu\n",
+			"cma_free %lu priority %d cma_i_file %lu cma_a_file %lu\n,Total zcache is %ldkB\n",
 			selected->pid, selected->comm,
 			selected_oom_score_adj, selected_tasksize,
 			other_free, other_file, flag ? '-' : '+',
 			!!current_is_kswapd(),
 			nr_cma_free, sc->priority,
-			nr_cma_inactive_file, nr_cma_active_file);
+			nr_cma_inactive_file, nr_cma_active_file, (long)zcache_pages() * (long)(PAGE_SIZE / 1024));
 #else
 		lowmem_print(1, "send sigkill to %d (%s), adj %d, size %d, "
 				"free memory = %d, reclaimable memory = %d "
-				"is_kswapd %d cma_free %lu priority %d\n",
+				"is_kswapd %d cma_free %lu priority %d\nTotal zcache is %ldkB\n",
 				selected->pid, selected->comm,
 				selected_oom_score_adj, selected_tasksize,
 				other_free, other_file,
 				!!current_is_kswapd(),
-				nr_cma_free, sc->priority);
+				nr_cma_free, sc->priority,(long)zcache_pages() * (long)(PAGE_SIZE / 1024));
 #endif
 		lowmem_deathpending_timeout = jiffies + HZ;
 		send_sig(SIGKILL, selected, 0);
@@ -401,7 +402,7 @@ static int android_oom_handler(struct notifier_block *nb,
 
 	nr_cma_inactive_file = global_page_state(NR_CMA_INACTIVE_FILE);
 	nr_cma_active_file = global_page_state(NR_CMA_ACTIVE_FILE);
-	other_file = global_page_state(NR_FILE_PAGES) -
+	other_file = global_page_state(NR_FILE_PAGES) + zcache_pages() -
 					global_page_state(NR_SHMEM) -
 					total_swapcache_pages() -
 					nr_cma_inactive_file -
