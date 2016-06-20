@@ -105,8 +105,8 @@ static struct io_device *create_io_device(struct modem_io_t *io_t,
 		return NULL;
 	}
 
-	rb_init_node(&iod->node_chan);
-	rb_init_node(&iod->node_fmt);
+	RB_CLEAR_NODE(&iod->node_chan);
+	RB_CLEAR_NODE(&iod->node_fmt);
 
 	iod->name = io_t->name;
 	iod->id = io_t->id;

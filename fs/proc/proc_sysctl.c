@@ -170,7 +170,7 @@ static void init_header(struct ctl_table_header *head,
 	if (node) {
 		struct ctl_table *entry;
 		for (entry = table; entry->procname; entry++, node++) {
-			rb_init_node(&node->node);
+			RB_CLEAR_NODE(&node->node);
 			node->header = head;
 		}
 	}
