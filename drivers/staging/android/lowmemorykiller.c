@@ -144,7 +144,7 @@ static DEFINE_MUTEX(scan_mutex);
 #endif
 
 #if defined(CONFIG_ZSWAP)
-extern atomic_t zswap_pool_pages;
+extern u64 zswap_pool_total_size;
 extern atomic_t zswap_stored_pages;
 #endif
 
@@ -205,8 +205,8 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 		flag = 1;
 	}
 #endif
-	if (global_page_state(NR_SHMEM) + total_swapcache_pages < other_file)
-		other_file -= global_page_state(NR_SHMEM) + total_swapcache_pages;
+	if (global_page_state(NR_SHMEM) + total_swapcache_pages() < other_file)
+		other_file -= global_page_state(NR_SHMEM) + total_swapcache_pages();
 	else
 		other_file = 0;
 
@@ -275,7 +275,7 @@ static int lowmem_shrink(struct shrinker *s, struct shrink_control *sc)
 #if defined(CONFIG_ZSWAP)
 		if (atomic_read(&zswap_stored_pages)) {
 			lowmem_print(3, "shown tasksize : %d\n", tasksize);
-			tasksize += atomic_read(&zswap_pool_pages) * get_mm_counter(p->mm, MM_SWAPENTS)
+			tasksize += DIV_ROUND_UP(zswap_pool_total_size, PAGE_SIZE) * get_mm_counter(p->mm, MM_SWAPENTS)
 				/ atomic_read(&zswap_stored_pages);
 			lowmem_print(3, "real tasksize : %d\n", tasksize);
 		}
@@ -401,7 +401,7 @@ static int android_oom_handler(struct notifier_block *nb,
 	nr_cma_active_file = global_page_state(NR_CMA_ACTIVE_FILE);
 	other_file = global_page_state(NR_FILE_PAGES) -
 					global_page_state(NR_SHMEM) -
-					total_swapcache_pages -
+					total_swapcache_pages() -
 					nr_cma_inactive_file -
 					nr_cma_active_file;
 #endif
