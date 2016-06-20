@@ -224,6 +224,12 @@ PAGEFLAG(SwapBacked, swapbacked) __CLEARPAGEFLAG(SwapBacked, swapbacked)
 
 __PAGEFLAG(SlobFree, slob_free)
 
+#ifdef CONFIG_ZCACHE
+PAGEFLAG(WasActive, was_active)
+#else
+PAGEFLAG_FALSE(WasActive)
+#endif
+
 /*
  * Private page markings that may be used by the filesystem that owns the page
  * for its own purposes.
