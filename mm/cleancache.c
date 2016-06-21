@@ -145,7 +145,7 @@ EXPORT_SYMBOL(__cleancache_init_shared_fs);
 static int cleancache_get_key(struct inode *inode,
 			      struct cleancache_filekey *key)
 {
-	int (*fhfn)(struct inode *, __u32 *fh, int *, struct inode *);
+	int (*fhfn)(struct dentry *, __u32 *fh, int *, int);
 	int len = 0, maxlen = CLEANCACHE_KEY_MAX;
 	struct super_block *sb = inode->i_sb;
 
@@ -153,7 +153,9 @@ static int cleancache_get_key(struct inode *inode,
 	if (sb->s_export_op != NULL) {
 		fhfn = sb->s_export_op->encode_fh;
 		if  (fhfn) {
-			len = (*fhfn)(inode, &key->u.fh[0], &maxlen, NULL);
+			struct dentry d;
+			d.d_inode = inode;
+			len = (*fhfn)(&d, &key->u.fh[0], &maxlen, 0);
 			if (len <= FILEID_ROOT || len == FILEID_INVALID)
 				return -1;
 			if (maxlen > CLEANCACHE_KEY_MAX)
