@@ -117,7 +117,7 @@ static inline void struct_slob_page_wrong_size(void)
  */
 static inline void free_slob_page(struct slob_page *sp)
 {
-	reset_page_mapcount(&sp->page);
+	page_mapcount_reset(&sp->page);
 	sp->page.mapping = NULL;
 }
 
